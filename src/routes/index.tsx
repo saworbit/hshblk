@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } fro
 import { MarkdownView } from "@/components/markdown-view";
 import { readMarkdown } from "@/lib/markdown";
 import { SAMPLE, SAMPLE_NAME } from "@/lib/sample";
-import { applyTheme, currentTheme, SYSTEM, THEMES } from "@/lib/themes";
+import { applyTheme, currentTheme, nextTheme, SYSTEM, THEMES } from "@/lib/themes";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -43,6 +43,20 @@ function Home() {
     applyTheme(id);
     setTheme(id);
   }, []);
+
+  // One key each, as long as nothing that takes typing has focus.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey || typing(event.target)) return;
+      if (event.key === "o") inputRef.current?.click();
+      else if (event.key === "s") setSource((value) => !value);
+      else if (event.key === "t") chooseTheme(nextTheme(theme));
+      else return;
+      event.preventDefault();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [theme, chooseTheme]);
 
   function show(text: string, fileName: string) {
     setDoc(text);
@@ -103,6 +117,7 @@ function Home() {
         <div className="ml-auto flex gap-2">
           <button
             type="button"
+            aria-keyshortcuts="s"
             className="h-11 rounded-pill border border-rule px-4 transition-colors hover:border-accent hover:text-accent"
             onClick={() => setSource((value) => !value)}
           >
@@ -110,6 +125,7 @@ function Home() {
           </button>
           <button
             type="button"
+            aria-keyshortcuts="o"
             className="h-11 rounded-pill border border-ink bg-ink px-4 text-paper transition-opacity hover:opacity-90"
             onClick={() => inputRef.current?.click()}
           >
@@ -179,6 +195,7 @@ function Home() {
               Theme
               <select
                 value={theme}
+                aria-keyshortcuts="t"
                 className="h-11 rounded-pill border border-rule bg-paper px-3 text-ink"
                 onChange={(event) => chooseTheme(event.target.value)}
               >
@@ -203,6 +220,9 @@ function Home() {
                 Restore sample
               </button>
             )}
+            <p className="hidden md:block">
+              <Key>o</Key> open · <Key>s</Key> source · <Key>t</Key> theme
+            </p>
           </footer>
         </main>
       </div>
@@ -213,6 +233,18 @@ function Home() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+function Key({ children }: { children: string }) {
+  return <kbd className="rounded border border-rule px-1.5 text-ink">{children}</kbd>;
+}
+
+/** Keys belong to whatever takes typing, when it has focus. */
+function typing(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName))
   );
 }
 
