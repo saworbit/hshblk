@@ -160,7 +160,7 @@ function InlineView({ inline }: { inline: Inline }): ReactNode {
       return (
         <span
           title={inline.href}
-          className="text-oxide underline decoration-rule underline-offset-4"
+          className="text-accent underline decoration-rule underline-offset-4"
         >
           <Inlines inlines={inline.children} />
         </span>
