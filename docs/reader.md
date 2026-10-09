@@ -34,10 +34,18 @@ To add a theme, add its six colours to `THEMES`. The tests hold every theme to W
 
 ## Tests
 
-`npm test` runs every suite in one `node --test`, so one failing suite cannot hide the others.
+`npm test` runs every unit suite in one `node --test`, so one failing suite cannot hide the others.
 
 - `src/lib/markdown.test.ts` holds the display fixtures. Each rule in [hld.md](hld.md) section 7 has a case. A rendering bug gets a case here with its fix.
 - `src/lib/themes.test.ts` holds contrast and order for every theme.
-- `scripts/**/*.test.mjs` and the rest of `src/lib/` are the template's own tests. Sixteen of them read `.grok/`, which the platform provides and a fresh clone does not have, so they fail outside it.
+- `scripts/**/*.test.mjs` and the rest of `src/lib/` are the template's own tests. Four of them read `.grok/app-env.json`, which the platform writes and nobody commits. Elsewhere, write `{"VITE_AUTH_ENABLED":"false"}` there first, as CI does. Four more pin the platform's prompts to the code, and skip, saying why, where those prompts are absent.
+
+`npm run test:smoke` opens the built page in Chromium. It checks that the sample paints from the page's own server alone, that a hostile file neither runs nor fetches anything, that the keys work, that a file and a theme survive a reload, and that a dark system gets Ink. Run `npm run build` first. With a Chromium that Playwright did not install, set `CHROMIUM_PATH` to it. Each test leaves a screenshot in `test-results/`.
 
 Check a change that shows on the page in a browser, at desktop and phone widths, in a light theme and a dark one.
+
+## CI
+
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every pull request and every push to `main`, in two jobs: typecheck, lint, and `npm test`; then the build and the smoke test, which keeps its screenshots when it fails. Each action is pinned to a commit, with its version beside it.
+
+[`.github/dependabot.yml`](../.github/dependabot.yml) proposes npm and Actions updates every week. A release waits a week before it is proposed. Minor and patch updates come as one pull request per ecosystem; a major update comes on its own.
