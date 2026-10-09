@@ -1,14 +1,34 @@
 # Hash Block
 
-One design. Two surfaces. They are not the same program.
+A local markdown page. The file you open is the file you still have.
 
-The page in this directory is a browser reader. It paints a markdown file and does not write it back. That is what the preview shows. [HLD.md](HLD.md) says an HTML page does not pass milestone one.
+There is one design and two programs. They are not interchangeable.
 
-[`desktop/`](desktop/) is the other surface: CodeMirror 6 holding the source string, decorations hiding syntax, editing off, and a Tauri 2 shell that has not been run. That is the path the design describes. It is a sketch. The click-target gate has not been run.
+| Look here | What it is |
+|---|---|
+| [docs/hld.md](docs/hld.md) | The design. Revision 2. Not signed off. |
+| [desktop/](desktop/) | The program the design describes. CodeMirror 6 holds the source, syntax hides, typing is off, and a Tauri 2 shell is sketched. The click-target gate has not been run. |
+| [src/routes/index.tsx](src/routes/index.tsx) | The browser reader. This is the page in the preview. It paints HTML. The design says that does not pass milestone one. |
 
-The design is [HLD.md](HLD.md), revision 2, not signed off.
+The mark, the favicon, and the card live in [public/](public/).
+
+## Browser reader
+
+From the repository root:
 
 ```bash
 npm install
 npm run dev
 ```
+
+Open a markdown file, or drop one on the window. Source shows the characters. Nothing is written back.
+
+## Desktop sketch
+
+```bash
+cd desktop
+npm install
+npm run dev
+```
+
+The shell is `desktop/src-tauri`. It has not been built.
