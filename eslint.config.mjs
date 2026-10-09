@@ -33,7 +33,8 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": [
         "warn",
-        { allowConstantExport: true },
+        // A TanStack route file exports the route its component is wrapped in.
+        { allowConstantExport: true, extraHOCs: ["createFileRoute", "createRootRoute"] },
       ],
       "@typescript-eslint/no-unused-vars": [
         "warn",

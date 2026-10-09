@@ -10,6 +10,16 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # The types follow the runtime in .nvmrc, and move with it by hand.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # typescript-eslint supports TypeScript below 6.1. Lift this when it takes 7.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # The template's sign-in code is written against 1.6, which its ~ range holds.
+      - dependency-name: better-auth
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
