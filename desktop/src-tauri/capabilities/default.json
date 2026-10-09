@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Hash Block viewer. No filesystem commands from the webview.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
