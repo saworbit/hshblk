@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { headingsOf, renderMarkdown } from "@/lib/markdown";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { MarkdownView } from "@/components/markdown-view";
+import { readMarkdown } from "@/lib/markdown";
 import { SAMPLE, SAMPLE_NAME } from "@/lib/sample";
 
 export const Route = createFileRoute("/")({ component: Home });
@@ -8,56 +9,77 @@ export const Route = createFileRoute("/")({ component: Home });
 const STORE_DOC = "hshblk-doc";
 const STORE_NAME = "hshblk-name";
 
+const EXTENSIONS = [".md", ".markdown", ".mdown", ".mkd", ".txt"];
+const ACCEPT = [...EXTENSIONS, "text/markdown", "text/plain"].join(",");
+
 function Home() {
   const [doc, setDoc] = useState(SAMPLE);
   const [name, setName] = useState(SAMPLE_NAME);
   const [source, setSource] = useState(false);
   const [over, setOver] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  // The server renders the sample. Until the saved file is read, it would only flash past.
+  const [ready, setReady] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const headings = useMemo(() => headingsOf(doc), [doc]);
-  const words = useMemo(() => doc.trim().split(/\s+/).filter(Boolean).length, [doc]);
+  // Drag events fire for every child the pointer crosses, so count them.
+  const dragDepth = useRef(0);
+  const page = useMemo(() => readMarkdown(doc), [doc]);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORE_DOC);
-      const savedName = localStorage.getItem(STORE_NAME);
-      if (saved) {
-        setDoc(saved);
-        setName(savedName || "untitled.md");
-      }
-    } catch {
-      /* private mode */
+    const saved = recall();
+    if (saved) {
+      setDoc(saved.doc);
+      setName(saved.name);
     }
+    setReady(true);
   }, []);
 
-  function adopt(text: string, fileName: string) {
+  function show(text: string, fileName: string) {
     setDoc(text);
     setName(fileName);
     setSource(false);
-    try {
-      localStorage.setItem(STORE_DOC, text);
-      localStorage.setItem(STORE_NAME, fileName);
-    } catch {
-      /* ignore */
-    }
+    setNotice(null);
   }
 
   async function take(file: File) {
-    adopt(await file.text(), file.name);
+    if (!acceptable(file)) {
+      setNotice(`${file.name} is not a markdown or text file. Nothing changed.`);
+      return;
+    }
+    const text = await file.text();
+    show(text, file.name);
+    remember(text, file.name);
   }
+
+  function restoreSample() {
+    show(SAMPLE, SAMPLE_NAME);
+    forget();
+  }
+
+  const contents = page.headings.length > 0 && !source;
 
   return (
     <div
-      className="min-h-screen"
-      onDragOver={(event) => {
+      className={`min-h-screen ${ready ? "" : "invisible"}`}
+      onDragEnter={(event) => {
+        if (!carriesFiles(event)) return;
         event.preventDefault();
+        dragDepth.current += 1;
         setOver(true);
       }}
-      onDragLeave={() => setOver(false)}
+      onDragOver={(event) => {
+        if (carriesFiles(event)) event.preventDefault();
+      }}
+      onDragLeave={(event) => {
+        if (!carriesFiles(event)) return;
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setOver(false);
+      }}
       onDrop={(event) => {
         event.preventDefault();
+        dragDepth.current = 0;
         setOver(false);
-        const file = event.dataTransfer.files?.[0];
+        const file = event.dataTransfer.files[0];
         if (file) void take(file);
       }}
     >
@@ -65,7 +87,9 @@ function Home() {
         <span className="text-oxide">#</span>
         <span className="tracking-wide">hshblk</span>
         <span className="min-w-0 truncate text-muted">{name}</span>
-        <span className="hidden text-muted sm:inline">{words} words</span>
+        <span className="hidden shrink-0 text-muted sm:inline">
+          {page.words === 1 ? "1 word" : `${page.words} words`}
+        </span>
         <div className="ml-auto flex gap-2">
           <button
             type="button"
@@ -87,7 +111,7 @@ function Home() {
       <input
         ref={inputRef}
         type="file"
-        accept=".md,.markdown,.txt,text/markdown,text/plain"
+        accept={ACCEPT}
         className="hidden"
         onChange={(event) => {
           const file = event.target.files?.[0];
@@ -96,9 +120,9 @@ function Home() {
         }}
       />
 
-      {headings.length > 0 && !source ? (
-        <nav className="flex gap-2 overflow-x-auto border-b border-rule px-4 py-2 font-mono text-sm md:hidden">
-          {headings.map((heading) => (
+      {contents ? (
+        <nav className="flex gap-5 overflow-x-auto border-b border-rule px-4 py-2 font-mono text-sm md:hidden">
+          {page.headings.map((heading) => (
             <a key={heading.id} href={`#${heading.id}`} className="shrink-0 py-2 text-muted">
               {heading.text}
             </a>
@@ -108,34 +132,49 @@ function Home() {
 
       <div className="mx-auto grid max-w-5xl md:grid-cols-[14rem_1fr]">
         <aside className="hidden px-6 pt-10 md:block">
-          <p className="font-mono text-sm text-muted">On this page</p>
-          <nav className="mt-3 flex flex-col gap-2">
-            {headings.map((heading) => (
-              <a
-                key={heading.id}
-                href={`#${heading.id}`}
-                className={`text-sm leading-snug text-ink ${heading.level > 2 ? "pl-6" : heading.level > 1 ? "pl-3" : ""}`}
-              >
-                {heading.text}
-              </a>
-            ))}
-          </nav>
-          <button
-            type="button"
-            className="mt-8 font-mono text-sm text-muted underline decoration-rule underline-offset-4"
-            onClick={() => adopt(SAMPLE, SAMPLE_NAME)}
-          >
-            Restore sample
-          </button>
+          {contents ? (
+            <>
+              <p className="font-mono text-sm text-muted">On this page</p>
+              <nav className="mt-3 flex flex-col gap-2">
+                {page.headings.map((heading) => (
+                  <a
+                    key={heading.id}
+                    href={`#${heading.id}`}
+                    className={`text-sm leading-snug text-ink ${heading.level > 2 ? "pl-6" : heading.level > 1 ? "pl-3" : ""}`}
+                  >
+                    {heading.text}
+                  </a>
+                ))}
+              </nav>
+            </>
+          ) : null}
         </aside>
 
-        <main className="px-5 pt-8 pb-24 sm:px-8">
+        <main className="min-w-0 px-5 pt-8 pb-24 sm:px-8">
+          {notice ? (
+            <p role="status" className="mb-6 font-mono text-sm text-oxide">
+              {notice}
+            </p>
+          ) : null}
           {source ? (
-            <pre className="overflow-x-auto font-mono text-sm leading-relaxed whitespace-pre-wrap">{doc}</pre>
+            <pre className="overflow-x-auto font-mono text-sm leading-relaxed whitespace-pre-wrap">
+              {doc}
+            </pre>
           ) : (
-            <article>{renderMarkdown(doc)}</article>
+            <MarkdownView blocks={page.blocks} />
           )}
-          <p className="mt-12 font-mono text-sm text-muted">Read only. This page does not change the file.</p>
+          <footer className="mt-12 flex flex-wrap items-baseline gap-x-6 gap-y-2 font-mono text-sm text-muted">
+            <p>Read only. This page does not change the file.</p>
+            {doc === SAMPLE ? null : (
+              <button
+                type="button"
+                className="py-2 underline decoration-rule underline-offset-4"
+                onClick={restoreSample}
+              >
+                Restore sample
+              </button>
+            )}
+          </footer>
         </main>
       </div>
 
@@ -146,4 +185,42 @@ function Home() {
       ) : null}
     </div>
   );
+}
+
+function acceptable(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return file.type.startsWith("text/") || EXTENSIONS.some((extension) => name.endsWith(extension));
+}
+
+function carriesFiles(event: DragEvent): boolean {
+  return event.dataTransfer.types.includes("Files");
+}
+
+function recall(): { doc: string; name: string } | null {
+  try {
+    const doc = localStorage.getItem(STORE_DOC);
+    if (doc === null) return null;
+    return { doc, name: localStorage.getItem(STORE_NAME) || "untitled.md" };
+  } catch {
+    return null; // storage is unavailable, as in some private windows
+  }
+}
+
+function remember(doc: string, name: string) {
+  try {
+    localStorage.setItem(STORE_DOC, doc);
+    localStorage.setItem(STORE_NAME, name);
+  } catch {
+    // Too large to keep. Forget the older file as well, or a reload would bring it back.
+    forget();
+  }
+}
+
+function forget() {
+  try {
+    localStorage.removeItem(STORE_DOC);
+    localStorage.removeItem(STORE_NAME);
+  } catch {
+    /* storage is unavailable */
+  }
 }
