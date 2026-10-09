@@ -1,0 +1,28 @@
+name: Bug
+description: A file that reads wrong, or a page that misbehaves
+labels: [bug]
+body:
+  - type: textarea
+    id: markdown
+    attributes:
+      label: The markdown
+      description: The smallest piece of the file that shows the problem.
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What's wrong?
+      description: What the page shows, and what it should show instead.
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: e.g. Firefox 143 on macOS 26
+    validations:
+      required: true
