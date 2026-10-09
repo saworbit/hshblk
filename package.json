@@ -1,6 +1,7 @@
 {
   "name": "hshblk",
   "private": true,
+  "license": "MIT",
   "sideEffects": false,
   "type": "module",
   "overrides": {
@@ -16,7 +17,8 @@
     "preview:stop": "node scripts/preview.mjs stop",
     "typecheck": "tsc --noEmit",
     "check:auth": "node scripts/check-auth-invariant.mjs",
-    "test": "node --experimental-strip-types --test 'scripts/**/*.test.mjs' src/lib/app-data/app-data.test.ts src/lib/app-data/readiness-schedule.test.ts src/lib/auth/gate-identity.test.ts src/lib/auth/sign-in-gate.test.ts src/lib/markdown.test.ts",
+    "test": "node --experimental-strip-types --test 'scripts/**/*.test.mjs' src/lib/app-data/app-data.test.ts src/lib/app-data/readiness-schedule.test.ts src/lib/auth/gate-identity.test.ts src/lib/auth/sign-in-gate.test.ts src/lib/markdown.test.ts src/lib/themes.test.ts",
+    "test:smoke": "node --test test/smoke.test.mjs",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

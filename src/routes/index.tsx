@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { MarkdownView } from "@/components/markdown-view";
 import { readMarkdown } from "@/lib/markdown";
 import { SAMPLE, SAMPLE_NAME } from "@/lib/sample";
+import { applyTheme, currentTheme, nextTheme, SYSTEM, THEMES } from "@/lib/themes";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -12,12 +13,15 @@ const STORE_NAME = "hshblk-name";
 const EXTENSIONS = [".md", ".markdown", ".mdown", ".mkd", ".txt"];
 const ACCEPT = [...EXTENSIONS, "text/markdown", "text/plain"].join(",");
 
+const MODES = { light: "Light", dark: "Dark" };
+
 function Home() {
   const [doc, setDoc] = useState(SAMPLE);
   const [name, setName] = useState(SAMPLE_NAME);
   const [source, setSource] = useState(false);
   const [over, setOver] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [theme, setTheme] = useState(SYSTEM);
   // The server renders the sample. Until the saved file is read, it would only flash past.
   const [ready, setReady] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -31,8 +35,28 @@ function Home() {
       setDoc(saved.doc);
       setName(saved.name);
     }
+    setTheme(currentTheme());
     setReady(true);
   }, []);
+
+  const chooseTheme = useCallback((id: string) => {
+    applyTheme(id);
+    setTheme(id);
+  }, []);
+
+  // One key each, as long as nothing that takes typing has focus.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey || typing(event.target)) return;
+      if (event.key === "o") inputRef.current?.click();
+      else if (event.key === "s") setSource((value) => !value);
+      else if (event.key === "t") chooseTheme(nextTheme(theme));
+      else return;
+      event.preventDefault();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [theme, chooseTheme]);
 
   function show(text: string, fileName: string) {
     setDoc(text);
@@ -84,7 +108,7 @@ function Home() {
       }}
     >
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-rule bg-paper px-4 py-3 font-mono text-sm sm:px-6">
-        <span className="text-oxide">#</span>
+        <span className="text-accent">#</span>
         <span className="tracking-wide">hshblk</span>
         <span className="min-w-0 truncate text-muted">{name}</span>
         <span className="hidden shrink-0 text-muted sm:inline">
@@ -93,13 +117,15 @@ function Home() {
         <div className="ml-auto flex gap-2">
           <button
             type="button"
-            className="h-11 rounded-pill border border-rule px-4 transition-colors hover:border-oxide hover:text-oxide"
+            aria-keyshortcuts="s"
+            className="h-11 rounded-pill border border-rule px-4 transition-colors hover:border-accent hover:text-accent"
             onClick={() => setSource((value) => !value)}
           >
             {source ? "Page" : "Source"}
           </button>
           <button
             type="button"
+            aria-keyshortcuts="o"
             className="h-11 rounded-pill border border-ink bg-ink px-4 text-paper transition-opacity hover:opacity-90"
             onClick={() => inputRef.current?.click()}
           >
@@ -152,7 +178,7 @@ function Home() {
 
         <main className="min-w-0 px-5 pt-8 pb-24 sm:px-8">
           {notice ? (
-            <p role="status" className="mb-6 font-mono text-sm text-oxide">
+            <p role="status" className="mb-6 font-mono text-sm text-accent">
               {notice}
             </p>
           ) : null}
@@ -163,8 +189,28 @@ function Home() {
           ) : (
             <MarkdownView blocks={page.blocks} />
           )}
-          <footer className="mt-12 flex flex-wrap items-baseline gap-x-6 gap-y-2 font-mono text-sm text-muted">
+          <footer className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-3 font-mono text-sm text-muted">
             <p>Read only. This page does not change the file.</p>
+            <label className="flex items-center gap-2">
+              Theme
+              <select
+                value={theme}
+                aria-keyshortcuts="t"
+                className="h-11 rounded-pill border border-rule bg-paper px-3 text-ink"
+                onChange={(event) => chooseTheme(event.target.value)}
+              >
+                <option value={SYSTEM}>System</option>
+                {Object.entries(MODES).map(([mode, label]) => (
+                  <optgroup key={mode} label={label}>
+                    {THEMES.filter((choice) => choice.mode === mode).map((choice) => (
+                      <option key={choice.id} value={choice.id}>
+                        {choice.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
             {doc === SAMPLE ? null : (
               <button
                 type="button"
@@ -174,6 +220,9 @@ function Home() {
                 Restore sample
               </button>
             )}
+            <p className="hidden md:block">
+              <Key>o</Key> open · <Key>s</Key> source · <Key>t</Key> theme
+            </p>
           </footer>
         </main>
       </div>
@@ -184,6 +233,18 @@ function Home() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+function Key({ children }: { children: string }) {
+  return <kbd className="rounded border border-rule px-1.5 text-ink">{children}</kbd>;
+}
+
+/** Keys belong to whatever takes typing, when it has focus. */
+function typing(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName))
   );
 }
 

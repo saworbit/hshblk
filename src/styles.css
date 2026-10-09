@@ -5,11 +5,12 @@
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 
+/* Paper. src/lib/themes.ts sets these six for every theme. */
 @theme {
   --color-paper: #f3eee6;
   --color-ink: #1c1915;
-  --color-muted: #6f675c;
-  --color-oxide: #8f3d2b;
+  --color-muted: #6c6459;
+  --color-accent: #8f3d2b;
   --color-rule: #e4d9c8;
   --color-code: #ebe4d6;
   --font-serif: "Source Serif 4 Variable", "Iowan Old Style", Palatino, Georgia, serif;

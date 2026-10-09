@@ -164,9 +164,12 @@ test("cli: relative paths follow the script's root, not the caller's cwd", () =>
   assert.equal(existsSync(join(root, "public/og.jpg")), false);
 });
 
-test("every hand-over the og skill prints is one this script accepts", () => {
+// The platform writes the og skill into its workspace. A plain clone has none to pin.
+const skillDir = join(TEMPLATE_ROOT, ".grok/skills/og");
+const skill = { skip: existsSync(skillDir) ? false : "needs the platform's .grok/skills/og" };
+
+test("every hand-over the og skill prints is one this script accepts", skill, () => {
   // The card and banner recipes live in the skill's references/, not SKILL.md.
-  const skillDir = join(TEMPLATE_ROOT, ".grok/skills/og");
   const docs = [
     join(skillDir, "SKILL.md"),
     ...readdirSync(join(skillDir, "references")).map((f) => join(skillDir, "references", f)),
