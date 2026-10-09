@@ -2,6 +2,7 @@
 
 Status: revision 3, after a second review. Not signed off.
 Date: 2026-10-09
+Amended: 2026-10-09, double-click opening (sections 6 and 8).
 Audience: reviewers who were not in the design thread. Attack the remaining claims.
 
 Revision 3 exists because revision 2's line-ending rule broke on an ordinary paste, its save gate bought no fidelity that encoding the string does not already give, its no-path rule broke on Tauri's defaults, its IPC list left out commands the rest of the document relied on, and its licence rule failed on Tauri's own dependencies.
@@ -171,8 +172,11 @@ The recovery store is the application's own data directory, keyed by handle, nev
 Entry points. Each mints a handle in Rust:
 
 - Launch. `app file.md` mints a handle before the webview loads.
+- Double-click. The installer registers the app for `.md` and `.markdown`. Windows and Linux start it with the file on its command line, as launch does. macOS starts it, or finds it running, and sends an open-file event, which Rust receives as `RunEvent::Opened` and turns into a handle.
 - `pick() -> handle`. Rust runs the native dialog. The dialog plugin's JavaScript `open()` is not used, because it returns a path to the webview.
 - Drop. Rust handles the window's drag-drop event and emits a handle. Tauri's frontend drag-drop event carries `paths: string[]`, so it is turned off.
+
+A second file, by double-click or by `app file.md`, goes to the app that is already running and opens in a new window there. One process holds every handle.
 
 IPC, milestone one:
 
@@ -250,7 +254,7 @@ The browser reader in this repository applies these rules. Its tests, `src/lib/m
 
 ## 8. Milestone one acceptance
 
-Milestone one ships the open side only: launch, `pick`, drop, `open`, `read_asset`, and `open_url`. No command can write, so "the file is not modified" holds by construction. Acceptance still checks it.
+Milestone one ships the open side only: launch, double-click, `pick`, drop, `open`, `read_asset`, and `open_url`. No command can write, so "the file is not modified" holds by construction. Acceptance still checks it.
 
 From `app file.md`, on a named machine:
 
@@ -260,6 +264,7 @@ From `app file.md`, on a named machine:
 4. Quit and reopen the same path from the shell. No vault, no licence dialog, no write beside the file.
 5. Copy, find, and print behave as section 7 says, including the accepted gaps.
 6. No IPC message, event, or URL the webview sees carries a filesystem path. Checked by logging IPC traffic through items 1 to 5.
+7. Double-click a `.md` file in Finder, in File Explorer, and in the file manager of the named Linux setup. It opens in the app, in its own window, not in a browser. A second double-click while the app runs opens a second window in the same process.
 
 The surface is CodeMirror with editing commands disabled. A `load_html` dump fails the milestone.
 
