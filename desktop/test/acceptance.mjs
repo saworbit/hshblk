@@ -17,7 +17,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative, resolve } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { promisify } from "node:util";
 import assert from "node:assert/strict";
@@ -29,6 +29,27 @@ if (!process.argv[2]) throw new Error("usage: node test/acceptance.mjs <app bina
 const app = resolve(process.argv[2]);
 
 const run = promisify(execFile);
+
+/** The app's process, by the name pgrep matches: its first 15 characters. */
+const processName = basename(app).slice(0, 15);
+
+const running = () =>
+  run("pgrep", ["-x", processName]).then(
+    () => true,
+    () => false,
+  );
+
+/**
+ * Waits until no copy of the app is running. A launch while one is still closing is handed to
+ * it by the single-instance plugin, and opens nothing of its own.
+ */
+async function gone() {
+  for (let tries = 0; tries < 100; tries += 1) {
+    if (!(await running())) return;
+    await sleep(100);
+  }
+  throw new Error(`${processName} is still running`);
+}
 
 /** Where the app starts, and so where Print to File writes. */
 const work = mkdtempSync(join(tmpdir(), "hshblk-work-"));
@@ -132,6 +153,7 @@ async function printByKeyboard(file) {
     throw new Error(`${error.message}. The app said:\n${said}`, { cause: error });
   } finally {
     child.kill();
+    await gone();
   }
 }
 
@@ -208,6 +230,8 @@ async function forged(references) {
 
 let stopDriver;
 before(async () => {
+  if (await running())
+    throw new Error("Hash Block is running. Close it, so no test hands it a file.");
   stopDriver = await startDriver({ cwd: work });
 });
 after(() => stopDriver());
@@ -222,7 +246,10 @@ describe("one open document", () => {
     page = await launch(app, [file]);
     shown = await page.until(settled, 5);
   });
-  after(() => page?.close());
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
 
   test("1. paints a page, not a code buffer", async () => {
     assert.deepEqual(await page.run(texts, ".pg-h1"), ["Notes"]);
@@ -393,6 +420,7 @@ describe("quit and reopen", () => {
         assert.equal(await page.run(() => document.querySelector(".welcome")), null);
       } finally {
         await page.close();
+        await gone();
       }
     }
     assert.deepEqual(listing(root), files, `written under ${relative(tmpdir(), root)}`);
