@@ -145,7 +145,10 @@ async function pdfText(file) {
 
 function fingerprint(file) {
   const bytes = readFileSync(file);
-  return { sha256: createHash("sha256").update(bytes).digest("hex"), mtime: statSync(file).mtimeMs };
+  return {
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    mtime: statSync(file).mtimeMs,
+  };
 }
 
 // --- in the page ---------------------------------------------------------------------------
@@ -211,7 +214,9 @@ describe("one open document", () => {
     assert.equal((await page.run(texts, ".pg-list-mark")).length, 3);
     assert.ok((await page.run(texts, ".pg-code-block")).includes("const fenced = true;"));
     assert.deepEqual(await page.run(texts, ".pg-table th"), ["Left", "Right"]);
-    const align = await page.run(() => document.querySelectorAll(".pg-table td")[1].style.textAlign);
+    const align = await page.run(
+      () => document.querySelectorAll(".pg-table td")[1].style.textAlign,
+    );
     assert.equal(align, "right");
   });
 
@@ -264,8 +269,8 @@ describe("one open document", () => {
     const lines = await page.run(texts, ".cm-line");
     assert.ok(lines.some((line) => line.includes('Inline <img src="x" onerror=')));
     assert.equal(await page.run(() => document.querySelectorAll(".cm-content script").length), 0);
-    const images = await page.run(() =>
-      document.querySelectorAll(".cm-content img:not(.pg-image, .cm-widgetBuffer)").length,
+    const images = await page.run(
+      () => document.querySelectorAll(".cm-content img:not(.pg-image, .cm-widgetBuffer)").length,
     );
     assert.equal(images, 0);
   });
@@ -303,7 +308,10 @@ describe("one open document", () => {
   test("5. copies the source, and says so", async () => {
     await page.run(() => {
       window.copied = null;
-      addEventListener("copy", (event) => (window.copied = event.clipboardData.getData("text/plain")));
+      addEventListener(
+        "copy",
+        (event) => (window.copied = event.clipboardData.getData("text/plain")),
+      );
       document.querySelector(".cm-content").focus();
     });
     await page.press(Key.Control, "a");
