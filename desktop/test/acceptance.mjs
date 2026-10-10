@@ -375,10 +375,17 @@ describe("one open document", () => {
       await page.until(() => document.querySelector(".cm-searchMatch-selected")?.textContent),
       "**strong**",
     );
-    await page.run(() => {
-      const field = document.querySelector(".cm-search input[name=search]");
-      field.select();
-    });
+    const findAgain = () =>
+      page.run(() => document.querySelector(".cm-search input[name=search]").select());
+    // A match in a link's address, which never shows on the page, shows in its popover.
+    await findAgain();
+    await page.keys("com/page");
+    await page.press(Key.Enter);
+    assert.equal(
+      await page.until(() => document.querySelector(".pg-address-url mark")?.textContent),
+      "com/page",
+    );
+    await findAgain();
     await page.keys("[far]:");
     await page.press(Key.Enter);
     assert.equal(

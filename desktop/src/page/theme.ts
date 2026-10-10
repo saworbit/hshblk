@@ -100,6 +100,10 @@ export const pageTheme = EditorView.theme({
     color: "var(--muted)",
   },
   ".pg-address-url": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  ".pg-address-url mark": {
+    color: "inherit",
+    backgroundColor: "color-mix(in oklab, var(--accent) 30%, transparent)",
+  },
   ".pg-address button": {
     font: "inherit",
     color: "var(--paper)",

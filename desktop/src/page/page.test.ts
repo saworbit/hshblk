@@ -4,6 +4,7 @@ import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { showTooltip, type DecorationSet } from "@codemirror/view";
 import { markdown } from "./dialect.ts";
+import { around } from "./links.ts";
 import { foldAll, page } from "./page.ts";
 import { ImageWidget, TableWidget, TextWidget } from "./widgets.ts";
 
@@ -175,6 +176,33 @@ describe("unfolding", () => {
     assert.equal(tooltips.length, 1);
     assert.equal(tooltips[0]?.pos, linked.indexOf("the ridge"));
     assert.deepEqual(select(inLink, 1).facet(showTooltip).filter(Boolean), []);
+  });
+
+  it("shows a link's address when a find match lies in its hidden syntax", () => {
+    const linked = "See [the ridge](https://x.y/ridge) today.";
+    const at = linked.indexOf("x.y");
+    const found = open(linked).update({
+      selection: { anchor: at, head: at + 3 },
+      userEvent: "select.search",
+    }).state;
+    assert.equal(visible(found), "See the ridge today.");
+    const tooltips = found.facet(showTooltip).filter(Boolean);
+    assert.equal(tooltips.length, 1);
+    assert.equal(tooltips[0]?.pos, linked.indexOf("the ridge"));
+    // A match in the words shows on the page, and a selection past the link is not in it.
+    for (const [anchor, head] of [
+      [linked.indexOf("ridge"), linked.indexOf("ridge") + 5],
+      [0, linked.length],
+    ]) {
+      const selected = found.update({ selection: { anchor, head }, userEvent: "select" }).state;
+      assert.deepEqual(selected.facet(showTooltip).filter(Boolean), []);
+    }
+  });
+
+  it("marks the found text in the address, where it is there", () => {
+    assert.deepEqual(around("https://x.y/ridge", "x.y"), ["https://", "x.y", "/ridge"]);
+    assert.equal(around("https://x.y/ridge", "](https"), null);
+    assert.equal(around("https://x.y/ridge", ""), null);
   });
 
   it("unfolds a table to its source when the selection enters it", () => {

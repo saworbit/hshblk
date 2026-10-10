@@ -59,8 +59,16 @@ export const page = StateField.define<Page>({
     EditorView.decorations.from(field, (current) => current.shown),
     showTooltip.compute([field], (state) => {
       const { active, links } = state.field(field);
-      const caret = active?.main.empty ? active.main.head : -1;
-      return addressTooltip(links.find((link) => link.from <= caret && caret <= link.to));
+      if (!active) return null;
+      const { from, to, empty } = active.main;
+      if (empty) return addressTooltip(links.find((link) => link.from <= from && from <= link.to));
+      // A selection inside a link but not inside its words, such as a find match in its address,
+      // is in syntax that never shows, so the address shows it.
+      const hidden = links.find(
+        (link) =>
+          link.source.from <= from && to <= link.source.to && (from < link.from || to > link.to),
+      );
+      return addressTooltip(hidden, state.sliceDoc(from, to));
     }),
   ],
 });
@@ -156,7 +164,7 @@ class Painter {
       case "Autolink": {
         const url = node.getChild("URL");
         if (!url) return false;
-        this.#linkWords(url.from, url.to, this.doc.sliceString(url.from, url.to));
+        this.#linkWords(url.from, url.to, this.doc.sliceString(url.from, url.to), node);
         this.#conceal(node.from, url.from);
         this.#conceal(url.to, node.to);
         return false;
@@ -222,18 +230,18 @@ class Painter {
     const href = destination(this.doc, node, this.definitions);
     if (href === null) return;
     const [open, close] = node.getChildren("LinkMark");
-    this.#linkWords(open.to, close.from, href);
+    this.#linkWords(open.to, close.from, href, node);
     this.#conceal(node.from, open.to);
     this.#conceal(close.from, node.to);
   }
 
-  #linkWords(from: number, to: number, href: string): void {
+  #linkWords(from: number, to: number, href: string, source: SyntaxNode): void {
     this.#style(
       Decoration.mark({ class: "pg-link", attributes: { title: href, "data-href": href } }),
       from,
       to,
     );
-    this.#links.push({ from, to, href });
+    this.#links.push({ from, to, source: { from: source.from, to: source.to }, href });
   }
 
   /** Hides syntax for good, wherever the selection goes. */
