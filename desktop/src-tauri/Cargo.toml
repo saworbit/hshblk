@@ -1,0 +1,32 @@
+[package]
+name = "hshblk"
+version = "0.1.0"
+description = "Hash Block: a page for a markdown file."
+license = "MIT"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+
+[lib]
+name = "hshblk_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+tauri-plugin-dialog = "2.8"
+tauri-plugin-single-instance = "2.5"
+getrandom = "0.4"
+open = "5.4"
+percent-encoding = "2.3"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true
