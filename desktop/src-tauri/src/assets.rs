@@ -1,8 +1,9 @@
 //! docs/hld.md §6: the resource channel. A document may show images that sit beside it,
 //! inside its repository, and nothing else.
 //!
-//! The page asks for `doc-asset://localhost/<handle>%2F<reference>`. The handle names the
-//! document. The reference is the text written in it. No path comes from the webview.
+//! The page asks for `doc-asset://localhost/<handle>%2F<file>`. The handle names the document.
+//! The file is what the image's destination names, which the page has percent-decoded once.
+//! No path comes from the webview.
 
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -114,6 +115,7 @@ fn is_svg(bytes: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
 
@@ -124,7 +126,8 @@ mod tests {
         outside: PathBuf,
     }
 
-    /// repo/.git, repo/docs/notes.md, repo/docs/near.png, repo/images/far.png, and a file outside.
+    /// repo/.git, repo/docs/notes.md beside near.png and two names with spaces or accents,
+    /// repo/images/far.png, and a file outside.
     fn fixture() -> Fixture {
         let root = tempfile::tempdir().unwrap();
         let repo = root.path().join("repo");
@@ -133,6 +136,8 @@ mod tests {
         }
         fs::write(repo.join("docs/notes.md"), "# Notes\n").unwrap();
         fs::write(repo.join("docs/near.png"), PNG).unwrap();
+        fs::write(repo.join("docs/screen shot.png"), PNG).unwrap();
+        fs::write(repo.join("docs/café.png"), PNG).unwrap();
         fs::write(repo.join("docs/fake.png"), "not an image").unwrap();
         fs::write(repo.join("images/far.png"), PNG).unwrap();
         let outside = root.path().join("secret.png");
@@ -147,8 +152,10 @@ mod tests {
         }
     }
 
-    fn ask(fixture: &Fixture, reference: &str) -> Result<&'static str, Refusal> {
-        let path = format!("/{}%2F{}", fixture.handle, reference.replace('/', "%2F"));
+    /// Asks as the page does: `convertFileSrc` encodes the handle and the file path as one component.
+    fn ask(fixture: &Fixture, file: &str) -> Result<&'static str, Refusal> {
+        let request = format!("{}/{}", fixture.handle, file);
+        let path = format!("/{}", utf8_percent_encode(&request, NON_ALPHANUMERIC));
         serve(&fixture.documents, &path).map(|(_, kind)| kind)
     }
 
@@ -158,6 +165,15 @@ mod tests {
         assert_eq!(ask(&fixture, "near.png"), Ok("image/png"));
         assert_eq!(ask(&fixture, "./near.png?v=2"), Ok("image/png"));
         assert_eq!(ask(&fixture, "../images/far.png"), Ok("image/png"));
+    }
+
+    #[test]
+    fn serves_the_file_the_page_decoded_and_decodes_no_further() {
+        let fixture = fixture();
+        assert_eq!(ask(&fixture, "screen shot.png"), Ok("image/png"));
+        assert_eq!(ask(&fixture, "café.png"), Ok("image/png"));
+        // The page decodes the reference, so a name still escaped here is a name with a `%` in it.
+        assert_eq!(ask(&fixture, "screen%20shot.png"), Err(Refusal::Missing));
     }
 
     #[test]

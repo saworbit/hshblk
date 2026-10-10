@@ -82,7 +82,7 @@ const fenced = true;
 |:-----|------:|
 | a    | b     |
 
-![near](near.png) ![far](../images/far.png) ![outside](../../outside.png) ![leaving](leave.png) ![remote](https://example.com/remote.png)
+![near](near.png) ![spaced](near%20by.png) ![far](../images/far.png) ![outside](../../outside.png) ![leaving](leave.png) ![remote](https://example.com/remote.png)
 
 <script>window.ran = "block";</script>
 
@@ -98,14 +98,15 @@ The **end**.
 `;
 
 /**
- * root/repo/.git, root/repo/docs/notes.md beside near.png and a symlink that leaves the
- * repository, root/repo/images/far.png, and root/outside.png.
+ * root/repo/.git, root/repo/docs/notes.md beside near.png, "near by.png", and a symlink that
+ * leaves the repository, root/repo/images/far.png, and root/outside.png.
  */
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "hshblk-acceptance-"));
   const repo = join(root, "repo");
   for (const dir of [".git", "docs", "images"]) mkdirSync(join(repo, dir), { recursive: true });
   writeFileSync(join(repo, "docs", "near.png"), PNG);
+  writeFileSync(join(repo, "docs", "near by.png"), PNG);
   writeFileSync(join(repo, "images", "far.png"), PNG);
   writeFileSync(join(root, "outside.png"), PNG);
   symlinkSync(join(root, "outside.png"), join(repo, "docs", "leave.png"));
@@ -135,15 +136,23 @@ async function printByKeyboard(file) {
   let said = "";
   child.stderr.on("data", (chunk) => (said = (said + chunk).slice(-4000)));
   try {
-    // By its process, so a window still closing from another test is not the one found.
-    const window = await find(["--all", "--pid", String(child.pid), "--name", "^notes\\.md$"]);
+    // By its process, so a window still closing from another test is not the one found, and
+    // once it shows: GTK names a window before it maps it, and X will not focus it until then.
+    const window = await find([
+      "--all",
+      "--onlyvisible",
+      "--pid",
+      String(child.pid),
+      "--name",
+      "^notes\\.md$",
+    ]);
     // Outside automation the page cannot say it is ready, so the keys go again until the
     // dialog they open is there.
     let dialog = null;
     for (const until = Date.now() + 60_000; !dialog && Date.now() < until;) {
       await run("xdotool", ["windowfocus", "--sync", window]);
       await run("xdotool", ["key", "Right", "ctrl+p"]);
-      dialog = await find(["--name", "^Print$"], 3000).catch(() => null);
+      dialog = await find(["--onlyvisible", "--name", "^Print$"], 3000).catch(() => null);
     }
     if (!dialog) throw new Error("the print keys opened no dialog");
     await run("xdotool", ["windowfocus", "--sync", dialog]);
@@ -244,7 +253,7 @@ describe("one open document", () => {
 
   before(async () => {
     page = await launch(app, [file]);
-    shown = await page.until(settled, 5);
+    shown = await page.until(settled, 6);
   });
   after(async () => {
     await page?.close();
@@ -279,6 +288,7 @@ describe("one open document", () => {
   test("1. shows images in the repository, and none outside it or remote", async () => {
     assert.deepEqual(shown.images, [
       { alt: "near", width: 1 },
+      { alt: "spaced", width: 1 },
       { alt: "far", width: 1 },
     ]);
     assert.deepEqual(shown.missing, [
