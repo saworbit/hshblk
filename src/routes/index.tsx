@@ -32,6 +32,8 @@ function Home() {
   useEffect(() => {
     const saved = recall();
     if (saved) {
+      // Storage exists only in the browser, so it is read once the server's page has hydrated.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDoc(saved.doc);
       setName(saved.name);
     }
