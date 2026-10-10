@@ -34,4 +34,16 @@ Later the same day, row 3 failed in some runs with "no caret" on its second link
 - IME composition inside emphasis. WebDriver cannot commit a composition. It is the manual part of the host spot-check.
 - macOS and Windows. tauri-driver does not run on macOS, and this run was on Linux only.
 - A real session. Xvfb has no compositor or input method. The spot-check in §9 is on a real Ubuntu session.
-- Bold, italic, and code still unfold inline. Their marks are one or two characters, so a jump is rare, but the gate does not measure it.
+- Bold, italic, and code in CI. Row 5 measures them, below, and fails, so it is not on `main` yet.
+
+## Row 5: bold, italic, and code, 10 of 12
+
+Run: 2026-10-10, as above. Three runs, the same result each time. Twelve words in a wrapped paragraph, marked bold, italic, and code in turn. Each is clicked on the left of its first character, and its marks unfold.
+
+| Case | Result | Measured |
+|---|---|---|
+| `` `exercitation` `` | **fail** | the clicked character moves from top 427 to 457, one line down |
+| `*consequat*` | **fail** | from top 514 to 544, one line down |
+| the other ten | pass | the clicked character keeps its line |
+
+The two that fail end their line, and their marks do not fit in what is left of it, so the word wraps. This is the jump row 3 found for links, and it needs the same kind of decision in §7.

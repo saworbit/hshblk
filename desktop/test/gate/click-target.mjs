@@ -24,6 +24,30 @@ const LINKS = [
   "pariatur",
 ];
 
+/** Words marked bold, italic, and code in turn, through a wrapped paragraph. */
+const MARKED = [
+  "quis",
+  "nostrud",
+  "exercitation",
+  "laboris",
+  "nisi",
+  "aliquip",
+  "commodi",
+  "consequat",
+  "duis",
+  "aute",
+  "irure",
+  "voluptate",
+];
+const MARKS = ["**", "*", "`"];
+/** Words after each marked one, of four lengths, so the marked words fall at many places in a line. */
+const AFTER = [
+  "",
+  " sint occaecat",
+  " cupidatat non proident, sunt in",
+  " culpa qui officia deserunt",
+];
+
 const FIXTURE = [
   "Some **bold** words, then plain text to the end of the line.",
   "",
@@ -38,6 +62,12 @@ const FIXTURE = [
   "Drag from here across **bold** and on to there.",
   "",
   "A plain line to click on, which opens nothing.",
+  "",
+  "Ut " +
+    MARKED.map((word, i) => `${MARKS[i % 3]}${word}${MARKS[i % 3]}${AFTER[i % 4]}`).join(
+      " mollit anim id est, ",
+    ) +
+    " and the end.",
 ].join("\n");
 
 // --- in the page ---------------------------------------------------------------------------
@@ -235,6 +265,34 @@ try {
     !selected.collapsed && selected.before === under?.before,
     `ends after ${JSON.stringify(selected.before.slice(-12))}, pointer at ${JSON.stringify(under?.before.slice(-12))}`,
   );
+
+  // Row 5: bold, italic, and code unfold their marks inline, and the clicked character keeps its
+  // line. The marks are one or two characters, so only a word near a line's end can move. The
+  // paragraph is last, below the others, so the page scrolls to it, and a click on its first
+  // word puts the caret in plain text between cases.
+  await page.run(() => {
+    const scroller = document.querySelector(".cm-scroller");
+    scroller.scrollTop = scroller.scrollHeight;
+  });
+  const marked = () =>
+    [...document.querySelectorAll(".cm-line")].find((el) => el.textContent.startsWith("Ut "))
+      ?.textContent;
+  const lineText = await page.until(marked);
+  const plain = await page.run(charBox, "Ut ", 0);
+  for (const [i, word] of MARKED.entries()) {
+    await page.click(plain.left + 1, plain.top + plain.height / 2);
+    const box = await page.run(charBox, "Ut ", lineText.indexOf(word));
+    await page.click(box.left + box.width * 0.25, box.top + box.height / 2);
+    const moved = await caretSettled();
+    record(
+      5,
+      `${MARKS[i % 3]}${word}${MARKS[i % 3]}`,
+      moved?.char === word[0] && Math.abs(moved.top - box.top) < 2,
+      moved
+        ? `top ${box.top.toFixed(0)} → ${moved.top.toFixed(0)}, char ${JSON.stringify(moved.char)}`
+        : "no caret",
+    );
+  }
 } finally {
   await page.close().catch(() => {});
   stop();
