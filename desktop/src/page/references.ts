@@ -1,5 +1,6 @@
 import type { Text } from "@codemirror/state";
 import type { SyntaxNode, Tree } from "@lezer/common";
+import { decodeHTML } from "entities";
 
 /** Link reference definitions, by label. The first definition of a label wins. */
 export type Definitions = Map<string, string>;
@@ -46,7 +47,15 @@ export function normalize(label: string): string {
   return label.trim().replace(/\s+/g, " ").toLowerCase().toUpperCase();
 }
 
-/** A destination written as `<...>` may hold spaces. The angle brackets are not the address. */
+/** A backslash escape of ASCII punctuation, or an entity with its semicolon. */
+const ESCAPED =
+  /\\([!-/:-@[-`{-~])|&(?:#[xX][0-9a-fA-F]{1,6}|#[0-9]{1,7}|[A-Za-z][A-Za-z0-9]{1,31});/g;
+
+/**
+ * A destination written as `<...>` may hold spaces. The angle brackets are not the address, and
+ * its escapes and entities stand for the characters they name. Percent escapes stay: it is a URL.
+ */
 function unwrap(url: string): string {
-  return url.startsWith("<") && url.endsWith(">") ? url.slice(1, -1) : url;
+  const bare = url.startsWith("<") && url.endsWith(">") ? url.slice(1, -1) : url;
+  return bare.replace(ESCAPED, (match, escaped?: string) => escaped ?? decodeHTML(match));
 }
