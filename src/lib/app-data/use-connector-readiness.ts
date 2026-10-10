@@ -62,6 +62,8 @@ export function useRefetchWhenConnectorReady(
   useEffect(() => {
     if (!waiting) return;
     if (!isFramed()) {
+      // The frame is known only in the browser, after the server's page has hydrated.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNotEmbedded(true);
       return () => setNotEmbedded(false);
     }
