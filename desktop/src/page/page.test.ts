@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { showTooltip, type DecorationSet } from "@codemirror/view";
+import { filePath, isSibling } from "./assets.ts";
 import { markdown } from "./dialect.ts";
 import { foldAll, page } from "./page.ts";
 import { ImageWidget, TableWidget, TextWidget } from "./widgets.ts";
@@ -109,6 +110,19 @@ describe("the page", () => {
     );
   });
 
+  it("reads escapes and entities in a destination, and keeps percent escapes", () => {
+    assert.equal(
+      visible(open("![a](screen\\_shot.png) ![b](<a &amp; b.png>) ![c](c%20d.png)")),
+      "[image screen_shot.png · a] [image a & b.png · b] [image c%20d.png · c]",
+    );
+    const state = open("[x][r]\n\n[r]: https://x.y/?a=1&amp;b=\\*");
+    const titles: string[] = [];
+    styles(state).between(0, state.doc.length, (_from, _to, decoration) => {
+      if (decoration.spec.attributes?.title) titles.push(decoration.spec.attributes.title);
+    });
+    assert.deepEqual(titles, ["https://x.y/?a=1&b=*"]);
+  });
+
   it("draws a table in place of its source", () => {
     const state = open("Before\n\n| a | *b* |\n|---|--:|\n| c | d |\n\nAfter");
     assert.equal(visible(state), "Before\n\n[table 1 rows]\n\nAfter");
@@ -194,5 +208,24 @@ describe("line endings", () => {
   it("paints a CRLF file as it paints an LF one", () => {
     const lf = "# Title\n\n| a |\n|---|\n| b |\n\n*x*";
     assert.equal(visible(open(lf.replace(/\n/g, "\r\n"))), visible(open(lf)));
+  });
+});
+
+describe("an image's file", () => {
+  it("is the destination decoded once, less its query and fragment", () => {
+    assert.equal(filePath("screen%20shot.png"), "screen shot.png");
+    assert.equal(filePath("caf%C3%A9.png?v=2#top"), "café.png");
+    assert.equal(filePath("100%25.png"), "100%.png");
+  });
+
+  it("is the destination as written when a percent sign escapes nothing", () => {
+    assert.equal(filePath("100%.png"), "100%.png");
+    assert.equal(filePath("%FF.png"), "%FF.png");
+  });
+
+  it("is checked once decoded, so an escaped slash cannot make it absolute", () => {
+    assert.equal(filePath("..%2F..%2Fsecret.png"), "../../secret.png");
+    assert.equal(isSibling(filePath("%2Fetc%2Fhostname")), false);
+    assert.equal(isSibling(filePath("file%3Asecret.png")), false);
   });
 });

@@ -20,7 +20,7 @@ if (handle) {
   performance.mark("document-opened");
   document.title = opened.name;
   const view = createSurface(root, opened.text, {
-    assets: (reference) => convertFileSrc(`${handle}/${reference}`, "doc-asset"),
+    assets: (file) => convertFileSrc(`${handle}/${file}`, "doc-asset"),
     nonce: nonce && !nonce.startsWith("__TAURI") ? nonce : undefined,
     openLink: (url) => void invoke("open_url", { url }),
     extensions: keymap.of([
