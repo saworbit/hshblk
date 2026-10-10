@@ -136,15 +136,23 @@ async function printByKeyboard(file) {
   let said = "";
   child.stderr.on("data", (chunk) => (said = (said + chunk).slice(-4000)));
   try {
-    // By its process, so a window still closing from another test is not the one found.
-    const window = await find(["--all", "--pid", String(child.pid), "--name", "^notes\\.md$"]);
+    // By its process, so a window still closing from another test is not the one found, and
+    // once it shows: GTK names a window before it maps it, and X will not focus it until then.
+    const window = await find([
+      "--all",
+      "--onlyvisible",
+      "--pid",
+      String(child.pid),
+      "--name",
+      "^notes\\.md$",
+    ]);
     // Outside automation the page cannot say it is ready, so the keys go again until the
     // dialog they open is there.
     let dialog = null;
     for (const until = Date.now() + 60_000; !dialog && Date.now() < until;) {
       await run("xdotool", ["windowfocus", "--sync", window]);
       await run("xdotool", ["key", "Right", "ctrl+p"]);
-      dialog = await find(["--name", "^Print$"], 3000).catch(() => null);
+      dialog = await find(["--onlyvisible", "--name", "^Print$"], 3000).catch(() => null);
     }
     if (!dialog) throw new Error("the print keys opened no dialog");
     await run("xdotool", ["windowfocus", "--sync", dialog]);

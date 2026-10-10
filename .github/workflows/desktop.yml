@@ -41,6 +41,12 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y $LINUX_BUILD_DEPS
       - run: rustup update stable --no-self-update && rustup default stable
       - run: rustup component add rustfmt clippy
+      # Dependencies, and what cargo install built, keyed on Cargo.lock, rustc, and the job.
+      # Only main saves, so pull requests read its cache and do not crowd it out.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri -> target
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
@@ -66,6 +72,12 @@ jobs:
           node-version-file: .nvmrc
       # It reads the lockfile, so nothing needs installing.
       - run: npm run licences
+      # Only cargo-deny and the registry: this job builds nothing of the app.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri -> target
+          cache-targets: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo install cargo-deny --version 0.20.2 --locked
       - run: cargo deny check
         working-directory: desktop/src-tauri
@@ -88,6 +100,13 @@ jobs:
           sudo apt-get update && sudo apt-get install -y $LINUX_BUILD_DEPS
           webkit2gtk-driver xvfb xdotool poppler-utils dbus-daemon libglib2.0-bin
       - run: rustup update stable --no-self-update && rustup default stable
+      # Dependencies, and what cargo install built, keyed on Cargo.lock, rustc, and the job.
+      # Only main saves, so pull requests read its cache and do not crowd it out.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri -> target
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # Cached, so after the first run this finds it installed and builds nothing.
       - run: cargo install tauri-driver --version 2.1.0 --locked
       - run: npm ci
       - run: npx tauri build --debug --bundles deb
@@ -102,7 +121,9 @@ jobs:
         run: xvfb-run -a -s "-screen 0 1280x900x24" dbus-run-session -- test/double-click.sh
 
   bundle:
-    name: Bundle for ${{ matrix.name }}
+    # A job its condition skips never expands its matrix, so the name holds no matrix value.
+    # GitHub adds the values to each job that runs.
+    name: Bundle
     # macOS minutes cost ten times Linux's on a private repository, so bundles wait for main.
     if: github.event_name != 'pull_request'
     strategy:
@@ -129,6 +150,12 @@ jobs:
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y $LINUX_BUILD_DEPS
       - run: rustup update stable --no-self-update && rustup default stable
+      # Dependencies, and what cargo install built, keyed on Cargo.lock, rustc, and the job.
+      # Only main saves, so pull requests read its cache and do not crowd it out.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri -> target
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: npm ci
       - run: npx tauri build
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
