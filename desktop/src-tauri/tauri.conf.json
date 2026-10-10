@@ -42,6 +42,10 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "linux": {
+      "deb": { "desktopTemplate": "linux/hshblk.desktop" },
+      "rpm": { "desktopTemplate": "linux/hshblk.desktop" }
+    },
     "fileAssociations": [
       {
         "ext": ["md", "markdown"],
