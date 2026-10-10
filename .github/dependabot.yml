@@ -21,6 +21,35 @@ updates:
       - dependency-name: better-auth
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
+  # The desktop app. Tauri's crate and @tauri-apps/api must share a minor version, so their
+  # two PRs land together.
+  - package-ecosystem: npm
+    directory: /desktop
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      tauri:
+        patterns: ["@tauri-apps/*"]
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: cargo
+    directory: /desktop/src-tauri
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      tauri:
+        patterns: ["tauri", "tauri-*"]
+      minor-and-patch:
+        update-types: [minor, patch]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
