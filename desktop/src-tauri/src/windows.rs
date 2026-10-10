@@ -1,0 +1,135 @@
+//! One window per document. Files arrive four ways, docs/hld.md §6: the command line, a
+//! double-click, the open dialog, and a drop. Each becomes a handle here, in Rust.
+
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
+
+use tauri::{
+    AppHandle, DragDropEvent, Manager, Url, WebviewUrl, WebviewWindowBuilder, Window, WindowEvent,
+};
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+
+use crate::documents::Documents;
+
+/// What the open dialog offers. A dropped or double-clicked file of any kind is still tried.
+pub const EXTENSIONS: &[&str] = &["md", "markdown", "mdown", "mkd", "txt"];
+
+const EMPTY: &str = "empty-";
+const DOCUMENT: &str = "doc-";
+
+/// The handle a document window shows. The page reads it from its own label.
+pub fn handle_of(label: &str) -> Option<&str> {
+    label.strip_prefix(DOCUMENT)
+}
+
+/// Opens each file named on a command line, or an empty window when it names none.
+pub fn open_arguments(app: &AppHandle, argv: &[String], cwd: &Path) {
+    let files = files_in(argv, cwd);
+    if files.is_empty() {
+        empty(app);
+    }
+    for file in files {
+        open(app, &file);
+    }
+}
+
+fn files_in(argv: &[String], cwd: &Path) -> Vec<PathBuf> {
+    // The first argument is the program. A leading dash is a flag, such as macOS's -psn_.
+    argv.iter()
+        .skip(1)
+        .filter(|arg| !arg.starts_with('-'))
+        .map(|arg| cwd.join(arg))
+        .collect()
+}
+
+/// Opens a file in a new window. An empty window, if there is one, gives way to it.
+pub fn open(app: &AppHandle, path: &Path) {
+    let (handle, document) = match app.state::<Documents>().open(path) {
+        Ok(opened) => opened,
+        Err(error) => return refuse(app, &error.to_string()),
+    };
+    let waiting = app
+        .webview_windows()
+        .into_values()
+        .find(|window| window.label().starts_with(EMPTY));
+    build(app, &format!("{DOCUMENT}{handle}"), &document.name);
+    if let Some(window) = waiting {
+        let _ = window.close();
+    }
+}
+
+fn empty(app: &AppHandle) {
+    static COUNT: AtomicU32 = AtomicU32::new(0);
+    build(
+        app,
+        &format!("{EMPTY}{}", COUNT.fetch_add(1, Ordering::Relaxed)),
+        "Hash Block",
+    );
+}
+
+fn build(app: &AppHandle, label: &str, title: &str) {
+    let built = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
+        .title(title)
+        .inner_size(880.0, 760.0)
+        .min_inner_size(420.0, 320.0)
+        // A link in a document never takes the window anywhere. open_url sends it to the browser.
+        .on_navigation(is_the_app)
+        .build();
+    if let Err(error) = built {
+        refuse(app, &format!("A window could not open: {error}."));
+    }
+}
+
+fn is_the_app(url: &Url) -> bool {
+    url.scheme() == "tauri"
+        || url.host_str() == Some("tauri.localhost")
+        || (cfg!(debug_assertions) && url.host_str() == Some("localhost"))
+}
+
+/// Drops open their files, and a closed window lets its document go.
+pub fn on_event(window: &Window, event: &WindowEvent) {
+    match event {
+        WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => {
+            for path in paths {
+                open(window.app_handle(), path);
+            }
+        }
+        WindowEvent::Destroyed => {
+            if let Some(handle) = handle_of(window.label()) {
+                window.state::<Documents>().close(handle);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn refuse(app: &AppHandle, message: &str) {
+    app.dialog()
+        .message(message)
+        .title("Hash Block")
+        .kind(MessageDialogKind::Error)
+        .show(|_| {});
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn takes_files_from_the_command_line_but_not_the_program_or_flags() {
+        let argv = ["hshblk", "-psn_0_12345", "notes.md", "/abs/other.md"].map(String::from);
+        assert_eq!(
+            files_in(&argv, Path::new("/work")),
+            [
+                PathBuf::from("/work/notes.md"),
+                PathBuf::from("/abs/other.md")
+            ]
+        );
+    }
+
+    #[test]
+    fn reads_a_handle_only_from_a_document_window() {
+        assert_eq!(handle_of("doc-0a1b"), Some("0a1b"));
+        assert_eq!(handle_of("empty-0"), None);
+    }
+}

@@ -1,0 +1,116 @@
+import type { Text } from "@codemirror/state";
+import type { SyntaxNode } from "@lezer/common";
+import { decodeHTML } from "entities";
+import { destination, type Definitions } from "./references.ts";
+
+/**
+ * Inline content as plain data, for the places the page draws instead of decorating the
+ * source: table cells, and the words an image stands in for.
+ */
+export type Inline =
+  | { kind: "text"; text: string }
+  | { kind: "emphasis" | "strong" | "strikethrough"; children: Inline[] }
+  | { kind: "code"; text: string }
+  | { kind: "link"; href: string; children: Inline[] };
+
+/** Syntax, not content. These characters never paint. */
+const MARKS = new Set(["EmphasisMark", "CodeMark", "LinkMark", "StrikethroughMark", "QuoteMark"]);
+
+/** The inline content of a node between two positions, trimmed as CommonMark trims a block. */
+export function inlinesOf(
+  doc: Text,
+  definitions: Definitions,
+  node: SyntaxNode,
+  from = node.from,
+  to = node.to,
+): Inline[] {
+  const out = run(doc, definitions, node, from, to);
+  const first = out[0];
+  if (first?.kind === "text") out[0] = text(first.text.trimStart());
+  const last = out.at(-1);
+  if (last?.kind === "text") out[out.length - 1] = text(last.text.trimEnd());
+  return out.filter((inline) => inline.kind !== "text" || inline.text);
+}
+
+export function plainText(inlines: Inline[]): string {
+  return inlines
+    .map((inline) => ("text" in inline ? inline.text : plainText(inline.children)))
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function run(doc: Text, definitions: Definitions, node: SyntaxNode, from: number, to: number) {
+  const out: Inline[] = [];
+  let pos = from;
+  for (let child = node.firstChild; child; child = child.nextSibling) {
+    if (child.from < from || child.to > to) continue;
+    append(out, text(doc.sliceString(pos, child.from)), ...inline(doc, definitions, child));
+    pos = child.to;
+  }
+  append(out, text(doc.sliceString(pos, to)));
+  return out;
+}
+
+function inline(doc: Text, definitions: Definitions, node: SyntaxNode): Inline[] {
+  const source = doc.sliceString(node.from, node.to);
+  switch (node.name) {
+    case "Emphasis":
+      return [{ kind: "emphasis", children: run(doc, definitions, node, node.from, node.to) }];
+    case "StrongEmphasis":
+      return [{ kind: "strong", children: run(doc, definitions, node, node.from, node.to) }];
+    case "Strikethrough":
+      return [{ kind: "strikethrough", children: run(doc, definitions, node, node.from, node.to) }];
+    case "InlineCode": {
+      const open = node.firstChild?.to ?? node.from;
+      const close = node.lastChild?.from ?? node.to;
+      const content = doc.sliceString(open, close).replace(/\n/g, " ");
+      return [
+        { kind: "code", text: /^ .*[^ ].* $/s.test(content) ? content.slice(1, -1) : content },
+      ];
+    }
+    case "Link":
+    case "Image": {
+      const [open, close] = node.getChildren("LinkMark");
+      const words = run(doc, definitions, node, open.to, close.from);
+      const href = destination(doc, node, definitions);
+      if (href === null) {
+        return [
+          text(doc.sliceString(node.from, open.to)),
+          ...words,
+          text(doc.sliceString(close.from, node.to)),
+        ];
+      }
+      return node.name === "Image"
+        ? [text(plainText(words))]
+        : [{ kind: "link", href, children: words }];
+    }
+    case "Autolink": {
+      const url = node.getChild("URL");
+      const address = url ? doc.sliceString(url.from, url.to) : source;
+      return [{ kind: "link", href: address, children: [text(address)] }];
+    }
+    case "Escape":
+      return [text(source.slice(1))];
+    case "Entity":
+      return [text(decodeHTML(source))];
+    case "HardBreak":
+      return [text(" ")];
+    default:
+      return MARKS.has(node.name) ? [] : [text(source)];
+  }
+}
+
+function append(out: Inline[], ...inlines: Inline[]): void {
+  for (const next of inlines) {
+    if (next.kind === "text" && !next.text) continue;
+    const last = out.at(-1);
+    if (next.kind === "text" && last?.kind === "text")
+      out[out.length - 1] = text(last.text + next.text);
+    else out.push(next);
+  }
+}
+
+function text(value: string): Inline {
+  return { kind: "text", text: value };
+}

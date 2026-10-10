@@ -1,0 +1,47 @@
+# docs/hld.md §10. Everything linked into the shipped binary is on this list.
+
+[graph]
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+  "aarch64-pc-windows-msvc",
+]
+# Tests do not ship.
+exclude-dev = true
+
+[licenses]
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "Unicode-3.0",
+  # Unmodified upstream code only. A changed MPL-2.0 file is published under MPL-2.0.
+  "MPL-2.0",
+]
+confidence-threshold = 0.93
+# The list is the policy, not a census of today's tree.
+unused-allowed-license = "allow"
+exceptions = [
+  # Read by system-deps in the GTK crates' build scripts, to know the target. Never linked.
+  { crate = "target-lexicon", allow = ["Apache-2.0 WITH LLVM-exception"] },
+]
+
+[advisories]
+yanked = "deny"
+ignore = [
+  { id = "RUSTSEC-2024-0370", reason = "proc-macro-error is unmaintained, not unsafe. It is a proc macro in glib-macros 0.18, which Tauri's GTK 3 stack needs: it runs while compiling and does not ship." },
+]
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

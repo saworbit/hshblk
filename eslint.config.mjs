@@ -15,6 +15,10 @@ export default tseslint.config(
       ".nitro/**",
       "node_modules/**",
       "src/routeTree.gen.ts",
+      // The desktop app's sources are linted here. What its builds write is not.
+      "desktop/dist/**",
+      "desktop/src-tauri/target/**",
+      "desktop/src-tauri/gen/**",
     ],
   },
   js.configs.recommended,

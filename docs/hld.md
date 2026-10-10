@@ -2,6 +2,7 @@
 
 Status: revision 3, after a second review. Not signed off.
 Date: 2026-10-09
+Amended: 2026-10-09, double-click opening (sections 6 and 8). 2026-10-10, the click-target gate's result and the link popover (sections 7 and 9), the corpus survey (sections 9 and 12), and milestone one's acceptance run (section 8).
 Audience: reviewers who were not in the design thread. Attack the remaining claims.
 
 Revision 3 exists because revision 2's line-ending rule broke on an ordinary paste, its save gate bought no fidelity that encoding the string does not already give, its no-path rule broke on Tauri's defaults, its IPC list left out commands the rest of the document relied on, and its licence rule failed on Tauri's own dependencies.
@@ -171,8 +172,11 @@ The recovery store is the application's own data directory, keyed by handle, nev
 Entry points. Each mints a handle in Rust:
 
 - Launch. `app file.md` mints a handle before the webview loads.
+- Double-click. The installer registers the app for `.md` and `.markdown`. Windows and Linux start it with the file on its command line, as launch does. macOS starts it, or finds it running, and sends an open-file event, which Rust receives as `RunEvent::Opened` and turns into a handle.
 - `pick() -> handle`. Rust runs the native dialog. The dialog plugin's JavaScript `open()` is not used, because it returns a path to the webview.
 - Drop. Rust handles the window's drag-drop event and emits a handle. Tauri's frontend drag-drop event carries `paths: string[]`, so it is turned off.
+
+A second file, by double-click or by `app file.md`, goes to the app that is already running and opens in a new window there. One process holds every handle.
 
 IPC, milestone one:
 
@@ -231,7 +235,7 @@ Each construct has one rule:
 | Entity | The decoded character. An unknown name stays as written. |
 | Hard break | A line break. |
 | Setext heading | A heading. The underline does not paint. |
-| Link | Its words. The title is not part of them. |
+| Link | Its words. The title is not part of them. Its syntax never unfolds inline: the address shows in a popover at the caret, where the editor will edit it. Unfolding put `[` before the clicked word and wrapped it to the next line (§9). |
 | Link reference definition | Nothing. The links that use it carry its address. |
 | Reference with no definition | Its brackets, as written. |
 | List marker | As written: `-`, `*`, `1.`, `1)`. |
@@ -250,7 +254,7 @@ The browser reader in this repository applies these rules. Its tests, `src/lib/m
 
 ## 8. Milestone one acceptance
 
-Milestone one ships the open side only: launch, `pick`, drop, `open`, `read_asset`, and `open_url`. No command can write, so "the file is not modified" holds by construction. Acceptance still checks it.
+Milestone one ships the open side only: launch, double-click, `pick`, drop, `open`, `read_asset`, and `open_url`. No command can write, so "the file is not modified" holds by construction. Acceptance still checks it.
 
 From `app file.md`, on a named machine:
 
@@ -260,8 +264,11 @@ From `app file.md`, on a named machine:
 4. Quit and reopen the same path from the shell. No vault, no licence dialog, no write beside the file.
 5. Copy, find, and print behave as section 7 says, including the accepted gaps.
 6. No IPC message, event, or URL the webview sees carries a filesystem path. Checked by logging IPC traffic through items 1 to 5.
+7. Double-click a `.md` file in Finder, in File Explorer, and in the file manager of the named Linux setup. It opens in the app, in its own window, not in a browser. A second double-click while the app runs opens a second window in the same process.
 
 The surface is CodeMirror with editing commands disabled. A `load_html` dump fails the milestone.
+
+Result, 2026-10-10, on a Linux container that is not the named machine: items 1, 2, 4, 5, and 6 pass, and item 7 passes on Linux. Item 3 is at the line for the largest file and over for its tenfold, with most of the second spent before the page loads. The record is [milestone-one.md](milestone-one.md).
 
 ## 9. Week-one gates
 
@@ -280,11 +287,15 @@ CodeMirror resolves a click's position at mousedown, before the syntax unfolds, 
 
 Fail any row and do not build the viewer shell.
 
+Result, 2026-10-10: pass, 14 of 14, on WebKitGTK 2.52.6, after one fix and one decision. The record is [gates/click-target.md](gates/click-target.md).
+
 **Corpus through the real input path.** Programmatic dispatch does not count. Drive Enter, Backspace, and paste through WebDriver on Windows and Linux; `tauri-driver` has no macOS support. WebDriver cannot commit an IME composition, so IME is the manual part of the host spot-check. Paste includes a Mac clipboard into a CRLF file and a Windows clipboard into an LF file. Assert changed ranges stay inside ranges the user input touched, once our keymap exists. Until that keymap exists, the stock Markdown keymap is expected to fail this test, and that failure is the point.
 
 The same run measures what the open decisions need: files with mixed or lone-CR endings (section 5), images via `../`, inside and outside the repository (section 6), remote images, and raw HTML blocks. It also yields the section 8 fixtures: the largest file in the corpus, and a synthetic file ten times its size.
 
 Encoding fixtures in the same run: uniform CRLF, mixed endings, lone CR, BOM, invalid UTF-8, NUL bytes. Expected results are in section 5.
+
+Result, 2026-10-10, the half that measures: 5,936 files in eight repositories, none with mixed endings, 215 images via `../` and all inside their repository, raw HTML in 11%. The record is [gates/corpus.md](gates/corpus.md). The input-path half needs the editor's keymap, so it runs with the editor milestone, before typing is enabled.
 
 **Host spot-check, not a matrix.** One Ubuntu LTS, WebKitGTK version recorded, one session, one input method, on the click-target prototype. IME composition inside emphasis, by hand. GPU failures are field reports, not a gate, unless the window is blank on that one setup.
 
@@ -320,5 +331,5 @@ Fallback rule, precommitted: if that spot-check fails and the cause is WebKitGTK
 
 1. Is the security-release commitment true for this maintainer? The app needs a signed auto-update channel either way, for its own bugs and for Tauri and Rust advisories. Once that exists, Electron's extra cost is cadence: a new major every 8 weeks, three supported at a time. If signed auto-update is not running at milestone one, neither host is safe to ship.
 2. Which machine is the named machine in section 8? The budget is set. The machine is not.
-3. Does the corpus find mixed line endings common enough to bring back ChangeSet saves?
+3. Does the corpus find mixed line endings common enough to bring back ChangeSet saves? It found none in 5,936 files, so no ([gates/corpus.md](gates/corpus.md)). A survey of the maintainer's own notes could still change that.
 4. Is unfolding a table on entry acceptable once the click-target prototype exists? A nested cell editor would not break the single-buffer claim, if each cell is a CodeMirror view that dispatches changes into the parent's range and holds no state of its own. Section 3 already accepts misaligned pipes after a one-cell edit.
