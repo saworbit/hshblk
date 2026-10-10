@@ -2,6 +2,7 @@ import "./styles.css";
 import { keymap } from "@codemirror/view";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { finishParse } from "./page/complete.ts";
 import { createSurface } from "./surface.ts";
 
 type Opened = { text: string; name: string; readOnlyReason: string | null };
@@ -16,6 +17,8 @@ const pick = () => void invoke("pick_document");
 
 if (handle) {
   const opened = await invoke<Opened>("open_document");
+  // docs/hld.md §8, item 3, from here to the engine's first-contentful-paint: the page's share.
+  performance.mark("document-opened");
   document.title = opened.name;
   const view = createSurface(root, opened.text, {
     assets: (reference) => convertFileSrc(`${handle}/${reference}`, "doc-asset"),
@@ -23,7 +26,7 @@ if (handle) {
     openLink: (url) => void invoke("open_url", { url }),
     extensions: keymap.of([
       { key: "Mod-o", run: () => (pick(), true) },
-      { key: "Mod-p", run: () => (print(), true) },
+      { key: "Mod-p", run: (view) => (finishParse(view), print(), true) },
     ]),
   });
   root.append(statusLine(opened));

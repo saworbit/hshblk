@@ -3,6 +3,7 @@ import { search, searchKeymap } from "@codemirror/search";
 import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { assetUrl, type AssetUrl } from "./page/assets.ts";
+import { completeParse } from "./page/complete.ts";
 import { markdown } from "./page/dialect.ts";
 import { page } from "./page/page.ts";
 import { linkOpener, modClickOpens } from "./page/links.ts";
@@ -35,6 +36,7 @@ export function createSurface(
       extensions: [
         markdown,
         page,
+        completeParse,
         pageTheme,
         clickPastLineEnd,
         modClickOpens,

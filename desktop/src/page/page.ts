@@ -1,4 +1,3 @@
-import { syntaxTree } from "@codemirror/language";
 import {
   type EditorSelection,
   type EditorState,
@@ -15,6 +14,7 @@ import {
 } from "@codemirror/view";
 import type { SyntaxNode, Tree } from "@lezer/common";
 import { decodeHTML } from "entities";
+import { pageTree } from "./complete.ts";
 import { inlinesOf, plainText, type Inline } from "./inlines.ts";
 import { addressTooltip, type LinkSpan } from "./links.ts";
 import { definitionsIn, destination, type Definitions } from "./references.ts";
@@ -42,7 +42,7 @@ export const page = StateField.define<Page>({
   create: (state) => build(state, null),
   update(current, tr) {
     const active = tr.selection && tr.isUserEvent("select") ? tr.state.selection : current.active;
-    if (tr.docChanged || syntaxTree(tr.state) !== current.tree) return build(tr.state, active);
+    if (tr.docChanged || pageTree(tr.state) !== current.tree) return build(tr.state, active);
     if (active === current.active) return current;
     return { ...current, active, shown: unfold(current.folds, active) };
   },
@@ -58,7 +58,7 @@ export const page = StateField.define<Page>({
 });
 
 function build(state: EditorState, active: EditorSelection | null): Page {
-  const tree = syntaxTree(state);
+  const tree = pageTree(state);
   const { styles, hidden, links } = new Painter(state.doc, definitionsIn(state.doc, tree)).paint(
     tree,
   );
