@@ -2,7 +2,7 @@
 
 Status: revision 3, after a second review. Not signed off.
 Date: 2026-10-09
-Amended: 2026-10-09, double-click opening (sections 6 and 8). 2026-10-10, the click-target gate's result and the link popover (sections 7 and 9), and the corpus survey (sections 9 and 12).
+Amended: 2026-10-09, double-click opening (sections 6 and 8). 2026-10-10, the click-target gate's result and the link popover (sections 7 and 9), the corpus survey (sections 9 and 12), and milestone one's acceptance run (section 8).
 Audience: reviewers who were not in the design thread. Attack the remaining claims.
 
 Revision 3 exists because revision 2's line-ending rule broke on an ordinary paste, its save gate bought no fidelity that encoding the string does not already give, its no-path rule broke on Tauri's defaults, its IPC list left out commands the rest of the document relied on, and its licence rule failed on Tauri's own dependencies.
@@ -267,6 +267,8 @@ From `app file.md`, on a named machine:
 7. Double-click a `.md` file in Finder, in File Explorer, and in the file manager of the named Linux setup. It opens in the app, in its own window, not in a browser. A second double-click while the app runs opens a second window in the same process.
 
 The surface is CodeMirror with editing commands disabled. A `load_html` dump fails the milestone.
+
+Result, 2026-10-10, on a Linux container that is not the named machine: items 1, 2, 4, 5, and 6 pass, and item 7 passes on Linux. Item 3 is at the line for the largest file and over for its tenfold, with most of the second spent before the page loads. The record is [milestone-one.md](milestone-one.md).
 
 ## 9. Week-one gates
 
