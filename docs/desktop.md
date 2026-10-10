@@ -4,9 +4,9 @@ Hash Block as a program of its own. Double-click a markdown file and it opens in
 
 ## Installing
 
-The Desktop workflow builds the packages on every push to `main`. They are the run's artifacts:
+The Desktop workflow builds the packages on every push to `main`. Open the latest run on `main` under **Actions**, **Desktop**, and download the artifact for your system, `hash-block-Linux`, `hash-block-macOS`, or `hash-block-Windows`. Each is kept for 14 days. There are no releases yet.
 
-| System | Package |
+| System | In the artifact |
 |---|---|
 | Linux | `.deb` and `.rpm` |
 | macOS | `.dmg` |
@@ -94,6 +94,6 @@ npx tauri build         # the packages, in src-tauri/target/release/bundle
 | `node test/timing.mjs <app> <file>...` | §8, item 3: first paint and whole parse, from the process's start. |
 | `npm run licences`, and `cargo deny check` in `src-tauri/` | Every licence that ships is on §10's list. |
 
-`<app>` is a built binary, such as `src-tauri/target/debug/hshblk` after `npx tauri build --debug --no-bundle`. The tests that drive the app run on Linux under X. They need `tauri-driver` (`cargo install tauri-driver --locked`) and WebKitWebDriver (`webkit2gtk-driver`). Print also needs `xdotool` and `pdftotext`, and the double-click needs `gio` and a D-Bus session. CI runs them all under Xvfb: [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml).
+`<app>` is a built binary, such as `src-tauri/target/debug/hshblk` after `npx tauri build --debug --no-bundle`. The tests that drive the app run on Linux under X. They need `tauri-driver` (`cargo install tauri-driver --locked`) and WebKitWebDriver (`webkit2gtk-driver`). Print also needs `xdotool` and `pdftotext`, and the double-click needs `gio` and a D-Bus session. CI runs them all under Xvfb, each in a D-Bus session of its own: [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml).
 
 The last run of each is recorded in [milestone-one.md](milestone-one.md) and [gates/](gates/).

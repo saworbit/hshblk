@@ -1,6 +1,6 @@
 # The reader
 
-How the browser reader in this repository is built. The design for the desktop editor is [hld.md](hld.md).
+How the browser reader in this repository is built. The desktop app is [desktop.md](desktop.md), and its design is [hld.md](hld.md).
 
 ## File layout
 
