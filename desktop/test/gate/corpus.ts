@@ -9,6 +9,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { Text } from "@codemirror/state";
+import { filePath } from "../../src/page/assets.ts";
 import { dialect } from "../../src/page/dialect.ts";
 import { definitionsIn, destination } from "../../src/page/references.ts";
 
@@ -83,7 +84,7 @@ function survey(root: string): Survey {
 function classify(root: string, file: string, reference: string | null): keyof Survey["images"] {
   if (reference === null || reference === "") return "unresolved";
   if (/^([a-z][a-z0-9+.-]*:|\/\/)/i.test(reference)) return "remote";
-  const path = decodeURIComponent(reference.split(/[?#]/)[0]);
+  const path = filePath(reference);
   const target = resolve(path.startsWith("/") ? root : dirname(file), path.replace(/^\//, ""));
   if (target !== root && !target.startsWith(root + sep)) return "outside";
   return path.split("/").includes("..") ? "up" : "beside";
