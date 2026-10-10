@@ -2,7 +2,7 @@
 
 Status: revision 3, after a second review. Not signed off.
 Date: 2026-10-09
-Amended: 2026-10-09, double-click opening (sections 6 and 8). 2026-10-10, the click-target gate's result and the link popover (sections 7 and 9), the corpus survey (sections 9 and 12), and milestone one's acceptance run (section 8).
+Amended: 2026-10-09, double-click opening (sections 6 and 8). 2026-10-10, the click-target gate's result and the link popover (sections 7 and 9), the corpus survey (sections 9 and 12), and milestone one's acceptance run (section 8). 2026-10-10, how an image's destination names its file, and find in a link's address (section 7).
 Audience: reviewers who were not in the design thread. Attack the remaining claims.
 
 Revision 3 exists because revision 2's line-ending rule broke on an ordinary paste, its save gate bought no fidelity that encoding the string does not already give, its no-path rule broke on Tauri's defaults, its IPC list left out commands the rest of the document relied on, and its licence rule failed on Tauri's own dependencies.
@@ -240,13 +240,13 @@ Each construct has one rule:
 | Reference with no definition | Its brackets, as written. |
 | List marker | As written: `-`, `*`, `1.`, `1)`. |
 | Inline HTML | As written. |
-| Sibling image | The image, through the resource channel. |
+| Sibling image | The image, through the resource channel. Its destination, escapes and entities resolved, is a URL, so it is decoded once to name the file: `screen%20shot.png` is `screen shot.png`. |
 | Remote image | Its alternative text, in milestone one. |
 
 Accepted deviation from CommonMark: Lezer parses link-shaped brackets as a link before any definition is known. Un-linking an unresolved reference brings back the brackets, but not emphasis CommonMark would find across them. `[foo *bar]* baz` with no definition is `[foo <em>bar]</em> baz` in CommonMark, and plain text here. Fixing it needs a reparse with the definitions known. Not in milestone one.
 
 - Copy from the decorated view copies source, and the UI says so.
-- Find searches source, including hidden syntax, until a visible-text find exists. That gap is accepted in milestone one and named in the UI.
+- Find searches source, including hidden syntax, until a visible-text find exists. That gap is accepted in milestone one and named in the UI. A match in a link's address, which never shows on the page, shows marked in the link's popover.
 - Print paints the decorated page. CodeMirror renders the whole document for print, not only the viewport. Section 8 times it.
 - Export, later, walks the Lezer tree. It does not add a second parser. If a second read-only interpreter is ever added, it cannot write, and display tests must show it agrees.
 

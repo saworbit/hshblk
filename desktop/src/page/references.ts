@@ -23,8 +23,8 @@ export function definitionsIn(doc: Text, tree: Tree): Definitions {
 }
 
 /**
- * Where a Link or Image points: the parentheses after it, or the definition it names.
- * Null is a reference with no definition, which is not a link at all.
+ * Where a Link or Image points: the parentheses after it, or the definition it names, with its
+ * escapes and entities resolved. Null is a reference with no definition, which is not a link.
  */
 export function destination(doc: Text, node: SyntaxNode, definitions: Definitions): string | null {
   const marks = node.getChildren("LinkMark");
