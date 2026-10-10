@@ -6,14 +6,18 @@ import { spawn } from "node:child_process";
 
 const ROOT = "http://127.0.0.1:4444";
 
-/** Starts tauri-driver in front of WebKitWebDriver. Stop it when done. */
-export async function startDriver() {
+/** The WebDriver code points for keys that are not characters. */
+export const Key = { Control: "\uE009", Enter: "\uE007", Escape: "\uE00C" };
+
+/**
+ * Starts tauri-driver in front of WebKitWebDriver. Stop it when done. The apps it launches
+ * start in `cwd`.
+ */
+export async function startDriver({ cwd } = {}) {
   const driver = spawn(
     "tauri-driver",
     ["--port", "4444", "--native-driver", "/usr/bin/WebKitWebDriver"],
-    {
-      stdio: "ignore",
-    },
+    { cwd, stdio: "ignore" },
   );
   for (let tries = 0; tries < 100; tries += 1) {
     try {
@@ -83,6 +87,17 @@ class Session {
       { type: "keyDown", value },
       { type: "keyUp", value },
     ]);
+    return call("POST", `${this.#path}/actions`, {
+      actions: [{ type: "key", id: "keyboard", actions }],
+    });
+  }
+
+  /** Presses keys together and lets them go in reverse: `press(Key.Control, "c")`. */
+  press(...keys) {
+    const actions = [
+      ...keys.map((value) => ({ type: "keyDown", value })),
+      ...keys.toReversed().map((value) => ({ type: "keyUp", value })),
+    ];
     return call("POST", `${this.#path}/actions`, {
       actions: [{ type: "key", id: "keyboard", actions }],
     });
