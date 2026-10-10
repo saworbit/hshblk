@@ -25,6 +25,10 @@ node test/gate/click-target.mjs src-tauri/target/debug/hshblk
 - **Row 2 failed on a bug.** A click past the end of a line landed where the visible text stopped, which is inside the hidden closing marks. The page now puts it at the end of the line ([`desktop/src/page/pointer.ts`](../../desktop/src/page/pointer.ts)).
 - **Row 3 failed on the design, 1 link in 10.** Unfolding a link put its `[` before the clicked word, and the word wrapped onto the next line. This is the jump the gate exists to find. The decision, in §7: a link's syntax never unfolds inline. Its address shows in a popover at the caret, where the editor will edit it.
 
+## Re-runs
+
+Later the same day, after the page began parsing whole documents, row 3 failed in 2 of 4 runs with "no caret" on its second link. The page was right and the measuring was wrong. A caret before a link's first word can sit at the end of the text node before it, which is the same place, and the gate measured the empty range there. It now measures the next character in the line. Six runs since: 14 of 14 each.
+
 ## Not covered
 
 - IME composition inside emphasis. WebDriver cannot commit a composition. It is the manual part of the host spot-check.

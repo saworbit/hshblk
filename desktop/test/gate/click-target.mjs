@@ -80,15 +80,34 @@ function caret() {
   };
 }
 
-/** The top of the character just after the caret, and that character. */
+/**
+ * The top of the character just after the caret, and that character. A caret at the end of
+ * one text node is the same place as the start of the next, which is where the character is.
+ */
 function afterCaretBox() {
   const selection = getSelection();
+  const line = selection.focusNode?.parentElement?.closest(".cm-line");
+  if (!line) return null;
+  const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+  let node = selection.focusNode;
+  let offset = selection.focusOffset;
+  if (node.nodeType !== Node.TEXT_NODE) {
+    // An element and a child index: the caret is before that child.
+    const after = node.childNodes[offset];
+    walker.currentNode = after ?? node;
+    node = after?.nodeType === Node.TEXT_NODE ? after : walker.nextNode();
+    offset = 0;
+  } else {
+    walker.currentNode = node;
+  }
+  while (node && offset >= node.length) {
+    node = walker.nextNode();
+    offset = 0;
+  }
+  if (!node) return null;
   const range = document.createRange();
-  range.setStart(selection.focusNode, selection.focusOffset);
-  range.setEnd(
-    selection.focusNode,
-    Math.min(selection.focusOffset + 1, selection.focusNode.length ?? 0),
-  );
+  range.setStart(node, offset);
+  range.setEnd(node, offset + 1);
   const rect = range.getClientRects()[0];
   return rect ? { top: rect.top, char: range.toString() } : null;
 }
