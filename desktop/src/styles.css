@@ -89,6 +89,24 @@ body {
 }
 
 @media print {
+  /* Paper on paper, whatever the screen's theme, and white so a page costs no toner. */
+  :root {
+    color-scheme: light;
+    --paper: #fff;
+    --ink: #1c1915;
+    --muted: #6c6459;
+    --accent: #8f3d2b;
+    --rule: #e4d9c8;
+    --code: #f1ece3;
+  }
+  html,
+  body,
+  #page {
+    height: auto;
+  }
+  #page {
+    display: block;
+  }
   .status {
     display: none;
   }

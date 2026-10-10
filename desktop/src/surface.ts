@@ -3,9 +3,9 @@ import { search, searchKeymap } from "@codemirror/search";
 import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { assetUrl, type AssetUrl } from "./page/assets.ts";
-import { completeParse } from "./page/complete.ts";
+import { completeParse, finishParse } from "./page/complete.ts";
 import { markdown } from "./page/dialect.ts";
-import { page } from "./page/page.ts";
+import { foldAll, page } from "./page/page.ts";
 import { linkOpener, modClickOpens } from "./page/links.ts";
 import { clickPastLineEnd } from "./page/pointer.ts";
 import { pageTheme } from "./page/theme.ts";
@@ -53,4 +53,14 @@ export function createSurface(
       ],
     }),
   });
+}
+
+/**
+ * Prints the page as it reads, docs/hld.md §7: every line drawn, and no syntax open under the
+ * selection, which is for the screen.
+ */
+export function printPage(view: EditorView): void {
+  finishParse(view);
+  view.dispatch({ effects: foldAll.of(null) });
+  print();
 }

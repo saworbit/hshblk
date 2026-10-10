@@ -2,6 +2,7 @@ import {
   type EditorSelection,
   type EditorState,
   type Range,
+  StateEffect,
   StateField,
   type Text,
 } from "@codemirror/state";
@@ -37,11 +38,18 @@ type Page = {
   links: LinkSpan[];
 };
 
+/** Folds all the syntax again, as on arrival, until the reader next places a selection. */
+export const foldAll = StateEffect.define<null>();
+
 /** docs/hld.md §7: the presentation layer, as decorations over the source. */
 export const page = StateField.define<Page>({
   create: (state) => build(state, null),
   update(current, tr) {
-    const active = tr.selection && tr.isUserEvent("select") ? tr.state.selection : current.active;
+    const active = tr.effects.some((effect) => effect.is(foldAll))
+      ? null
+      : tr.selection && tr.isUserEvent("select")
+        ? tr.state.selection
+        : current.active;
     if (tr.docChanged || pageTree(tr.state) !== current.tree) return build(tr.state, active);
     if (active === current.active) return current;
     return { ...current, active, shown: unfold(current.folds, active) };

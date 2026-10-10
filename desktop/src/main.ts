@@ -2,8 +2,7 @@ import "./styles.css";
 import { keymap } from "@codemirror/view";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { finishParse } from "./page/complete.ts";
-import { createSurface } from "./surface.ts";
+import { createSurface, printPage } from "./surface.ts";
 
 type Opened = { text: string; name: string; readOnlyReason: string | null };
 
@@ -26,7 +25,7 @@ if (handle) {
     openLink: (url) => void invoke("open_url", { url }),
     extensions: keymap.of([
       { key: "Mod-o", run: () => (pick(), true) },
-      { key: "Mod-p", run: (view) => (finishParse(view), print(), true) },
+      { key: "Mod-p", run: (view) => (printPage(view), true) },
     ]),
   });
   root.append(statusLine(opened));

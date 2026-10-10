@@ -4,7 +4,7 @@ import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { showTooltip, type DecorationSet } from "@codemirror/view";
 import { markdown } from "./dialect.ts";
-import { page } from "./page.ts";
+import { foldAll, page } from "./page.ts";
 import { ImageWidget, TableWidget, TextWidget } from "./widgets.ts";
 
 /** A page with its whole tree parsed, as the reader sees it once the parse is done. */
@@ -180,6 +180,13 @@ describe("unfolding", () => {
   it("unfolds a table to its source when the selection enters it", () => {
     const table = "| a |\n|---|\n| b |";
     assert.equal(visible(select(open(table), 2)), table);
+  });
+
+  it("folds everything again for print, until the reader selects once more", () => {
+    const inBold = select(open(doc), doc.indexOf("bold"));
+    const folded = inBold.update({ effects: foldAll.of(null) }).state;
+    assert.equal(visible(folded), "Title\n\nSome bold words.");
+    assert.equal(visible(select(folded, doc.indexOf("bold"))), "Title\n\nSome **bold** words.");
   });
 });
 

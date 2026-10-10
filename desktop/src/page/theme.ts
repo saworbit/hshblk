@@ -120,4 +120,10 @@ export const pageTheme = EditorView.theme({
   },
   ".cm-panels input, .cm-panels button": { font: "inherit" },
   ".cm-searchMatch": { backgroundColor: "color-mix(in oklab, var(--accent) 18%, transparent)" },
+
+  // Print is the whole page, not a window's worth of it: no scroller, and no height to fill.
+  "@media print": {
+    "&": { display: "block" },
+    ".cm-scroller": { overflow: "visible" },
+  },
 });
