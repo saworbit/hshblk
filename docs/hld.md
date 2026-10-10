@@ -2,7 +2,7 @@
 
 Status: revision 3, after a second review. Not signed off.
 Date: 2026-10-09
-Amended: 2026-10-09, double-click opening (sections 6 and 8).
+Amended: 2026-10-09, double-click opening (sections 6 and 8). 2026-10-10, the click-target gate's result and the link popover (sections 7 and 9).
 Audience: reviewers who were not in the design thread. Attack the remaining claims.
 
 Revision 3 exists because revision 2's line-ending rule broke on an ordinary paste, its save gate bought no fidelity that encoding the string does not already give, its no-path rule broke on Tauri's defaults, its IPC list left out commands the rest of the document relied on, and its licence rule failed on Tauri's own dependencies.
@@ -235,7 +235,7 @@ Each construct has one rule:
 | Entity | The decoded character. An unknown name stays as written. |
 | Hard break | A line break. |
 | Setext heading | A heading. The underline does not paint. |
-| Link | Its words. The title is not part of them. |
+| Link | Its words. The title is not part of them. Its syntax never unfolds inline: the address shows in a popover at the caret, where the editor will edit it. Unfolding put `[` before the clicked word and wrapped it to the next line (§9). |
 | Link reference definition | Nothing. The links that use it carry its address. |
 | Reference with no definition | Its brackets, as written. |
 | List marker | As written: `-`, `*`, `1.`, `1)`. |
@@ -284,6 +284,8 @@ CodeMirror resolves a click's position at mousedown, before the syntax unfolds, 
 | Drag from plain text across a folded construct | Selection ends on the character under the pointer at release. |
 
 Fail any row and do not build the viewer shell.
+
+Result, 2026-10-10: pass, 14 of 14, on WebKitGTK 2.52.6, after one fix and one decision. The record is [gates/click-target.md](gates/click-target.md).
 
 **Corpus through the real input path.** Programmatic dispatch does not count. Drive Enter, Backspace, and paste through WebDriver on Windows and Linux; `tauri-driver` has no macOS support. WebDriver cannot commit an IME composition, so IME is the manual part of the host spot-check. Paste includes a Mac clipboard into a CRLF file and a Windows clipboard into an LF file. Assert changed ranges stay inside ranges the user input touched, once our keymap exists. Until that keymap exists, the stock Markdown keymap is expected to fail this test, and that failure is the point.
 
