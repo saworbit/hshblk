@@ -2,7 +2,7 @@
 
 Status: revision 3, after a second review. Not signed off.
 Date: 2026-10-09
-Amended: 2026-10-09, double-click opening (sections 6 and 8). 2026-10-10, the click-target gate's result and the link popover (sections 7 and 9).
+Amended: 2026-10-09, double-click opening (sections 6 and 8). 2026-10-10, the click-target gate's result and the link popover (sections 7 and 9), and the corpus survey (sections 9 and 12).
 Audience: reviewers who were not in the design thread. Attack the remaining claims.
 
 Revision 3 exists because revision 2's line-ending rule broke on an ordinary paste, its save gate bought no fidelity that encoding the string does not already give, its no-path rule broke on Tauri's defaults, its IPC list left out commands the rest of the document relied on, and its licence rule failed on Tauri's own dependencies.
@@ -293,6 +293,8 @@ The same run measures what the open decisions need: files with mixed or lone-CR 
 
 Encoding fixtures in the same run: uniform CRLF, mixed endings, lone CR, BOM, invalid UTF-8, NUL bytes. Expected results are in section 5.
 
+Result, 2026-10-10, the half that measures: 5,936 files in eight repositories, none with mixed endings, 215 images via `../` and all inside their repository, raw HTML in 11%. The record is [gates/corpus.md](gates/corpus.md). The input-path half needs the editor's keymap, so it runs with the editor milestone, before typing is enabled.
+
 **Host spot-check, not a matrix.** One Ubuntu LTS, WebKitGTK version recorded, one session, one input method, on the click-target prototype. IME composition inside emphasis, by hand. GPU failures are field reports, not a gate, unless the window is blank on that one setup.
 
 Fallback rule, precommitted: if that spot-check fails and the cause is WebKitGTK rather than the prototype, Linux is supported only on the Flatpak GNOME runtime's WebKitGTK. Each runtime branch gets WebKitGTK security updates for about a year, then reaches end of life. The maintainer moves the app to the current branch, in a release, before that happens, every year. A release that misses it ships an unpatched engine. Electron is the next escape, taken only with the security-release commitment in section 3. "A Chromium runtime under Tauri" is not an escape until a shippable build exists.
@@ -327,5 +329,5 @@ Fallback rule, precommitted: if that spot-check fails and the cause is WebKitGTK
 
 1. Is the security-release commitment true for this maintainer? The app needs a signed auto-update channel either way, for its own bugs and for Tauri and Rust advisories. Once that exists, Electron's extra cost is cadence: a new major every 8 weeks, three supported at a time. If signed auto-update is not running at milestone one, neither host is safe to ship.
 2. Which machine is the named machine in section 8? The budget is set. The machine is not.
-3. Does the corpus find mixed line endings common enough to bring back ChangeSet saves?
+3. Does the corpus find mixed line endings common enough to bring back ChangeSet saves? It found none in 5,936 files, so no ([gates/corpus.md](gates/corpus.md)). A survey of the maintainer's own notes could still change that.
 4. Is unfolding a table on entry acceptable once the click-target prototype exists? A nested cell editor would not break the single-buffer claim, if each cell is a CodeMirror view that dispatches changes into the parent's range and holds no state of its own. Section 3 already accepts misaligned pipes after a one-cell edit.
