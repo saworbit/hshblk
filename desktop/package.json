@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "node --test 'src/**/*.test.ts'",
+    "licences": "node scripts/licences.mjs",
     "tauri": "tauri"
   },
   "dependencies": {
