@@ -60,6 +60,7 @@ export const pageTheme = EditorView.theme({
   },
   // A setext underline, hidden with its line until the selection opens it.
   ".pg-collapsed": { fontSize: "0", lineHeight: "0" },
+  ".pg-figure": { display: "block" },
   ".pg-image": { display: "block", maxWidth: "100%", margin: "0.6em 0" },
   ".pg-image-missing": {
     display: "block",

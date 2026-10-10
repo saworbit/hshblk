@@ -44,14 +44,18 @@ export class ImageWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const url = isSibling(this.reference) ? view.state.facet(assetUrl)(this.reference) : null;
     if (!url) return placeholder("Image not loaded", this.alt);
-    const image = document.createElement("img");
+    // CodeMirror puts back a widget's own element if it goes, but leaves what is inside it alone.
+    // So a refused image gives way to its placeholder inside a frame that stays.
+    const frame = document.createElement("span");
+    frame.className = "pg-figure";
+    const image = frame.appendChild(document.createElement("img"));
     image.className = "pg-image";
     image.alt = this.alt;
-    image.src = url;
     image.addEventListener("error", () =>
       image.replaceWith(placeholder("Image not shown", this.alt)),
     );
-    return image;
+    image.src = url;
+    return frame;
   }
 
   ignoreEvent(): boolean {
