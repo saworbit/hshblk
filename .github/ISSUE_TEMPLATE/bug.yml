@@ -20,9 +20,10 @@ body:
       required: true
 
   - type: input
-    id: browser
+    id: where
     attributes:
-      label: Browser
-      placeholder: e.g. Firefox 143 on macOS 26
+      label: Where
+      description: The desktop app and its version, or the browser reader and the browser's. On Linux, the WebKitGTK version too.
+      placeholder: e.g. the desktop app 0.1.0 on Ubuntu 24.04, WebKitGTK 2.52.6
     validations:
       required: true
