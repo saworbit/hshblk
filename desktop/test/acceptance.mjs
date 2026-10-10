@@ -110,29 +110,41 @@ function listing(root) {
  * with its first printer, which with no others is Print to File, into the app's folder.
  */
 async function printByKeyboard(file) {
-  const child = spawn(app, [file], { cwd: work, stdio: "ignore" });
+  const child = spawn(app, [file], { cwd: work, stdio: ["ignore", "ignore", "pipe"] });
+  let said = "";
+  child.stderr.on("data", (chunk) => (said = (said + chunk).slice(-4000)));
   try {
     // By its process, so a window still closing from another test is not the one found.
-    await focus(["--all", "--pid", String(child.pid), "--name", "^notes\\.md$"]);
-    await sleep(2000); // The page has no way to say it is drawn, outside automation.
-    await run("xdotool", ["key", "Right", "ctrl+p"]);
-    await focus(["--name", "^Print$"]);
+    const window = await find(["--all", "--pid", String(child.pid), "--name", "^notes\\.md$"]);
+    // Outside automation the page cannot say it is ready, so the keys go again until the
+    // dialog they open is there.
+    let dialog = null;
+    for (const until = Date.now() + 60_000; !dialog && Date.now() < until;) {
+      await run("xdotool", ["windowfocus", "--sync", window]);
+      await run("xdotool", ["key", "Right", "ctrl+p"]);
+      dialog = await find(["--name", "^Print$"], 3000).catch(() => null);
+    }
+    if (!dialog) throw new Error("the print keys opened no dialog");
+    await run("xdotool", ["windowfocus", "--sync", dialog]);
     await run("xdotool", ["key", "Down", "Return"]);
     return await pdfText(join(work, "output.pdf"));
+  } catch (error) {
+    throw new Error(`${error.message}. The app said:\n${said}`, { cause: error });
   } finally {
     child.kill();
   }
 }
 
 /**
- * Focuses the first window a search finds, once there is one. A search fails outright if a
- * window closes while it reads it, as another test's may, so it is tried again.
+ * The first window a search finds, once there is one. A search fails outright if a window
+ * closes while it reads it, as another test's may, so it is tried again.
  */
-async function focus(search) {
-  for (let tries = 0; tries < 60; tries += 1) {
+async function find(search, wait = 60_000) {
+  const until = Date.now() + wait;
+  while (Date.now() < until) {
     const found = await run("xdotool", ["search", ...search]).catch(() => ({ stdout: "" }));
     const window = found.stdout.trim().split("\n")[0];
-    if (window) return run("xdotool", ["windowfocus", "--sync", window]);
+    if (window) return window;
     await sleep(250);
   }
   throw new Error(`no window for xdotool search ${search.join(" ")}`);
@@ -141,7 +153,7 @@ async function focus(search) {
 /** The text of a PDF, without its page breaks, once GTK has stopped writing it for a second. */
 async function pdfText(file) {
   let size = -1;
-  for (let still = 0, tries = 0; still < 4 && tries < 120; tries += 1) {
+  for (let still = 0, tries = 0; still < 4 && tries < 240; tries += 1) {
     await sleep(250);
     const now = statSync(file, { throwIfNoEntry: false })?.size ?? -1;
     still = now > 0 && now === size ? still + 1 : 0;

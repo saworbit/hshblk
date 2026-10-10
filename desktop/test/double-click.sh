@@ -32,7 +32,7 @@ printf '[Default Applications]\ntext/markdown=Hash Block.desktop\n' > "$work/con
 export XDG_CONFIG_HOME="$work/config"
 
 window() {
-  timeout 15 xdotool search --sync --name "^$1\$" | head -n 1
+  timeout 60 xdotool search --sync --name "^$1\$" | head -n 1
 }
 
 gio open "$work/notes/first.md"

@@ -93,10 +93,11 @@ jobs:
       - run: npx tauri build --debug --bundles deb
       - name: Install the package, as a reader would
         run: sudo dpkg -i src-tauri/target/debug/bundle/deb/*.deb
+      # Each in a session bus of its own, as a desktop has, and not the runner's.
       - name: Section 8, items 1, 2, 4, 5, and 6
-        run: xvfb-run -a -s "-screen 0 1280x900x24" node test/acceptance.mjs src-tauri/target/debug/hshblk
+        run: xvfb-run -a -s "-screen 0 1280x900x24" dbus-run-session -- node test/acceptance.mjs src-tauri/target/debug/hshblk
       - name: Section 9, the click-target gate
-        run: xvfb-run -a -s "-screen 0 1280x900x24" node test/gate/click-target.mjs src-tauri/target/debug/hshblk
+        run: xvfb-run -a -s "-screen 0 1280x900x24" dbus-run-session -- node test/gate/click-target.mjs src-tauri/target/debug/hshblk
       - name: Section 8, item 7, on Linux
         run: xvfb-run -a -s "-screen 0 1280x900x24" dbus-run-session -- test/double-click.sh
 
