@@ -27,7 +27,7 @@ node test/gate/click-target.mjs src-tauri/target/debug/hshblk
 
 ## Re-runs
 
-Later the same day, after the page began parsing whole documents, row 3 failed in 2 of 4 runs with "no caret" on its second link. The page was right and the measuring was wrong. A caret before a link's first word can sit at the end of the text node before it, which is the same place, and the gate measured the empty range there. It now measures the next character in the line. Six runs since: 14 of 14 each.
+Later the same day, row 3 failed in some runs with "no caret" on its second link. The page was right and the measuring was wrong, twice over. A caret before a link's first word can sit at the end of the text node before it, which is the same place, and the gate measured the empty range there. And the click returns before CodeMirror has drawn what it did, so for a moment the DOM selection sits between lines. The gate now measures the next character in the line, and reads the caret once it is in one. Six runs since: 14 of 14 each.
 
 ## Not covered
 

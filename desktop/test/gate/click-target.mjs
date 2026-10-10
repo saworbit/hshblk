@@ -8,7 +8,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { launch, startDriver } from "../webdriver.mjs";
 
 const LINKS = [
@@ -81,35 +81,30 @@ function caret() {
 }
 
 /**
- * The top of the character just after the caret, and that character. A caret at the end of
- * one text node is the same place as the start of the next, which is where the character is.
+ * The top of the character just after the caret, and that character, or null while the caret
+ * is not in a line. A caret at the end of one text node is the same place as the start of the
+ * next, and a caret given as an element and a child index is before that child.
  */
 function afterCaretBox() {
-  const selection = getSelection();
-  const line = selection.focusNode?.parentElement?.closest(".cm-line");
+  const { focusNode, focusOffset } = getSelection();
+  const line = (
+    focusNode?.nodeType === Node.TEXT_NODE ? focusNode.parentElement : focusNode
+  )?.closest(".cm-line");
   if (!line) return null;
+  const rest = document.createRange();
+  rest.setStart(focusNode, focusOffset);
+  rest.setEnd(line, line.childNodes.length);
   const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
-  let node = selection.focusNode;
-  let offset = selection.focusOffset;
-  if (node.nodeType !== Node.TEXT_NODE) {
-    // An element and a child index: the caret is before that child.
-    const after = node.childNodes[offset];
-    walker.currentNode = after ?? node;
-    node = after?.nodeType === Node.TEXT_NODE ? after : walker.nextNode();
-    offset = 0;
-  } else {
-    walker.currentNode = node;
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    const from = text === rest.startContainer ? rest.startOffset : 0;
+    if (!rest.intersectsNode(text) || from >= text.length) continue;
+    const char = document.createRange();
+    char.setStart(text, from);
+    char.setEnd(text, from + 1);
+    const rect = char.getClientRects()[0];
+    return rect ? { top: rect.top, char: char.toString() } : null;
   }
-  while (node && offset >= node.length) {
-    node = walker.nextNode();
-    offset = 0;
-  }
-  if (!node) return null;
-  const range = document.createRange();
-  range.setStart(node, offset);
-  range.setEnd(node, offset + 1);
-  const rect = range.getClientRects()[0];
-  return rect ? { top: rect.top, char: range.toString() } : null;
+  return null;
 }
 
 /** What the caret would be if the pointer were placed here now, as caret() reports it. */
@@ -125,8 +120,8 @@ function caretAtPoint(x, y) {
 
 // --- the gate ------------------------------------------------------------------------------
 
-const application = process.argv[2];
-if (!application) throw new Error("usage: click-target.mjs <app binary>");
+if (!process.argv[2]) throw new Error("usage: click-target.mjs <app binary>");
+const application = resolve(process.argv[2]);
 
 const folder = mkdtempSync(join(tmpdir(), "hshblk-gate-"));
 const file = join(folder, "gate.md");
@@ -140,6 +135,16 @@ const record = (row, name, pass, detail) => cases.push({ row, name, pass, detail
 try {
   await page.until(() => document.querySelector(".cm-line"));
   const neutral = await page.run(charBox, "A plain line to click on", 3);
+  // The click returns before CodeMirror has drawn what it did. Until then the DOM selection
+  // can sit between lines, so the caret is read once it is in one.
+  const caretSettled = async () => {
+    for (let tries = 0; tries < 20; tries += 1) {
+      const moved = await page.run(afterCaretBox);
+      if (moved) return moved;
+      await new Promise((done) => setTimeout(done, 50));
+    }
+    return null;
+  };
   const settle = async () => {
     await page.click(neutral.left + 1, neutral.top + neutral.height / 2);
   };
@@ -194,7 +199,7 @@ try {
     );
     const box = await page.run(charBox, "Lorem", lineText.indexOf(word));
     await page.click(box.left + box.width * 0.25, box.top + box.height / 2);
-    const moved = await page.run(afterCaretBox);
+    const moved = await caretSettled();
     const address = await page.run(
       () => document.querySelector(".pg-address-url")?.textContent ?? null,
     );

@@ -8,13 +8,14 @@
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
-import { basename } from "node:path";
+import { basename, resolve } from "node:path";
 import { launch, startDriver } from "./webdriver.mjs";
 
 const RUNS = 3;
 
-const [app, ...files] = process.argv.slice(2);
-if (!app || files.length === 0) throw new Error("usage: timing.mjs <app binary> <file>...");
+const [binary, ...files] = process.argv.slice(2);
+if (!binary || files.length === 0) throw new Error("usage: timing.mjs <app binary> <file>...");
+const app = resolve(binary);
 
 /** When the newest process running the app started, on the epoch clock, to 10 ms. */
 function launchedAt() {
