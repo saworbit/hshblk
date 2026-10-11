@@ -9,7 +9,7 @@ import { around } from "./links.ts";
 import { scan, scanNow } from "./blocks.ts";
 import { foldAll, page, paint } from "./page.ts";
 import { headingAt, headings } from "./references.ts";
-import { ImageWidget, TableWidget, TextWidget, type TableModel } from "./widgets.ts";
+import { HtmlWidget, ImageWidget, TableWidget, TextWidget, type TableModel } from "./widgets.ts";
 
 /** A page with its whole tree parsed, as the reader sees it once the parse is done. */
 function open(doc: string): EditorState {
@@ -53,6 +53,7 @@ function named(widget: unknown): string {
   if (widget instanceof TextWidget) return widget.text;
   if (widget instanceof ImageWidget) return `[image ${widget.reference} · ${widget.alt}]`;
   if (widget instanceof TableWidget) return `[table ${widget.table.rows.length} rows]`;
+  if (widget instanceof HtmlWidget) return `[html ${widget.html}]`;
   return "";
 }
 
@@ -258,17 +259,33 @@ describe("the page", () => {
     ]);
   });
 
-  it("leaves code, raw HTML, bare addresses, and task boxes as the source", () => {
-    const doc =
-      "```js\n**not bold**\n```\n\n<div>raw</div>\n\nA <b>tag</b>, https://x.y, and - [x] a box.";
+  it("leaves code, inline HTML, bare addresses, and task boxes as the source", () => {
+    const doc = "```js\n**not bold**\n```\n\nA <b>tag</b>, https://x.y, and - [x] a box.";
     const state = open(doc);
     assert.equal(visible(state), doc);
-    assert.deepEqual(lineClasses(state, styles).slice(0, 5), [
+    assert.deepEqual(lineClasses(state, styles).slice(0, 3), [
       "pg-code-block pg-fence",
       "pg-code-block",
       "pg-code-block pg-fence",
-      "",
-      "pg-source-block",
+    ]);
+  });
+
+  it("draws a raw HTML block in a frame, without a quote's marks, and its source when selected", () => {
+    const doc = "<div>raw</div>\n\n> <p>\n> quoted\n> </p>\n\n<!-- note -->\n\nAfter";
+    const state = open(doc);
+    assert.equal(
+      visible(state),
+      "[html <div>raw</div>]\n\n[html <p>\nquoted\n</p>]\n\n[html <!-- note -->]\n\nAfter",
+    );
+    const inQuote = select(state, doc.indexOf("quoted"));
+    assert.match(
+      visible(inQuote),
+      /^\[html <div>raw<\/div>\]\n\n(> )?<p>\n(> )?quoted\n(> )?<\/p>\n\n\[html/,
+    );
+    assert.deepEqual(lineClasses(inQuote, styles).slice(2, 5), [
+      "pg-quote pg-source-block",
+      "pg-quote pg-source-block",
+      "pg-quote pg-source-block",
     ]);
   });
 

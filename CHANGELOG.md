@@ -26,3 +26,4 @@
 - Desktop: a large file no longer stops the window for seconds when its whole parse lands. The page draws inline syntax only near the viewport, and reads definitions, heading anchors, and tables between events. A link or image that runs onto the next line is hidden a line at a time, and a line it hides whole takes no space. (#18)
 - CI: the punctuation test scrolls to the top again until its paragraph shows. CodeMirror could put the page back at the end in the frame after the find box closed, which failed it at times.
 - Docs: SECURITY.md names a reporting route that works while the repository is private: email, to the address on the maintainer's GitHub profile. (#56)
+- Desktop: a raw HTML block is drawn, in a sandboxed frame that runs no script and fetches nothing, not even the images it names. It takes the page's fonts and colours. Inline HTML still shows as source. (#25)

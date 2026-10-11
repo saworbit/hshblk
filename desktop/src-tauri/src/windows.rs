@@ -82,7 +82,8 @@ fn build(app: &AppHandle, label: &str, title: &str) {
 }
 
 fn is_the_app(url: &Url) -> bool {
-    url.scheme() == "tauri"
+    url.as_str() == "about:srcdoc"
+        || url.scheme() == "tauri"
         || url.host_str() == Some("tauri.localhost")
         || (cfg!(debug_assertions) && url.host_str() == Some("localhost"))
 }
@@ -132,5 +133,16 @@ mod tests {
     fn reads_a_handle_only_from_a_document_window() {
         assert_eq!(handle_of("doc-0a1b"), Some("0a1b"));
         assert_eq!(handle_of("empty-0"), None);
+    }
+
+    #[test]
+    fn navigates_only_within_the_app_and_its_html_frames() {
+        let url = |text: &str| Url::parse(text).unwrap();
+        assert!(is_the_app(&url("tauri://localhost/index.html")));
+        assert!(is_the_app(&url("http://tauri.localhost/index.html")));
+        assert!(is_the_app(&url("about:srcdoc")));
+        assert!(!is_the_app(&url("about:blank")));
+        assert!(!is_the_app(&url("https://example.com/")));
+        assert!(!is_the_app(&url("file:///etc/hostname")));
     }
 }

@@ -1,4 +1,4 @@
-import { WidgetType, type EditorView } from "@codemirror/view";
+import { EditorView, WidgetType } from "@codemirror/view";
 import { assetUrl, filePath, isSibling } from "./assets.ts";
 import type { Inline } from "./inlines.ts";
 
@@ -106,6 +106,114 @@ export class TableWidget extends WidgetType {
   ignoreEvent(): boolean {
     return false;
   }
+}
+
+/** The height each HTML block last took, so its frame, drawn again, starts there. */
+const htmlHeights = new Map<string, number>();
+
+/** What measures a frame as its content changes, to let go of when the frame goes. */
+const fitting = new WeakMap<HTMLElement, ResizeObserver>();
+
+/**
+ * docs/hld.md §7: a raw HTML block, drawn in a sandboxed frame. The frame shares the page's
+ * origin, so the page can size it to what it holds, and it never runs script. Its policy fetches
+ * nothing the HTML names.
+ */
+export class HtmlWidget extends WidgetType {
+  readonly html: string;
+
+  constructor(html: string) {
+    super();
+    this.html = html;
+  }
+
+  eq(other: HtmlWidget): boolean {
+    return other.html === this.html;
+  }
+
+  get estimatedHeight(): number {
+    return htmlHeights.get(this.html) ?? -1;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const frame = document.createElement("iframe");
+    frame.className = "pg-html";
+    // No allow-scripts, so nothing in the frame runs. The same origin lets the page measure it.
+    frame.setAttribute("sandbox", "allow-same-origin");
+    frame.title = "HTML";
+    const height = htmlHeights.get(this.html);
+    if (height !== undefined) frame.style.height = `${height}px`;
+    frame.srcdoc = framed(this.html, view);
+    frame.addEventListener("load", () => this.#fit(frame, view));
+    return frame;
+  }
+
+  destroy(dom: HTMLElement): void {
+    fitting.get(dom)?.disconnect();
+  }
+
+  #fit(frame: HTMLIFrameElement, view: EditorView): void {
+    const body = frame.contentDocument?.body;
+    const root = frame.contentDocument?.documentElement;
+    if (!body || !root) return;
+    // The page's size is read once it shows. The first frames are made before it does.
+    const text = getComputedStyle(view.contentDOM);
+    body.style.fontSize = text.fontSize;
+    body.style.lineHeight = text.lineHeight;
+    const fit = () => {
+      const height = Math.ceil(root.getBoundingClientRect().height);
+      htmlHeights.set(this.html, height);
+      if (frame.style.height === `${height}px`) return;
+      frame.style.height = `${height}px`;
+      view.requestMeasure();
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(root);
+    fitting.set(frame, observer);
+  }
+}
+
+/**
+ * The frame's document. Its policy loads the page's own fonts and nothing else, and refuses the
+ * HTML's styles. Its faces are the page's: the fonts and colours are copied from the page.
+ */
+function framed(html: string, view: EditorView): string {
+  const nonce = view.state.facet(EditorView.cspNonce);
+  const styles = nonce ? `'nonce-${nonce}'` : "'none'";
+  const policy = `default-src 'none'; style-src ${styles}; font-src 'self'; base-uri 'none'; form-action 'none'`;
+  // The blank lines around the block space it, as they space the page's paragraphs.
+  const faces = `html, body { margin: 0; background: transparent; }
+body > :first-child { margin-top: 0; }
+body > :last-child { margin-bottom: 0; }
+body { color: var(--ink); font-family: var(--serif); overflow-wrap: break-word; }
+a { color: var(--accent); }
+code, kbd, pre, samp { font-family: var(--mono); font-size: 0.86em; }
+img { max-width: 100%; }`;
+  return (
+    '<!doctype html><html><head><meta charset="utf-8">' +
+    `<meta http-equiv="Content-Security-Policy" content="${policy}">` +
+    '<meta http-equiv="x-dns-prefetch-control" content="off">' +
+    `<style nonce="${nonce}">${pageRules()}${faces}</style>` +
+    `</head><body>${html}</body></html>`
+  );
+}
+
+/** The page's fonts, and its colour variables by day, by night, and in print. */
+function pageRules(): string {
+  const copy = (rules: CSSRuleList): string =>
+    [...rules]
+      .map((rule) => {
+        if (rule instanceof CSSFontFaceRule) return rule.cssText;
+        if (rule instanceof CSSStyleRule && rule.selectorText === ":root") return rule.cssText;
+        if (rule instanceof CSSMediaRule) {
+          const inner = copy(rule.cssRules);
+          return inner && `@media ${rule.media.mediaText} { ${inner} }`;
+        }
+        return "";
+      })
+      .join("\n");
+  return [...document.styleSheets].map((sheet) => copy(sheet.cssRules)).join("\n");
 }
 
 function row(parent: HTMLElement, tag: "th" | "td", cells: Inline[][], align: Align[]): void {
