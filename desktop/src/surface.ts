@@ -9,6 +9,7 @@ import { foldAll, page } from "./page/page.ts";
 import { linkOpener, modClickOpens } from "./page/links.ts";
 import { clickPastLineEnd } from "./page/pointer.ts";
 import { pageTheme } from "./page/theme.ts";
+import { summaryToggles } from "./page/widgets.ts";
 
 export type SurfaceOptions = {
   assets: AssetUrl;
@@ -40,6 +41,7 @@ export function createSurface(
         pageTheme,
         clickPastLineEnd,
         modClickOpens,
+        summaryToggles,
         options.openLink ? linkOpener.of(options.openLink) : [],
         assetUrl.of(options.assets),
         EditorState.readOnly.of(true),

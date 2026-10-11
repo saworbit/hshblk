@@ -616,6 +616,10 @@ describe("links that open", () => {
 | row  | [table link](https://table.example.com) |
 | mail | <cell@example.com> |
 
+<p align="center"><a href="https://html.example.com/">html link</a> and <a href="#tables">html heading</a></p>
+
+<details><summary>html summary</summary><p>Folded in one block.</p></details>
+
 ${FILLER}
 
 ## Tables
@@ -714,6 +718,77 @@ ${FILLER}
     assert.match(await page.until(atHeading), /^(## )?Tables$/);
     await controlClick("Tables");
     assert.match(await page.until(atHeading), /^(## )?Tables$/);
+  });
+
+  /** The middle of a link or summary's words in an HTML block, once its frame holds still. */
+  function inFrame(words) {
+    return page.until((words) => {
+      const frame = [...document.querySelectorAll("iframe.pg-html")].find((frame) =>
+        frame.contentDocument?.body?.textContent.includes(words),
+      );
+      if (!frame) {
+        document.querySelector(".cm-scroller").scrollTop = 0;
+        return null;
+      }
+      const box = frame.getBoundingClientRect();
+      if (box.top < 0 || box.bottom > innerHeight) {
+        frame.scrollIntoView({ block: "center" });
+        return null;
+      }
+      const target = [...frame.contentDocument.querySelectorAll("a, summary")].find(
+        (el) => el.textContent === words,
+      );
+      const inner = target.getBoundingClientRect();
+      const at = { x: box.x + inner.x + inner.width / 2, y: box.y + inner.y + inner.height / 2 };
+      const still = window.lastFrameAt?.x === at.x && window.lastFrameAt?.y === at.y;
+      window.lastFrameAt = at;
+      return still && at;
+    }, words);
+  }
+
+  test("a link in an HTML block opens from Ctrl and a click, and goes to a heading", async () => {
+    const before = openedSoFar().length;
+    // A plain click follows nothing.
+    const web = await inFrame("html link");
+    await page.click(web.x, web.y);
+    await sleep(500);
+    assert.equal(openedSoFar().length, before);
+    await page.clickWith(Key.Control, web.x, web.y);
+    for (let tries = 0; openedSoFar().length < before + 1 && tries < 50; tries += 1)
+      await sleep(100);
+    assert.deepEqual(openedSoFar().slice(before), ["https://html.example.com/"]);
+    const heading = await inFrame("html heading");
+    await page.clickWith(Key.Control, heading.x, heading.y);
+    assert.match(await page.until(atHeading), /^(## )?Tables$/);
+  });
+
+  test("a summary in an HTML block opens and closes its details from a click", async () => {
+    const details = () =>
+      [...document.querySelectorAll("iframe.pg-html")]
+        .map((frame) => [frame, frame.contentDocument.querySelector("details")])
+        .filter(([, details]) => details)
+        .map(([frame, details]) => ({
+          open: details.open,
+          height: frame.getBoundingClientRect().height,
+        }))[0];
+    let at = await inFrame("html summary");
+    const closed = await page.run(details);
+    assert.equal(closed.open, false);
+    await page.click(at.x, at.y);
+    const opened = await page.until(details);
+    assert.equal(opened.open, true);
+    // The frame grows to show what it holds.
+    const grown = await page.until((height) => {
+      const frame = [...document.querySelectorAll("iframe.pg-html")].find((frame) =>
+        frame.contentDocument.querySelector("details"),
+      );
+      const now = frame.getBoundingClientRect().height;
+      return now > height && now;
+    }, closed.height);
+    assert.ok(grown > closed.height);
+    at = await inFrame("html summary");
+    await page.click(at.x, at.y);
+    assert.equal((await page.run(details)).open, false);
   });
 
   test("a link to no heading shows its address, and nothing to follow", async () => {

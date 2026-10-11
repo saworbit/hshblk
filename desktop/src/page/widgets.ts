@@ -116,8 +116,8 @@ const fitting = new WeakMap<HTMLElement, ResizeObserver>();
 
 /**
  * docs/hld.md §7: a raw HTML block, drawn in a sandboxed frame. The frame shares the page's
- * origin, so the page can size it to what it holds, and it never runs script. Its policy fetches
- * nothing the HTML names.
+ * origin, so the page can size it to what it holds and read what is under the pointer, and it
+ * never runs script. Its policy fetches nothing the HTML names.
  */
 export class HtmlWidget extends WidgetType {
   readonly html: string;
@@ -173,6 +173,40 @@ export class HtmlWidget extends WidgetType {
     fitting.set(frame, observer);
   }
 }
+
+/**
+ * What is under a point in an HTML block's frame, read from the page. The page takes the pointer
+ * over a frame (theme.ts), and shares its origin, so it reads the frame's document without
+ * running anything in it.
+ */
+export function htmlAt(view: EditorView, x: number, y: number): Element | null {
+  for (const frame of view.contentDOM.querySelectorAll<HTMLIFrameElement>("iframe.pg-html")) {
+    const box = frame.getBoundingClientRect();
+    if (x < box.left || x >= box.right || y < box.top || y >= box.bottom) continue;
+    const left = box.left + frame.clientLeft;
+    const top = box.top + frame.clientTop;
+    return frame.contentDocument?.elementFromPoint(x - left, y - top) ?? null;
+  }
+  return null;
+}
+
+/**
+ * A click on a summary in an HTML block opens or closes its details, as the frame would if it
+ * had the pointer.
+ */
+export const summaryToggles = EditorView.domEventHandlers({
+  click(event, view) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
+      return false;
+    const summary = htmlAt(view, event.clientX, event.clientY)?.closest("summary");
+    const details = summary?.parentElement;
+    // The frame's elements are of its own window, so they are known by name, not by class.
+    if (details?.localName !== "details" || details.querySelector(":scope > summary") !== summary)
+      return false;
+    (details as HTMLDetailsElement).open = !(details as HTMLDetailsElement).open;
+    return true;
+  },
+});
 
 /**
  * The frame's document. Its policy loads the page's own fonts and nothing else, and refuses the
