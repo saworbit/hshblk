@@ -434,10 +434,18 @@ describe("links that open", () => {
     file,
     `[web](https://example.com/page), <someone@example.com>, [shouty](HTTPS://EXAMPLE.COM/UP), [script](javascript:alert(1))
 
+[Tables](#tables), [nowhere](#nothing-here), and [the docs](https://example.com/docs "A title here").
+
 | Name | Link |
 |------|------|
 | row  | [table link](https://table.example.com) |
 | mail | <cell@example.com> |
+
+${FILLER}
+
+## Tables
+
+${FILLER}
 `,
   );
   let page;
@@ -451,15 +459,35 @@ describe("links that open", () => {
     await gone();
   });
 
-  /** Ctrl and a click on the words, as a reader opens a link. */
-  async function controlClick(words) {
-    const at = await page.run((words) => {
+  /**
+   * The middle of a link's words, once it is in the window and holds still. CodeMirror draws only
+   * what is near the window, and measures what a scroll brings in, which may move it.
+   */
+  function linkAt(words) {
+    return page.until((words) => {
       const link = [...document.querySelectorAll(".pg-link")].find(
         (el) => el.textContent === words,
       );
+      if (!link) {
+        // Every link in this file is near its top.
+        document.querySelector(".cm-scroller").scrollTop = 0;
+        return null;
+      }
       const box = link.getBoundingClientRect();
-      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      if (box.top < 0 || box.bottom > innerHeight) {
+        link.scrollIntoView({ block: "center" });
+        return null;
+      }
+      const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const still = window.lastLinkAt?.x === at.x && window.lastLinkAt?.y === at.y;
+      window.lastLinkAt = at;
+      return still && at;
     }, words);
+  }
+
+  /** Ctrl and a click on the words, as a reader opens a link. */
+  async function controlClick(words) {
+    const at = await linkAt(words);
     await page.clickWith(Key.Control, at.x, at.y);
   }
 
@@ -481,6 +509,64 @@ describe("links that open", () => {
       assert.equal(openedSoFar()[before + i], address, words);
     }
     assert.equal(openedSoFar().length, before + expected.length);
+  });
+
+  /** In the page: the heading line holding the caret, once it is near the top of the window. */
+  const atHeading = () => {
+    const node = getSelection().focusNode;
+    const line = (node?.nodeType === Node.TEXT_NODE ? node.parentElement : node)?.closest(
+      ".cm-line",
+    );
+    if (!line?.classList.contains("pg-heading")) return null;
+    const top = document.querySelector(".cm-scroller").getBoundingClientRect().top;
+    return line.getBoundingClientRect().top - top < 100 && line.textContent;
+  };
+
+  test("a link to a heading in the file goes there, from Go to and from Ctrl and a click", async () => {
+    const words = await linkAt("Tables");
+    await page.click(words.x, words.y);
+    // A tooltip is placed off the page until CodeMirror measures where it goes.
+    const button = await page.until(() => {
+      const button = document.querySelector(".pg-address button");
+      const box = button?.getBoundingClientRect();
+      const inside = box && box.top >= 0 && box.bottom <= innerHeight;
+      return (
+        inside && { text: button.textContent, x: box.x + box.width / 2, y: box.y + box.height / 2 }
+      );
+    });
+    assert.equal(button.text, "Go to");
+    await page.click(button.x, button.y);
+    assert.match(await page.until(atHeading), /^(## )?Tables$/);
+    await controlClick("Tables");
+    assert.match(await page.until(atHeading), /^(## )?Tables$/);
+  });
+
+  test("a link to no heading shows its address, and nothing to follow", async () => {
+    const words = await linkAt("nowhere");
+    await page.click(words.x, words.y);
+    const popover = await page.until(() => {
+      const box = document.querySelector(".pg-address");
+      return (
+        box?.textContent.includes("#nothing-here") && {
+          text: box.textContent,
+          buttons: box.querySelectorAll("button").length,
+        }
+      );
+    });
+    assert.deepEqual(popover, { text: "#nothing-here", buttons: 0 });
+  });
+
+  test("a find match in a link's title shows, marked, in its popover", async () => {
+    await page.press(Key.Control, "f");
+    await page.run(() => document.querySelector(".cm-search input[name=search]").select());
+    await page.keys("A title");
+    await page.press(Key.Enter);
+    const popover = await page.until(() => {
+      const mark = document.querySelector(".pg-address-source mark");
+      return mark && [mark.textContent, document.querySelector(".pg-address-url").textContent];
+    });
+    assert.deepEqual(popover, ["A title", "https://example.com/docs"]);
+    await page.press(Key.Escape);
   });
 });
 

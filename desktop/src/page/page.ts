@@ -18,7 +18,14 @@ import { decodeHTML } from "entities";
 import { pageTree } from "./complete.ts";
 import { inlinesOf, plainText, type Inline } from "./inlines.ts";
 import { addressTooltip, type LinkSpan } from "./links.ts";
-import { autolinkHref, definitionsIn, destination, type Definitions } from "./references.ts";
+import {
+  anchorOf,
+  autolinkHref,
+  definitionsIn,
+  destination,
+  headings,
+  type Definitions,
+} from "./references.ts";
 import { ImageWidget, TableWidget, TextWidget, type Align, type TableModel } from "./widgets.ts";
 
 /** The source a piece of hidden syntax belongs to. A selection inside it shows the syntax. */
@@ -36,6 +43,8 @@ type Page = {
   shown: DecorationSet;
   /** Every link's words, in order, for the address shown at the caret. */
   links: LinkSpan[];
+  /** Each heading's GitHub anchor, to where it starts, for a link to it. */
+  anchors: Map<string, number>;
 };
 
 /** Folds all the syntax again, as on arrival, until the reader next places a selection. */
@@ -57,6 +66,7 @@ export const page = StateField.define<Page>({
   provide: (field) => [
     EditorView.decorations.from(field, (current) => current.styles),
     EditorView.decorations.from(field, (current) => current.shown),
+    headings.from(field, (current) => current.anchors),
     showTooltip.compute([field], (state) => {
       const { active, links } = state.field(field);
       if (!active) return null;
@@ -68,17 +78,18 @@ export const page = StateField.define<Page>({
         (link) =>
           link.source.from <= from && to <= link.source.to && (from < link.from || to > link.to),
       );
-      return addressTooltip(hidden, state.sliceDoc(from, to));
+      return addressTooltip(hidden, { text: state.sliceDoc(from, to), from });
     }),
   ],
 });
 
 function build(state: EditorState, active: EditorSelection | null): Page {
   const tree = pageTree(state);
-  const { styles, hidden, links } = new Painter(state.doc, definitionsIn(state.doc, tree)).paint(
-    tree,
-  );
-  return { tree, styles, folds: hidden, active, shown: unfold(hidden, active), links };
+  const { styles, hidden, links, anchors } = new Painter(
+    state.doc,
+    definitionsIn(state.doc, tree),
+  ).paint(tree);
+  return { tree, styles, folds: hidden, active, shown: unfold(hidden, active), links, anchors };
 }
 
 function unfold(folds: DecorationSet, active: EditorSelection | null): DecorationSet {
@@ -95,6 +106,7 @@ function unfold(folds: DecorationSet, active: EditorSelection | null): Decoratio
 class Painter {
   readonly doc: Text;
   readonly definitions: Definitions;
+  readonly #anchors = new Map<string, number>();
   readonly #styles: Range<Decoration>[] = [];
   readonly #hidden: Range<Decoration>[] = [];
   readonly #links: LinkSpan[] = [];
@@ -104,12 +116,13 @@ class Painter {
     this.definitions = definitions;
   }
 
-  paint(tree: Tree): { styles: DecorationSet; hidden: DecorationSet; links: LinkSpan[] } {
+  paint(tree: Tree) {
     tree.iterate({ enter: (ref) => this.#visit(ref.node) });
     return {
       styles: Decoration.set(this.#styles, true),
       hidden: Decoration.set(this.#hidden, true),
       links: this.#links,
+      anchors: this.#anchors,
     };
   }
 
@@ -122,20 +135,25 @@ class Painter {
       case "ATXHeading3":
       case "ATXHeading4":
       case "ATXHeading5":
-      case "ATXHeading6":
+      case "ATXHeading6": {
         this.#lines(node.from, node.to, `pg-heading pg-h${node.name.slice(-1)}`);
-        for (const mark of node.getChildren("HeaderMark")) {
+        const marks = node.getChildren("HeaderMark");
+        const closing = marks.length > 1 ? marks.at(-1) : undefined;
+        this.#anchor(node, marks[0]?.to ?? node.from, closing?.from ?? node.to);
+        for (const mark of marks) {
           // Opening marks take the space after them, closing marks the space before.
           if (mark.from === node.from)
             this.#hide(fold, mark.from, this.#spaceAfter(mark.to, node.to));
           else this.#hide(fold, this.#spaceBefore(mark.from, node.from), mark.to);
         }
         return;
+      }
       case "SetextHeading1":
       case "SetextHeading2": {
         const underline = node.getChild("HeaderMark");
         const end = underline ? underline.from - 1 : node.to;
         this.#lines(node.from, end, `pg-heading pg-h${node.name.slice(-1)}`);
+        this.#anchor(node, node.from, underline?.from ?? node.to);
         if (underline) {
           this.#hide(fold, underline.from, underline.to);
           this.#foldLine(fold, underline.from, "pg-collapsed");
@@ -220,6 +238,12 @@ class Painter {
         this.#hideLines(fold, node);
         return false;
     }
+  }
+
+  /** A heading's anchor, from its words between `from` and `to`. */
+  #anchor(heading: SyntaxNode, from: number, to: number): void {
+    const words = plainText(inlinesOf(this.doc, this.definitions, heading, from, to));
+    if (words) this.#anchors.set(anchorOf(words, new Set(this.#anchors.keys())), heading.from);
   }
 
   /**

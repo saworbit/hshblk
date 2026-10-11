@@ -36,7 +36,7 @@ Each file opens in a window of its own. A second file opens a second window in t
 | `Ctrl+F` (`⌘F`) | Find, in the source |
 | `Ctrl+P` (`⌘P`) | Print the whole page |
 | `Ctrl+A`, `Ctrl+C` | Select and copy, as source |
-| `Ctrl` or `⌘` and click | Open a link in the browser |
+| `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading it names |
 
 - Dropping a file on a window opens it in a new window.
 - Put the caret in a construct and its syntax shows, so `**bold**` reads as written. A link never unfolds: its address shows in a popover under it, with **Open** for web and mail addresses. A find match in the address shows there, marked.
