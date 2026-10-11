@@ -4,6 +4,7 @@
 
 - Desktop: a full stop or comma after a link, an autolink, or a code span stays on that construct's line. The hidden syntax between them no longer leaves a place for the line to break. (#48)
 - Desktop: an image written percent-encoded, such as `screen%20shot.png`, now loads. Escapes and entities in a link or image destination now read as CommonMark says. (#35)
+- Desktop: `Ctrl+O`, `Ctrl+P`, and `Ctrl+F` work wherever focus is in the window, the find box included, not only in the page's text. (#46)
 - CI: the Desktop workflow caches Rust dependencies, `tauri-driver`, and `cargo-deny`, keyed on `Cargo.lock`. Only `main` saves the cache. (#29)
 - Reader: a link's address reads its escapes and entities, as the desktop app does: `a\_b?q=1&amp;r=2` is `a_b?q=1&r=2`. (#55)
 - Desktop and reader: `\|` in a table cell's code span shows as `|`, as GFM says. Outside a table it keeps its backslash. (#51)

@@ -1,5 +1,5 @@
 import "./styles.css";
-import { keymap } from "@codemirror/view";
+import { openSearchPanel } from "@codemirror/search";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createSurface, printPage } from "./surface.ts";
@@ -25,10 +25,19 @@ if (handle) {
     nonce: nonce && !nonce.startsWith("__TAURI") ? nonce : undefined,
     // A link that does not open says why, in the status line.
     openLink: (url) => void invoke("open_url", { url }).catch((error) => say(status, `${error}`)),
-    extensions: keymap.of([
-      { key: "Mod-o", run: () => (pick(), true) },
-      { key: "Mod-p", run: (view) => (printPage(view), true) },
-    ]),
+  });
+  // The window's keys work wherever focus is: the page, the find box, or nothing at all.
+  // CodeMirror goes first, and a key it took is not taken again.
+  const keys: Record<string, () => void> = {
+    o: pick,
+    p: () => printPage(view),
+    f: () => openSearchPanel(view),
+  };
+  document.addEventListener("keydown", (event) => {
+    const run = keys[event.key];
+    if (!run || event.defaultPrevented || !(event.metaKey || event.ctrlKey) || event.altKey) return;
+    event.preventDefault();
+    run();
   });
   root.append(status);
   view.focus();

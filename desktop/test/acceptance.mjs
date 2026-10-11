@@ -263,6 +263,76 @@ before(async () => {
 });
 after(() => stopDriver());
 
+describe("the window's keys, wherever focus is", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-keys-"));
+  const file = join(folder, "keys.md");
+  writeFileSync(file, "# Keys\n\nSome **bold** words.\n");
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelector(".pg-strong"));
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  /** In the page: the name of what has focus, or its tag. */
+  const focused = () => document.activeElement?.name || document.activeElement?.tagName;
+
+  /** Ctrl+O, the Open dialog it shows, and Escape to close it again. */
+  async function openDialog() {
+    await page.press(Key.Control, "o");
+    const dialog = await find(["--onlyvisible", "--name", "^Open File$"], 10_000);
+    await run("xdotool", ["windowfocus", "--sync", dialog]);
+    await run("xdotool", ["key", "Escape"]);
+    // Until it has gone, so the next search cannot find this one.
+    for (let tries = 0; tries < 40; tries += 1) {
+      const open = await run("xdotool", ["search", "--onlyvisible", "--name", "^Open File$"]).then(
+        () => true,
+        () => false,
+      );
+      if (!open) return;
+      await sleep(250);
+    }
+    throw new Error("the Open dialog did not close");
+  }
+
+  test("Ctrl+O opens a file from the find box, and with nothing focused", async () => {
+    await page.press(Key.Control, "f");
+    assert.equal(await page.until(focused), "search");
+    await openDialog();
+    await page.run(() => document.activeElement.blur());
+    assert.equal(await page.run(focused), "BODY");
+    await openDialog();
+  });
+
+  test("Ctrl+F finds with nothing focused", async () => {
+    await page.run(() => document.activeElement.blur());
+    await page.press(Key.Control, "f");
+    assert.equal(await page.until(() => document.activeElement?.name), "search");
+  });
+
+  test("Ctrl+P prints from the find box: the syntax open for the screen folds", async () => {
+    const at = await page.run(() => {
+      const box = document.querySelector(".pg-strong").getBoundingClientRect();
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    });
+    await page.click(at.x, at.y);
+    await page.until(() => document.querySelector(".cm-content").textContent.includes("**bold**"));
+    await page.press(Key.Control, "f");
+    assert.equal(await page.until(focused), "search");
+    await page.press(Key.Control, "p");
+    // WebKit shows no print dialog under automation. What printing does first still shows.
+    const text = await page.until(() => {
+      const text = document.querySelector(".cm-content").textContent;
+      return !text.includes("**") && text;
+    });
+    assert.match(text, /Some bold words\./);
+  });
+});
+
 describe("one open document", () => {
   const { root, file } = fixture();
   const original = fingerprint(file);
