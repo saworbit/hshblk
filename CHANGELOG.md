@@ -24,3 +24,4 @@
 - Desktop: a launch on a missing file or a folder leaves the welcome window open behind the error, so the app no longer runs on with no window. (#47)
 - Docs: why a launch can take 30 seconds on Linux, and the one line that fixes it. A desktop portal that cannot start holds GTK up; CI keeps each test in a bus of its own because of it. (#23)
 - Desktop: a large file no longer stops the window for seconds when its whole parse lands. The page draws inline syntax only near the viewport, and reads definitions, heading anchors, and tables between events. A link or image that runs onto the next line is hidden a line at a time, and a line it hides whole takes no space. (#18)
+- CI: the punctuation test scrolls to the top again until its paragraph shows. CodeMirror could put the page back at the end in the frame after the find box closed, which failed it at times.
