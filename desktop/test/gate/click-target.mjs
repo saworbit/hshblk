@@ -24,6 +24,30 @@ const LINKS = [
   "pariatur",
 ];
 
+/** Words marked bold, italic, and code in turn, through a wrapped paragraph. */
+const MARKED = [
+  "quis",
+  "nostrud",
+  "exercitation",
+  "laboris",
+  "nisi",
+  "aliquip",
+  "commodi",
+  "consequat",
+  "duis",
+  "aute",
+  "irure",
+  "voluptate",
+];
+const MARKS = ["**", "*", "`"];
+/** Words after each marked one, of four lengths, so the marked words fall at many places in a line. */
+const AFTER = [
+  "",
+  " sint occaecat",
+  " cupidatat non proident, sunt in",
+  " culpa qui officia deserunt",
+];
+
 const FIXTURE = [
   "Some **bold** words, then plain text to the end of the line.",
   "",
@@ -38,6 +62,12 @@ const FIXTURE = [
   "Drag from here across **bold** and on to there.",
   "",
   "A plain line to click on, which opens nothing.",
+  "",
+  "Ut " +
+    MARKED.map((word, i) => `${MARKS[i % 3]}${word}${MARKS[i % 3]}${AFTER[i % 4]}`).join(
+      " mollit anim id est, ",
+    ) +
+    " and the end.",
 ].join("\n");
 
 // --- in the page ---------------------------------------------------------------------------
@@ -62,22 +92,17 @@ function charBox(marker, index) {
   return null;
 }
 
-/** The selection's focus as text: what is before it and after it on its line. */
+/**
+ * The selection's head in the source: what is before it and after it on its line. A click opens
+ * no syntax, so the marks around the caret have no text in the DOM, and the source is read from
+ * CodeMirror's state, through its view on the content element.
+ */
 function caret() {
-  const selection = getSelection();
-  const line = selection.focusNode?.parentElement?.closest(".cm-line");
-  if (!line) return null;
-  const range = document.createRange();
-  range.setStart(line, 0);
-  range.setEnd(selection.focusNode, selection.focusOffset);
-  const before = range.toString();
-  const collapsed = selection.isCollapsed;
-  return {
-    before,
-    after: line.textContent.slice(before.length),
-    line: line.textContent,
-    collapsed,
-  };
+  const view = document.querySelector(".cm-content").cmTile.root.view;
+  const { head, empty } = view.state.selection.main;
+  const line = view.state.doc.lineAt(head);
+  const before = line.text.slice(0, head - line.from);
+  return { before, after: line.text.slice(before.length), line: line.text, collapsed: empty };
 }
 
 /**
@@ -107,15 +132,17 @@ function afterCaretBox() {
   return null;
 }
 
-/** What the caret would be if the pointer were placed here now, as caret() reports it. */
+/**
+ * Where the browser itself puts a caret at a point, in the source, as caret() reports it. The
+ * point is the browser's hit test, not CodeMirror's, which the drag used.
+ */
 function caretAtPoint(x, y) {
+  const view = document.querySelector(".cm-content").cmTile.root.view;
   const point = document.caretRangeFromPoint(x, y);
-  const line = point?.startContainer.parentElement?.closest(".cm-line");
-  if (!line) return null;
-  const range = document.createRange();
-  range.setStart(line, 0);
-  range.setEnd(point.startContainer, point.startOffset);
-  return { before: range.toString() };
+  if (!point) return null;
+  const head = view.posAtDOM(point.startContainer, point.startOffset);
+  const line = view.state.doc.lineAt(head);
+  return { before: line.text.slice(0, head - line.from) };
 }
 
 // --- the gate ------------------------------------------------------------------------------
@@ -235,6 +262,34 @@ try {
     !selected.collapsed && selected.before === under?.before,
     `ends after ${JSON.stringify(selected.before.slice(-12))}, pointer at ${JSON.stringify(under?.before.slice(-12))}`,
   );
+
+  // Row 5: a click on bold, italic, or code keeps the clicked character on its line. A click
+  // opens no marks (§7). If it did, a word near a line's end could wrap to the next. The
+  // paragraph is last, below the others, so the page scrolls to it, and a click on its first
+  // word puts the caret in plain text between cases.
+  await page.run(() => {
+    const scroller = document.querySelector(".cm-scroller");
+    scroller.scrollTop = scroller.scrollHeight;
+  });
+  const marked = () =>
+    [...document.querySelectorAll(".cm-line")].find((el) => el.textContent.startsWith("Ut "))
+      ?.textContent;
+  const lineText = await page.until(marked);
+  const plain = await page.run(charBox, "Ut ", 0);
+  for (const [i, word] of MARKED.entries()) {
+    await page.click(plain.left + 1, plain.top + plain.height / 2);
+    const box = await page.run(charBox, "Ut ", lineText.indexOf(word));
+    await page.click(box.left + box.width * 0.25, box.top + box.height / 2);
+    const moved = await caretSettled();
+    record(
+      5,
+      `${MARKS[i % 3]}${word}${MARKS[i % 3]}`,
+      moved?.char === word[0] && Math.abs(moved.top - box.top) < 2,
+      moved
+        ? `top ${box.top.toFixed(0)} → ${moved.top.toFixed(0)}, char ${JSON.stringify(moved.char)}`
+        : "no caret",
+    );
+  }
 } finally {
   await page.close().catch(() => {});
   stop();

@@ -7,7 +7,12 @@ import { spawn } from "node:child_process";
 const ROOT = "http://127.0.0.1:4444";
 
 /** The WebDriver code points for keys that are not characters. */
-export const Key = { Control: "\uE009", Enter: "\uE007", Escape: "\uE00C" };
+export const Key = {
+  Control: "\uE009",
+  Enter: "\uE007",
+  Escape: "\uE00C",
+  ArrowRight: "\uE014",
+};
 
 /**
  * Starts tauri-driver in front of WebKitWebDriver. Stop it when done. The apps it launches
