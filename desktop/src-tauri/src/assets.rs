@@ -58,20 +58,26 @@ fn serve(documents: &Documents, path: &str) -> Result<(Vec<u8>, &'static str), R
 
 /// The file a reference names, if a document may show it. The page has already dropped the
 /// destination's query and fragment, so a `#` or `?` here is part of the file's name.
+///
+/// A reference is relative to the document, or, after one leading slash, to the scope's root, as
+/// GitHub reads it in a repository. It never names the filesystem's root.
 pub fn resolve(document: &Document, reference: &str) -> Result<PathBuf, Refusal> {
-    let relative = Path::new(reference);
+    let (base, rest) = match reference.strip_prefix('/') {
+        Some(rest) => (document.scope.as_path(), rest),
+        None => (document.path.parent().ok_or(Refusal::Missing)?, reference),
+    };
+    let relative = Path::new(rest);
     let plain = relative.components().all(|part| {
         matches!(
             part,
             Component::Normal(_) | Component::CurDir | Component::ParentDir
         )
     });
-    if reference.is_empty() || !plain || reference.contains(':') {
+    if rest.is_empty() || !plain || rest.contains(':') {
         return Err(Refusal::NotRelative);
     }
-    let folder = document.path.parent().ok_or(Refusal::Missing)?;
     // Symlinks and junctions resolve before the scope is checked, so neither can leave it.
-    let file = fs::canonicalize(folder.join(relative)).map_err(|_| Refusal::Missing)?;
+    let file = fs::canonicalize(base.join(relative)).map_err(|_| Refusal::Missing)?;
     if !file.starts_with(&document.scope) {
         return Err(Refusal::OutsideScope);
     }
@@ -237,15 +243,32 @@ mod tests {
     }
 
     #[test]
+    fn serves_an_image_from_the_repository_root_after_one_leading_slash() {
+        let fixture = fixture();
+        assert_eq!(ask(&fixture, "/images/far.png"), Ok("image/png"));
+        assert_eq!(ask(&fixture, "/docs/near.png"), Ok("image/png"));
+        assert_eq!(ask(&fixture, "//images/far.png"), Err(Refusal::NotRelative));
+        assert_eq!(ask(&fixture, "/"), Err(Refusal::NotRelative));
+    }
+
+    #[test]
     fn refuses_what_leaves_the_repository() {
         let fixture = fixture();
         assert_eq!(
             ask(&fixture, "../../secret.png"),
             Err(Refusal::OutsideScope)
         );
+        assert_eq!(ask(&fixture, "/../secret.png"), Err(Refusal::OutsideScope));
+        // A leading slash is the repository's root, so an absolute path names a file inside it.
+        // A Windows path's drive has a colon, which is refused first.
+        let refusal = if cfg!(windows) {
+            Refusal::NotRelative
+        } else {
+            Refusal::Missing
+        };
         assert_eq!(
             ask(&fixture, fixture.outside.to_str().unwrap()),
-            Err(Refusal::NotRelative)
+            Err(refusal)
         );
         assert_eq!(ask(&fixture, "file:secret.png"), Err(Refusal::NotRelative));
     }

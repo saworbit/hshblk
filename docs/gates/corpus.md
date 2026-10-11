@@ -2,7 +2,7 @@
 
 docs/hld.md §9, the half that measures. It answers what the open decisions in sections 5, 6, and 12 need from real files, and picks the section 8 fixtures. The half that types through the real input path is not run yet: see the end.
 
-Run: 2026-10-10, by [`desktop/test/gate/corpus.ts`](../../desktop/test/gate/corpus.ts), which reads each file's bytes and parses it with the page's own dialect.
+Run: 2026-10-10, by [`desktop/test/gate/corpus.ts`](../../desktop/test/gate/corpus.ts), which reads each file's bytes and parses it with the page's own dialect. Run again on 2026-10-11 at the same commits, once the survey read a leading `/` as the app does (#40). The tables are the second run.
 
 ```bash
 cd desktop
@@ -11,7 +11,7 @@ node test/gate/corpus.ts <repository>...
 
 ## The corpus
 
-5,936 markdown files from eight public repositories, each a shallow checkout of its default branch.
+5,932 markdown files from eight public repositories, each a shallow checkout of its default branch: the part named below, and the files at the repository's root. The first run counted 5,936. The other four, in kubernetes and mdn, are not in those folders at the same commits, and every other count matches but for them.
 
 | Repository | Commit | Part surveyed |
 |---|---|---|
@@ -26,16 +26,16 @@ node test/gate/corpus.ts <repository>...
 
 ## Result
 
-| Repository | Files | Mixed endings | CRLF | BOM | Invalid UTF-8 | Raw HTML | Images beside | Images via `../` | Remote images | Largest |
-|---|---|---|---|---|---|---|---|---|---|---|
-| awesome | 6 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 9 | 76 KB |
-| kubernetes | 194 | 0 | 0 | 0 | 0 | 173 | 11 | 0 | 2 | 64 KB |
-| mdn | 262 | 0 | 0 | 0 | 0 | 182 | 26 | 0 | 1 | 90 KB |
-| node | 167 | 0 | 0 | 0 | 0 | 62 | 6 | 0 | 5 | 934 KB |
-| omarchy | 95 | 0 | 0 | 0 | 0 | 2 | 47 | 38 | 0 | 49 KB |
-| rust-book | 117 | 0 | 0 | 0 | 0 | 87 | 0 | 0 | 1 | 39 KB |
-| tldr | 4730 | 0 | 0 | 0 | 0 | 1 | 1 | 0 | 11 | 29 KB |
-| vscode-docs | 365 | 0 | 0 | 0 | 0 | 145 | 1836 | 177 | 0 | 65 KB |
+| Repository | Files | Mixed endings | CRLF | BOM | Invalid UTF-8 | Raw HTML | Images beside | Images via `../` | Images from the root | Remote images | Largest |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| awesome | 6 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 9 | 76 KB |
+| kubernetes | 191 | 0 | 0 | 0 | 0 | 172 | 0 | 0 | 9 | 2 | 64 KB |
+| mdn | 261 | 0 | 0 | 0 | 0 | 182 | 23 | 0 | 3 | 1 | 90 KB |
+| node | 167 | 0 | 0 | 0 | 0 | 62 | 6 | 0 | 0 | 5 | 934 KB |
+| omarchy | 95 | 0 | 0 | 0 | 0 | 2 | 47 | 38 | 0 | 0 | 49 KB |
+| rust-book | 117 | 0 | 0 | 0 | 0 | 87 | 0 | 0 | 0 | 1 | 39 KB |
+| tldr | 4730 | 0 | 0 | 0 | 0 | 1 | 1 | 0 | 0 | 11 | 29 KB |
+| vscode-docs | 365 | 0 | 0 | 0 | 0 | 145 | 1836 | 177 | 0 | 0 | 65 KB |
 
 No file has mixed or lone-CR line endings, uniform CRLF, a BOM, invalid UTF-8, or a NUL byte.
 
@@ -43,8 +43,9 @@ No file has mixed or lone-CR line endings, uniform CRLF, a BOM, invalid UTF-8, o
 
 - **Save stays encode-the-string (§5, §12 question 3).** Mixed endings are the one case where a ChangeSet save would keep bytes that encoding the string cannot. None turned up. The caveat: these are the bytes a repository stores, and git normalizes many repositories to LF on commit. A Windows checkout with `core.autocrlf` turns every file CRLF in the working copy. That is uniform CRLF, which section 5 already preserves. Mixed endings come from editing, which this survey cannot see. The read-only rule for them stands.
 - **The image scope is the repository, not the folder (§6).** 215 images in 38 files reach up with `../`, in omarchy and vscode-docs, and every one stays inside its repository. A folder scope would have broken all of them. None points outside.
-- **Remote images are rare.** 29 in 5,936 files. Milestone one does not load them, and few files lose anything.
-- **Raw HTML is common in documentation sites.** 654 files, 11%, mostly in kubernetes, mdn, and rust-book, where most files have some. Milestone one shows it as source, so on those sites the page shows tags. This is the case for the later sandboxed HTML block in section 7, and the first thing a reader of those sites will notice.
+- **Remote images are rare.** 29 in 5,932 files. Milestone one does not load them, and few files lose anything.
+- **Raw HTML is common in documentation sites.** 653 files, 11%, mostly in kubernetes, mdn, and rust-book, where most files have some. A raw HTML block is drawn in a sandboxed frame (section 7, #25), so those pages show the HTML rather than its tags, though not the images it names.
+- **A leading `/` is the repository's root (§6).** 12 images start with one, 9 in kubernetes and 3 in mdn. GitHub reads them from the repository's root, and so does the app (#40). The first run counted them as beside the file.
 - **The encoding fixtures are synthetic.** Nothing in the corpus is invalid, so the read-only paths are tested on made-up files, in [`documents.rs`](../../desktop/src-tauri/src/documents.rs).
 
 ## The section 8 fixtures
