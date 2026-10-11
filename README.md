@@ -13,7 +13,7 @@ Packages for Linux, macOS, and Windows come from the Desktop workflow on `main`.
 | `Ctrl+P` (`⌘P`) | Print the whole page |
 | `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading it names |
 
-Each file opens in its own window, and dropping one on a window opens it in another. Move the caret into a construct with the keys, or find in it, and its syntax shows. A click opens nothing, so the page holds still under the pointer. A link shows its words, and its address shows under it. Images load from inside the file's repository and nowhere else. A raw HTML block is drawn in a frame that runs no script and fetches nothing. Inline HTML shows as source.
+Each file opens in its own window, and dropping one on a window opens it in another. Move the caret into a construct with the keys, or find in it, and its syntax shows. A click opens nothing, so the page holds still under the pointer. A link shows its words, and its address shows under it. Images load from inside the file's repository and nowhere else. A raw HTML block is drawn in a frame that runs no script, and shows only images from inside the repository. Inline HTML shows as source.
 
 To build it, with Node 24 and Rust:
 

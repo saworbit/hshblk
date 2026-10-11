@@ -52,7 +52,7 @@ Each file opens in a window of its own. A second file opens a second window in t
 - Move the caret into a construct with the keys, or find in it, and its syntax shows, so `**bold**` reads as written. A click places the caret and opens nothing, so the text holds still under the pointer. A link never unfolds: its address shows in a popover under it, with **Open** for web and mail addresses. A find match in the address shows there, marked.
 - Copy and find work on the source, hidden syntax included. The status line says so.
 - Images load when they are inside the document's repository: the enclosing git repository, or the file's folder when there is none. A path that starts with `/` starts at that root, as on GitHub. Nothing loads from the network.
-- A raw HTML block is drawn in a frame that runs no script and fetches nothing, not even the images it names. Ctrl or ⌘ and a click opens a link in it, as on the page, and a click on a summary opens its details. Its text cannot be selected: copy works on the source. Inline HTML shows as source. No script in a document runs.
+- A raw HTML block is drawn in a frame that runs no script. Its images load from inside the repository, as a markdown image does, and it fetches nothing else. Ctrl or ⌘ and a click opens a link in it, as on the page, and a click on a summary opens its details. Its text cannot be selected: copy works on the source. Inline HTML shows as source. No script in a document runs.
 - A `<details>` written as its own blocks around markdown, as a README writes it, shows its summary. A click on it opens or closes it, find opens it while a match is inside, and print shows it open.
 
 ## Building it
@@ -109,7 +109,7 @@ Not done yet ([hld.md](hld.md) §12, question 1):
 | `desktop/src-tauri/src/documents.rs` | Opening a file: its facts, its scope, its handle. |
 | `desktop/src-tauri/src/assets.rs` | The resource channel for images. |
 | `desktop/src-tauri/src/windows.rs` | Where files come from (the command line, a double-click, the dialog, a drop) and the window each gets. |
-| `desktop/src-tauri/src/lib.rs` | The three commands the page may call, and the app. |
+| `desktop/src-tauri/src/lib.rs` | The four commands the page may call, and the app. |
 | `desktop/src-tauri/linux/hshblk.desktop` | The Linux desktop entry, which passes the double-clicked file. |
 | `desktop/src/main.ts` | The window: open, print, the status line, and the welcome. |
 | `desktop/src/surface.ts` | The CodeMirror surface, with editing turned off. |
