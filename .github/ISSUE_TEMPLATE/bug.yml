@@ -23,7 +23,7 @@ body:
     id: where
     attributes:
       label: Where
-      description: The desktop app and its version, or the browser reader and the browser's. On Linux, the WebKitGTK version too.
+      description: The desktop app's version and the operating system. On Linux, the WebKitGTK version too.
       placeholder: e.g. the desktop app 0.1.0 on Ubuntu 24.04, WebKitGTK 2.52.6
     validations:
       required: true

@@ -51,6 +51,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run lint
       - run: npm test
       # The Rust side embeds the page, so it is built first.
       - run: npm run build
