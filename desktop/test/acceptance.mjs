@@ -410,8 +410,15 @@ describe("one open document", () => {
     const source = (await page.run(texts, ".pg-source-block")).join("\n");
     assert.match(source, /<script>window\.ran = "block";<\/script>/);
     assert.match(source, /<div onclick=/);
-    const lines = await page.run(texts, ".cm-line");
-    assert.ok(lines.some((line) => line.includes('Inline <img src="x" onerror=')));
+    // CodeMirror draws only the lines near the window, and this one is just below it.
+    const inline = await page.until(() => {
+      const line = [...document.querySelectorAll(".cm-line")].find((el) =>
+        el.textContent.startsWith("Inline "),
+      );
+      if (!line) [...document.querySelectorAll(".pg-source-block")].at(-1).scrollIntoView();
+      return line?.textContent;
+    });
+    assert.match(inline, /^Inline <img src="x" onerror=/);
     assert.equal(await page.run(() => document.querySelectorAll(".cm-content script").length), 0);
     const images = await page.run(
       () => document.querySelectorAll(".cm-content img:not(.pg-image, .cm-widgetBuffer)").length,
@@ -872,12 +879,18 @@ A dot ![dot](dot.png) in a line, and one at the end ![end](dot.png).
         .find((el) => el.textContent === "link below the table")
         .scrollIntoView({ block: "center" }),
     );
+    // CodeMirror measures what a scroll brings in, which may move the link. It is clicked once
+    // it holds still.
     const words = await page.until(() => {
       const link = [...document.querySelectorAll(".pg-link")].find(
         (el) => el.textContent === "link below the table",
       );
       const box = link?.getBoundingClientRect();
-      return box && box.top > 0 && { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      if (!box || box.top <= 0) return null;
+      const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const still = window.lastBelow?.x === at.x && window.lastBelow?.y === at.y;
+      window.lastBelow = at;
+      return still && at;
     });
     await page.click(words.x, words.y);
     const address = await page.until(() => document.querySelector(".pg-address-url")?.textContent);

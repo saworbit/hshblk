@@ -28,7 +28,7 @@ Milliseconds from the process's start, three runs a file, release build:
 
 - Most of the second is the engine's. The page starts loading 0.76 to 0.86 s after the process does, whatever the file, before any of this code runs. Under Xvfb with no GPU that is likely the worst case. A desktop session should be the first thing timed on the named machine.
 - The page's own share is about 0.2 s for the largest file and 0.3 s for the tenfold. About half of the tenfold's is the 9 MB string crossing IPC as JSON. Sending it as bytes is the lever if the named machine misses.
-- The whole parse runs after first paint, between events. When it lands the page redraws from it in one go: 0.28 s on the largest file, 1.6 s on the tenfold, during which the window does not respond. Drawing only near the viewport would end that, and is not done yet.
+- The whole parse runs after first paint, between events, and so does the read of its definitions, heading anchors, and tables. When it lands, only the lines near the viewport are drawn again. On 2026-10-11, on this container, the window's longest wait after first paint on the tenfold was 0.09 s, against over 5 s before. The whole parse column above is from before, and holds the old redraw.
 
 ## Found and fixed on the way
 

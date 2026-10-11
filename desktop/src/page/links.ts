@@ -1,6 +1,7 @@
-import { Facet } from "@codemirror/state";
+import { Facet, type Text } from "@codemirror/state";
 import { EditorView, type Tooltip } from "@codemirror/view";
-import { headingAt } from "./references.ts";
+import type { SyntaxNode, Tree } from "@lezer/common";
+import { autolinkHref, destination, headingAt, type Definitions } from "./references.ts";
 
 /** A link's words in the source, the whole link as written, and where it points. */
 export type LinkSpan = {
@@ -9,6 +10,47 @@ export type LinkSpan = {
   source: { from: number; to: number };
   href: string;
 };
+
+/** A Link or Autolink node's words and address. Null for a reference with no definition. */
+export function linkSpan(doc: Text, definitions: Definitions, node: SyntaxNode): LinkSpan | null {
+  const source = { from: node.from, to: node.to };
+  if (node.name === "Autolink") {
+    const url = node.getChild("URL");
+    if (!url) return null;
+    return {
+      from: url.from,
+      to: url.to,
+      source,
+      href: autolinkHref(doc.sliceString(url.from, url.to)),
+    };
+  }
+  const href = destination(doc, node, definitions);
+  if (href === null) return null;
+  const [open, close] = node.getChildren("LinkMark");
+  return { from: open.to, to: close.from, source, href };
+}
+
+/**
+ * The link a selection from `from` to `to` lies in, read from the tree there. A link in a table
+ * or in an image's words is drawn with them, not on the page, so it is in none.
+ */
+export function linkAt(
+  doc: Text,
+  tree: Tree,
+  definitions: Definitions,
+  from: number,
+  to: number,
+): LinkSpan | undefined {
+  let found: LinkSpan | undefined;
+  for (let node: SyntaxNode | null = tree.resolveInner(from, 1); node; node = node.parent) {
+    if (node.name === "Table" || node.name === "Image") {
+      found = undefined;
+    } else if (node.name === "Link" || node.name === "Autolink") {
+      if (node.from <= from && to <= node.to) found = linkSpan(doc, definitions, node) ?? found;
+    }
+  }
+  return found;
+}
 
 /** What the shell does with an address the reader asks to open. Null when it opens nothing. */
 export const linkOpener = Facet.define<(href: string) => void, ((href: string) => void) | null>({

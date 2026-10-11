@@ -10,8 +10,9 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { Text } from "@codemirror/state";
 import { filePath } from "../../src/page/assets.ts";
+import { scanNow } from "../../src/page/blocks.ts";
 import { dialect } from "../../src/page/dialect.ts";
-import { definitionsIn, destination } from "../../src/page/references.ts";
+import { destination } from "../../src/page/references.ts";
 
 type Endings = "none" | "lf" | "crlf" | "mixed";
 
@@ -62,7 +63,7 @@ function survey(root: string): Survey {
     result.endings[endings(text)] += 1;
     const doc = Text.of(text.split(/\r\n?|\n/));
     const tree = dialect.parse(doc.toString());
-    const definitions = definitionsIn(doc, tree);
+    const { definitions } = scanNow(doc, tree);
     let html = false;
     let up = false;
     tree.iterate({

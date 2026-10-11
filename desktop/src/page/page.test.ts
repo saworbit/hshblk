@@ -1,12 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { ensureSyntaxTree } from "@codemirror/language";
-import { EditorState } from "@codemirror/state";
+import { EditorState, RangeSet } from "@codemirror/state";
 import { showTooltip, type DecorationSet } from "@codemirror/view";
 import { filePath, isSibling } from "./assets.ts";
 import { markdown } from "./dialect.ts";
 import { around } from "./links.ts";
-import { foldAll, page } from "./page.ts";
+import { scan, scanNow } from "./blocks.ts";
+import { foldAll, page, paint } from "./page.ts";
 import { headingAt, headings } from "./references.ts";
 import { ImageWidget, TableWidget, TextWidget, type TableModel } from "./widgets.ts";
 
@@ -22,9 +23,15 @@ function select(state: EditorState, pos: number): EditorState {
   return state.update({ selection: { anchor: pos }, userEvent: "select.pointer" }).state;
 }
 
+/** The whole page's decorations, as print draws them: its inline syntax, and its blocks. */
+function drawn(state: EditorState): { styles: DecorationSet; shown: DecorationSet } {
+  const { styles, shown } = paint(state, { from: 0, to: state.doc.length });
+  return { styles, shown: RangeSet.join([shown, state.field(page).shown]) };
+}
+
 /** The text on the page: the source, less what is hidden, with each widget named. */
 function visible(state: EditorState): string {
-  const { styles, shown } = state.field(page);
+  const { styles, shown } = drawn(state);
   const replaced: { from: number; to: number; widget: unknown }[] = [];
   for (const set of [styles, shown]) {
     set.between(0, state.doc.length, (from, to, decoration) => {
@@ -63,8 +70,8 @@ function lineClasses(state: EditorState, set: (state: EditorState) => Decoration
   return classes;
 }
 
-const styles = (state: EditorState) => state.field(page).styles;
-const shown = (state: EditorState) => state.field(page).shown;
+const styles = (state: EditorState) => drawn(state).styles;
+const shown = (state: EditorState) => drawn(state).shown;
 
 describe("the page", () => {
   it("hides heading marks, opening and closing, with their spaces", () => {
@@ -270,6 +277,92 @@ describe("the page", () => {
     assert.equal(visible(state), "a\n\n\n\nb");
     assert.equal(lineClasses(state, shown)[2], "pg-rule");
   });
+
+  it("hides syntax that runs onto the next line a line at a time, and folds a line it hides whole", () => {
+    const doc =
+      '![ridge at\ndusk](r.png)\n\n[up](https://x.y\n"T") after\n\n[on](https://x.y\n  "T")';
+    const state = open(doc);
+    // CodeMirror throws on a replacement across a line break from a view plugin.
+    const { styles: inline, shown: folds } = paint(state, { from: 0, to: doc.length });
+    for (const set of [inline, folds]) {
+      set.between(0, doc.length, (from, to, decoration) => {
+        if (decoration.point) assert.ok(to <= state.doc.lineAt(from).to, `${from}-${to}`);
+      });
+    }
+    assert.equal(visible(state), "[image r.png · ridge at dusk]\n\n\nup\n after\n\non\n");
+    assert.equal(lineClasses(state, shown)[1], "pg-collapsed");
+    assert.deepEqual(lineClasses(state, styles).slice(3), ["", "", "", "", "pg-collapsed"]);
+    const inImage = select(state, 3);
+    assert.equal(visible(inImage).split("\n\n")[0], "![ridge at\ndusk](r.png)");
+    assert.equal(lineClasses(inImage, shown)[1], "");
+  });
+});
+
+describe("drawing near the viewport", () => {
+  const lines = (count: number, line: (n: number) => string) =>
+    Array.from({ length: count }, (_, n) => line(n)).join("\n");
+  const doc = [
+    lines(40, (n) => `> quoted *${n}*`),
+    "- item",
+    lines(40, (n) => `  more ${n}`),
+    "",
+    "```",
+    lines(40, (n) => `code ${n}`),
+    "```",
+  ].join("\n");
+
+  it("draws only the lines asked for, of constructs that run past them", () => {
+    const state = open(doc);
+    for (const first of [10, 50, 95]) {
+      const from = state.doc.line(first + 1).from;
+      const to = state.doc.line(first + 5).to;
+      const { styles, shown } = paint(state, { from, to });
+      const touched = new Set<number>();
+      for (const set of [styles, shown]) {
+        set.between(0, doc.length, (start) => {
+          touched.add(state.doc.lineAt(start).number - 1);
+        });
+      }
+      assert.deepEqual(
+        [...touched].sort((a, b) => a - b),
+        [first, first + 1, first + 2, first + 3, first + 4],
+      );
+    }
+  });
+
+  it("holds in the state only the blocks, the definitions, and the anchors", () => {
+    const state = open(
+      "# Title *x*\n\n> - # Deep\n>\n> [r]: /ridge\n\nSome **bold** [ref][r].\n\n| a |\n|---|\n| b |",
+    );
+    const { blocks, shown } = state.field(page);
+    assert.deepEqual(Object.fromEntries(blocks.definitions), { R: "/ridge" });
+    assert.deepEqual([...blocks.anchors.keys()], ["title-x", "deep"]);
+    const kept: string[] = [];
+    shown.between(0, state.doc.length, (from, to, decoration) => {
+      assert.equal(decoration.spec.block, true);
+      kept.push(state.sliceDoc(from, to).split("\n")[0]);
+    });
+    assert.deepEqual(kept, ["> [r]: /ridge", "| a |"]);
+  });
+
+  it("reads the blocks in steps, to the same end as at once", () => {
+    const steps = (doc: string) => {
+      const state = open(doc);
+      const tree = ensureSyntaxTree(state, state.doc.length, 5000)!;
+      const scanning = scan(state.doc, tree);
+      let pauses = 0;
+      for (let step = scanning.next(); ; step = scanning.next(), pauses += 1) {
+        if (step.done) return { pauses, blocks: step.value, whole: scanNow(state.doc, tree) };
+      }
+    };
+    // Five thousand paragraphs, and nothing in them to draw or name.
+    assert.ok(steps(lines(5000, (n) => `Paragraph ${n}.\n`)).pauses >= 5);
+    const { blocks, whole } = steps(lines(3000, (n) => `# Part ${n}\n\n[d${n}]: /${n}`));
+    assert.equal(blocks.definitions.size, 3000);
+    assert.equal(blocks.anchors.size, 3000);
+    assert.deepEqual(blocks.definitions, whole.definitions);
+    assert.deepEqual(blocks.anchors, whole.anchors);
+  });
 });
 
 describe("unfolding", () => {
@@ -314,6 +407,18 @@ describe("unfolding", () => {
     ]) {
       const selected = found.update({ selection: { anchor, head }, userEvent: "select" }).state;
       assert.deepEqual(selected.facet(showTooltip).filter(Boolean), []);
+    }
+  });
+
+  it("shows no address for a link drawn in a table, or in an image's words", () => {
+    const doc = "| [a](https://x.y) |\n|---|\n\n![see [b](https://x.y)](i.png)";
+    for (const at of [doc.indexOf("a]"), doc.indexOf("b]"), doc.indexOf("x.y")]) {
+      const found = open(doc).update({
+        selection: { anchor: at, head: at + 1 },
+        userEvent: "select.search",
+      }).state;
+      assert.deepEqual(found.facet(showTooltip).filter(Boolean), [], String(at));
+      assert.deepEqual(select(found, at).facet(showTooltip).filter(Boolean), [], String(at));
     }
   });
 

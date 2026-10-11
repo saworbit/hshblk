@@ -2,6 +2,7 @@ import { syntaxTree } from "@codemirror/language";
 import { type EditorState, StateEffect, StateField } from "@codemirror/state";
 import { type EditorView, ViewPlugin } from "@codemirror/view";
 import type { PartialParse, Tree } from "@lezer/common";
+import { type Blocks, scan } from "./blocks.ts";
 import { markdown } from "./dialect.ts";
 
 /** How long one slice of parsing may hold the window, in milliseconds. */
@@ -10,11 +11,14 @@ const SLICE = 40;
 /** The performance mark set when the page has its whole tree. docs/hld.md §8, item 3. */
 export const PARSED = "page-parsed";
 
-const finished = StateEffect.define<Tree>();
+/** The whole document's tree, and its blocks read from it. */
+type Whole = { tree: Tree; blocks: Blocks };
 
-const wholeTree = StateField.define<Tree | null>({
+const finished = StateEffect.define<Whole>();
+
+const whole = StateField.define<Whole | null>({
   create: () => null,
-  update: (tree, tr) => tr.effects.find((effect) => effect.is(finished))?.value ?? tree,
+  update: (value, tr) => tr.effects.find((effect) => effect.is(finished))?.value ?? value,
 });
 
 /**
@@ -22,19 +26,25 @@ const wholeTree = StateField.define<Tree | null>({
  * CodeMirror's, which goes only as far as the reader has scrolled and a little beyond.
  */
 export function pageTree(state: EditorState): Tree {
-  return state.field(wholeTree, false) ?? syntaxTree(state);
+  return state.field(whole, false)?.tree ?? syntaxTree(state);
+}
+
+/** The whole document's blocks, once it is parsed and they are read. */
+export function wholeBlocks(state: EditorState): Blocks | null {
+  return state.field(whole, false)?.blocks ?? null;
 }
 
 /**
  * The page needs every line: a definition at the end of a file names links at the top, and
  * print paints it all. This parses the document between events, in a parse of its own, so
- * CodeMirror's parse near the viewport never cuts it short. The surface is read-only, so the
- * tree it finishes stays true.
+ * CodeMirror's parse near the viewport never cuts it short, then reads its blocks the same way.
+ * The surface is read-only, so the tree it finishes stays true.
  */
 const parser = ViewPlugin.fromClass(
   class {
     readonly view: EditorView;
     #parse: PartialParse | null = null;
+    #scan: { tree: Tree; steps: Generator<void, Blocks, void> } | null = null;
     #frame = 0;
     #timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -49,7 +59,7 @@ const parser = ViewPlugin.fromClass(
       this.#frame = requestAnimationFrame(() => this.#next());
     }
 
-    /** Parses what is left now, however long it takes. */
+    /** Parses and scans what is left now, however long it takes. */
     finish(): void {
       this.#work(Infinity);
     }
@@ -65,23 +75,31 @@ const parser = ViewPlugin.fromClass(
       });
     }
 
-    /** Advances the parse for up to `budget` milliseconds. True once nothing is left. */
+    /** Advances the parse, then the scan, for up to `budget` milliseconds. True once both are done. */
     #work(budget: number): boolean {
-      if (!this.#parse) return true;
       const end = performance.now() + budget;
-      let tree = this.#parse.advance();
-      while (!tree && performance.now() < end) tree = this.#parse.advance();
-      if (!tree) return false;
-      this.#parse = null;
+      if (this.#parse) {
+        let tree = this.#parse.advance();
+        while (!tree && performance.now() < end) tree = this.#parse.advance();
+        if (!tree) return false;
+        this.#parse = null;
+        this.#scan = { tree, steps: scan(this.view.state.doc, tree) };
+      }
+      if (!this.#scan) return true;
+      const { tree, steps } = this.#scan;
+      let step = steps.next();
+      while (!step.done && performance.now() < end) step = steps.next();
+      if (!step.done) return false;
+      this.#scan = null;
       clearTimeout(this.#timer);
-      this.view.dispatch({ effects: finished.of(tree) });
+      this.view.dispatch({ effects: finished.of({ tree, blocks: step.value }) });
       performance.mark(PARSED);
       return true;
     }
   },
 );
 
-export const completeParse = [wholeTree, parser];
+export const completeParse = [whole, parser];
 
 /** For a command that needs every line drawn, such as print. */
 export function finishParse(view: EditorView): void {

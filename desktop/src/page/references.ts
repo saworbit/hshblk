@@ -1,25 +1,18 @@
 import { type EditorState, Facet, type Text } from "@codemirror/state";
-import type { SyntaxNode, Tree } from "@lezer/common";
+import type { SyntaxNode } from "@lezer/common";
 import { decodeHTML } from "entities";
 
 /** Link reference definitions, by label. The first definition of a label wins. */
 export type Definitions = Map<string, string>;
 
-export function definitionsIn(doc: Text, tree: Tree): Definitions {
-  const definitions: Definitions = new Map();
-  tree.iterate({
-    enter(ref) {
-      if (ref.name !== "LinkReference") return;
-      const label = ref.node.getChild("LinkLabel");
-      const url = ref.node.getChild("URL");
-      const name = label ? normalize(doc.sliceString(label.from + 1, label.to - 1)) : "";
-      if (name && !definitions.has(name)) {
-        definitions.set(name, url ? unwrap(doc.sliceString(url.from, url.to)) : "");
-      }
-      return false;
-    },
-  });
-  return definitions;
+/** Adds a definition, a LinkReference node, unless its label is already defined. */
+export function define(definitions: Definitions, doc: Text, node: SyntaxNode): void {
+  const label = node.getChild("LinkLabel");
+  const url = node.getChild("URL");
+  const name = label ? normalize(doc.sliceString(label.from + 1, label.to - 1)) : "";
+  if (name && !definitions.has(name)) {
+    definitions.set(name, url ? unwrap(doc.sliceString(url.from, url.to)) : "");
+  }
 }
 
 /**
@@ -56,7 +49,7 @@ export const headings = Facet.define<ReadonlyMap<string, number>, ReadonlyMap<st
  * The anchor GitHub gives a heading, since READMEs link to it: lower case, punctuation dropped,
  * and each space a `-`. A repeat takes `-1`, `-2`, and on, as `taken` says.
  */
-export function anchorOf(words: string, taken: ReadonlySet<string>): string {
+export function anchorOf(words: string, taken: { has(anchor: string): boolean }): string {
   const base = words
     .toLowerCase()
     .replace(/[^\p{L}\p{M}\p{N}\p{Pc} -]/gu, "")

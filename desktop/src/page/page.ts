@@ -12,40 +12,40 @@ import {
   type DecorationSet,
   EditorView,
   showTooltip,
+  ViewPlugin,
+  type ViewUpdate,
   type WidgetType,
 } from "@codemirror/view";
 import type { SyntaxNode, Tree } from "@lezer/common";
 import { decodeHTML } from "entities";
-import { pageTree } from "./complete.ts";
-import { inlinesOf, plainText, unescapePipes, type Inline } from "./inlines.ts";
-import { addressTooltip, type LinkSpan } from "./links.ts";
-import {
-  anchorOf,
-  autolinkHref,
-  definitionsIn,
-  destination,
-  headings,
-  type Definitions,
-} from "./references.ts";
-import { ImageWidget, TableWidget, TextWidget, type Align, type TableModel } from "./widgets.ts";
+import { type Blocks, scanNow } from "./blocks.ts";
+import { pageTree, wholeBlocks } from "./complete.ts";
+import { inlinesOf, plainText } from "./inlines.ts";
+import { addressTooltip, linkAt, linkSpan } from "./links.ts";
+import { destination, headings, type Definitions } from "./references.ts";
+import { ImageWidget, TextWidget } from "./widgets.ts";
 
 /** The source a piece of hidden syntax belongs to. A selection inside it shows the syntax. */
 type Fold = { from: number; to: number };
 
 type Page = {
   tree: Tree;
+  /** What the page takes from every line. */
+  blocks: Blocks;
+  /** The reader's own selection. Null until they place one, so nothing opens on arrival. */
+  active: EditorSelection | null;
+  /** The blocks' folds, less the ones the active selection is in. */
+  shown: DecorationSet;
+};
+
+/** The inline syntax of part of the page. */
+type Painted = {
   /** Classes that hold wherever the selection is. */
   styles: DecorationSet;
   /** Syntax hidden while the selection is elsewhere. */
   folds: DecorationSet;
-  /** The reader's own selection. Null until they place one, so nothing opens on arrival. */
-  active: EditorSelection | null;
   /** The folds, less the ones the active selection is in. */
   shown: DecorationSet;
-  /** Every link's words, in order, for the address shown at the caret. */
-  links: LinkSpan[];
-  /** Each heading's GitHub anchor, to where it starts, for a link to it. */
-  anchors: Map<string, number>;
 };
 
 /** The widest hanging indent, in columns. A list item indented further does not hang. */
@@ -54,7 +54,34 @@ export const HANG_LIMIT = 24;
 /** Folds all the syntax again, as on arrival, until the reader next places a selection. */
 export const foldAll = StateEffect.define<null>();
 
-/** docs/hld.md §7: the presentation layer, as decorations over the source. */
+/**
+ * A large file holds more inline syntax than the window can decorate between two frames. So it
+ * is drawn for the viewport only, and again as the viewport moves.
+ */
+const painter = ViewPlugin.fromClass(
+  class {
+    painted: Painted;
+
+    constructor(view: EditorView) {
+      this.painted = paint(view.state, view.viewport);
+    }
+
+    update(update: ViewUpdate) {
+      const before = update.startState.field(page);
+      const now = update.state.field(page);
+      if (update.viewportChanged || now.tree !== before.tree || now.blocks !== before.blocks) {
+        this.painted = paint(update.state, update.view.viewport);
+      } else if (now.active !== before.active) {
+        this.painted = { ...this.painted, shown: unfold(this.painted.folds, now.active) };
+      }
+    }
+  },
+);
+
+/**
+ * docs/hld.md §7: the presentation layer, as decorations over the source. The state holds what
+ * needs every line, and `painter` draws the rest near the viewport.
+ */
 export const page = StateField.define<Page>({
   create: (state) => build(state, null),
   update(current, tr) {
@@ -65,35 +92,41 @@ export const page = StateField.define<Page>({
         : current.active;
     if (tr.docChanged || pageTree(tr.state) !== current.tree) return build(tr.state, active);
     if (active === current.active) return current;
-    return { ...current, active, shown: unfold(current.folds, active) };
+    return { ...current, active, shown: unfold(current.blocks.folds, active) };
   },
   provide: (field) => [
-    EditorView.decorations.from(field, (current) => current.styles),
+    EditorView.decorations.of((view) => view.plugin(painter)?.painted.styles ?? Decoration.none),
+    EditorView.decorations.of((view) => view.plugin(painter)?.painted.shown ?? Decoration.none),
     EditorView.decorations.from(field, (current) => current.shown),
-    headings.from(field, (current) => current.anchors),
+    headings.from(field, (current) => current.blocks.anchors),
     showTooltip.compute([field], (state) => {
-      const { active, links } = state.field(field);
+      const { tree, blocks, active } = state.field(field);
       if (!active) return null;
       const { from, to, empty } = active.main;
-      if (empty) return addressTooltip(links.find((link) => link.from <= from && from <= link.to));
+      const link = linkAt(state.doc, tree, blocks.definitions, from, to);
+      if (empty)
+        return addressTooltip(link && link.from <= from && from <= link.to ? link : undefined);
       // A selection inside a link but not inside its words, such as a find match in its address,
       // is in syntax that never shows, so the address shows it.
-      const hidden = links.find(
-        (link) =>
-          link.source.from <= from && to <= link.source.to && (from < link.from || to > link.to),
-      );
+      const hidden = link && (from < link.from || to > link.to) ? link : undefined;
       return addressTooltip(hidden, { text: state.sliceDoc(from, to), from });
     }),
+    painter,
   ],
 });
 
 function build(state: EditorState, active: EditorSelection | null): Page {
   const tree = pageTree(state);
-  const { styles, hidden, links, anchors } = new Painter(
-    state.doc,
-    definitionsIn(state.doc, tree),
-  ).paint(tree);
-  return { tree, styles, folds: hidden, active, shown: unfold(hidden, active), links, anchors };
+  // Until the whole document is parsed, the tree is only as long as CodeMirror has read.
+  const blocks = wholeBlocks(state) ?? scanNow(state.doc, tree);
+  return { tree, blocks, active, shown: unfold(blocks.folds, active) };
+}
+
+/** The inline syntax from `from` to `to`, whole lines, drawn from the page's tree. */
+export function paint(state: EditorState, { from, to }: { from: number; to: number }): Painted {
+  const { tree, blocks, active } = state.field(page);
+  const { styles, folds } = new Painter(state.doc, blocks.definitions, from, to).paint(tree);
+  return { styles, folds, shown: unfold(folds, active) };
 }
 
 function unfold(folds: DecorationSet, active: EditorSelection | null): DecorationSet {
@@ -106,30 +139,32 @@ function unfold(folds: DecorationSet, active: EditorSelection | null): Decoratio
   });
 }
 
-/** Walks the tree once, writing a class for each construct and a fold for its syntax. */
+/**
+ * Walks the tree between two points, writing a class for each construct and a fold for its
+ * syntax. A construct that runs past them is drawn only as far as they go.
+ */
 class Painter {
   readonly doc: Text;
   readonly definitions: Definitions;
-  readonly #anchors = new Map<string, number>();
+  /** The start of the first line drawn. */
+  readonly from: number;
+  /** The end of the last line drawn. */
+  readonly to: number;
   readonly #styles: Range<Decoration>[] = [];
-  readonly #hidden: Range<Decoration>[] = [];
-  readonly #links: LinkSpan[] = [];
+  readonly #folds: Range<Decoration>[] = [];
   /** The markers drawn in a hanging item's box, which styles them. */
   readonly #hung = new Set<number>();
 
-  constructor(doc: Text, definitions: Definitions) {
+  constructor(doc: Text, definitions: Definitions, from: number, to: number) {
     this.doc = doc;
     this.definitions = definitions;
+    this.from = doc.lineAt(from).from;
+    this.to = doc.lineAt(to).to;
   }
 
   paint(tree: Tree) {
-    tree.iterate({ enter: (ref) => this.#visit(ref.node) });
-    return {
-      styles: Decoration.set(this.#styles, true),
-      hidden: Decoration.set(this.#hidden, true),
-      links: this.#links,
-      anchors: this.#anchors,
-    };
+    tree.iterate({ from: this.from, to: this.to, enter: (ref) => this.#visit(ref.node) });
+    return { styles: Decoration.set(this.#styles, true), folds: Decoration.set(this.#folds, true) };
   }
 
   /** Returns false where the construct's children are drawn by it, not decorated one by one. */
@@ -143,10 +178,7 @@ class Painter {
       case "ATXHeading5":
       case "ATXHeading6": {
         this.#lines(node.from, node.to, `pg-heading pg-h${node.name.slice(-1)}`);
-        const marks = node.getChildren("HeaderMark");
-        const closing = marks.length > 1 ? marks.at(-1) : undefined;
-        this.#anchor(node, marks[0]?.to ?? node.from, closing?.from ?? node.to);
-        for (const mark of marks) {
+        for (const mark of node.getChildren("HeaderMark")) {
           // Opening marks take the space after them, closing marks the space before.
           if (mark.from === node.from)
             this.#hide(fold, mark.from, this.#spaceAfter(mark.to, node.to));
@@ -159,7 +191,6 @@ class Painter {
         const underline = node.getChild("HeaderMark");
         const end = underline ? underline.from - 1 : node.to;
         this.#lines(node.from, end, `pg-heading pg-h${node.name.slice(-1)}`);
-        this.#anchor(node, node.from, underline?.from ?? node.to);
         if (underline) {
           this.#hide(fold, underline.from, underline.to);
           this.#foldLine(fold, underline.from, "pg-collapsed");
@@ -176,7 +207,8 @@ class Painter {
         this.#wrap(node, "pg-code", "CodeMark");
         return false;
       case "Link":
-        return this.#link(node);
+        this.#link(node);
+        return;
       case "Image": {
         const reference = destination(this.doc, node, this.definitions);
         if (reference === null) return;
@@ -185,14 +217,9 @@ class Painter {
         this.#hide(fold, node.from, node.to, new ImageWidget(reference, alt, !this.#alone(node)));
         return false;
       }
-      case "Autolink": {
-        const url = node.getChild("URL");
-        if (!url) return false;
-        this.#linkWords(url.from, url.to, autolinkHref(this.#slice(url)), node);
-        this.#conceal(node.from, url.from);
-        this.#conceal(url.to, node.to);
+      case "Autolink":
+        this.#link(node);
         return false;
-      }
       case "Escape":
         this.#hide(fold, node.from, node.from + 1);
         return false;
@@ -241,32 +268,27 @@ class Painter {
         this.#hide(fold, node.from, node.to);
         return false;
       case "Table":
-        this.#hideLines(fold, node, new TableWidget(this.#table(node)));
-        return false;
       case "LinkReference":
-        // A definition. The links that use it carry its address, so its lines do not paint.
-        this.#hideLines(fold, node);
+        // Drawn as blocks, from the state.
         return false;
     }
-  }
-
-  /** A heading's anchor, from its words between `from` and `to`. */
-  #anchor(heading: SyntaxNode, from: number, to: number): void {
-    const words = plainText(inlinesOf(this.doc, this.definitions, heading, from, to));
-    if (words) this.#anchors.set(anchorOf(words, new Set(this.#anchors.keys())), heading.from);
   }
 
   /**
    * A link shows its words, and its syntax stays hidden even with the caret inside: the address
    * shows at the caret instead. A reference with no definition is not a link, and is left as written.
    */
-  #link(node: SyntaxNode): boolean | void {
-    const href = destination(this.doc, node, this.definitions);
-    if (href === null) return;
-    const [open, close] = node.getChildren("LinkMark");
-    this.#linkWords(open.to, close.from, href, node);
-    this.#conceal(node.from, open.to);
-    this.#conceal(close.from, node.to);
+  #link(node: SyntaxNode): void {
+    const link = linkSpan(this.doc, this.definitions, node);
+    if (!link) return;
+    const { href } = link;
+    this.#style(
+      Decoration.mark({ class: "pg-link", attributes: { title: href, "data-href": href } }),
+      link.from,
+      link.to,
+    );
+    this.#conceal(node.from, link.from);
+    this.#conceal(link.to, node.to);
   }
 
   /**
@@ -286,7 +308,7 @@ class Painter {
     const box = (from: number, to: number, width: number, className = "") =>
       this.#style(Decoration.mark({ class: `${className} pg-box-${width}`.trim() }), from, to);
     for (const paragraph of item.getChildren("Paragraph")) {
-      for (let pos = paragraph.from; pos <= paragraph.to;) {
+      for (let pos = Math.max(paragraph.from, this.from); pos <= Math.min(paragraph.to, this.to);) {
         const line = this.doc.lineAt(pos);
         pos = line.to + 1;
         const indent = /^[ \t]*/.exec(line.text)![0].length;
@@ -324,18 +346,9 @@ class Painter {
     );
   }
 
-  #linkWords(from: number, to: number, href: string, source: SyntaxNode): void {
-    this.#style(
-      Decoration.mark({ class: "pg-link", attributes: { title: href, "data-href": href } }),
-      from,
-      to,
-    );
-    this.#links.push({ from, to, source: { from: source.from, to: source.to }, href });
-  }
-
   /** Hides syntax for good, wherever the selection goes. */
   #conceal(from: number, to: number): void {
-    if (from < to) this.#styles.push(Decoration.replace({}).range(from, to));
+    if (from < to) this.#replace(this.#styles, from, to);
   }
 
   #wrap(node: SyntaxNode, className: string, markName: string): void {
@@ -344,52 +357,34 @@ class Painter {
     for (const mark of node.getChildren(markName)) this.#hide(fold, mark.from, mark.to);
   }
 
-  #table(node: SyntaxNode): TableModel {
-    const delimiter = node.getChild("TableDelimiter");
-    const align = delimiter ? alignments(this.#slice(delimiter)) : [];
-    const fit = (cells: Inline[][]) => align.map((_, i) => cells[i] ?? []);
-    const header = node.getChild("TableHeader");
-    return {
-      align,
-      head: header ? fit(this.#cells(header)) : [],
-      rows: node.getChildren("TableRow").map((row) => fit(this.#cells(row))),
-    };
-  }
-
-  /** A row's cells in order. Two pipes with nothing between them are an empty cell. */
-  #cells(row: SyntaxNode): Inline[][] {
-    const cells: Inline[][] = [];
-    let cell: Inline[] | null = row.firstChild?.name === "TableDelimiter" ? null : [];
-    for (let child = row.firstChild; child; child = child.nextSibling) {
-      if (child.name === "TableCell") {
-        cell = unescapePipes(inlinesOf(this.doc, this.definitions, child));
-      } else if (child.name === "TableDelimiter") {
-        if (cell) cells.push(cell);
-        cell = [];
-      }
-    }
-    if (cell && row.lastChild?.name !== "TableDelimiter") cells.push(cell);
-    return cells;
-  }
-
   #style(decoration: Decoration, from: number, to = from): void {
     this.#styles.push(decoration.range(from, to));
   }
 
   #hide(fold: Fold, from: number, to: number, widget?: WidgetType): void {
-    if (from < to) this.#hidden.push(Decoration.replace({ fold, widget }).range(from, to));
+    if (from < to) this.#replace(this.#folds, from, to, fold, widget);
   }
 
-  /** Replaces whole lines, for the constructs the page draws as a block or not at all. */
-  #hideLines(fold: Fold, node: SyntaxNode, widget?: WidgetType): void {
-    const from = this.doc.lineAt(node.from).from;
-    const to = this.doc.lineAt(node.to).to;
-    this.#hidden.push(Decoration.replace({ fold, widget, block: true }).range(from, to));
+  /**
+   * CodeMirror takes no replacement across a line break from a view plugin. So each line's part
+   * is replaced on its own, and a line replaced whole, after the first, takes no height.
+   */
+  #replace(into: Range<Decoration>[], from: number, to: number, fold?: Fold, widget?: WidgetType) {
+    let line = this.doc.lineAt(from);
+    const end = Math.min(to, line.to);
+    if (from < end || widget) into.push(Decoration.replace({ fold, widget }).range(from, end));
+    while (to > line.to) {
+      line = this.doc.lineAt(line.to + 1);
+      const part = Math.min(to, line.to);
+      if (line.from < part) into.push(Decoration.replace({ fold }).range(line.from, part));
+      if (part === line.to)
+        into.push(Decoration.line({ class: "pg-collapsed", fold }).range(line.from));
+    }
   }
 
   #lines(from: number, to: number, className: string): void {
     const decoration = Decoration.line({ class: className });
-    for (let pos = from; pos <= to;) {
+    for (let pos = Math.max(from, this.from); pos <= Math.min(to, this.to);) {
       const line = this.doc.lineAt(pos);
       this.#styles.push(decoration.range(line.from));
       pos = line.to + 1;
@@ -397,7 +392,7 @@ class Painter {
   }
 
   #foldLine(fold: Fold, pos: number, className: string): void {
-    this.#hidden.push(Decoration.line({ class: className, fold }).range(this.doc.lineAt(pos).from));
+    this.#folds.push(Decoration.line({ class: className, fold }).range(this.doc.lineAt(pos).from));
   }
 
   #spaceAfter(pos: number, limit: number, most = Infinity): number {
@@ -415,17 +410,4 @@ class Painter {
   #slice(node: SyntaxNode): string {
     return this.doc.sliceString(node.from, node.to);
   }
-}
-
-function alignments(delimiterRow: string): Align[] {
-  return delimiterRow
-    .trim()
-    .replace(/^\|/, "")
-    .replace(/\|$/, "")
-    .split("|")
-    .map((spec) => {
-      const left = spec.trim().startsWith(":");
-      const right = spec.trim().endsWith(":");
-      return left && right ? "center" : right ? "right" : left ? "left" : null;
-    });
 }
