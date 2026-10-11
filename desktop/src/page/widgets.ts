@@ -71,7 +71,7 @@ export class ImageWidget extends WidgetType {
   }
 }
 
-/** A GFM table, drawn until the selection enters it and unfolds the source. */
+/** A GFM table, drawn until the keys or find enter it and open its source. */
 export class TableWidget extends WidgetType {
   readonly table: TableModel;
   readonly #key: string;

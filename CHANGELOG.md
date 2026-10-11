@@ -31,3 +31,4 @@
 - Desktop: a click or a drag places the caret and opens no syntax, so the text never moves under the pointer. Opened marks could wrap a word at a line's end onto the next line. The keys and find still open the syntax they reach, and a link's popover still shows on a click. The click-target gate has a row for bold, italic, and code. (#26)
 - Desktop: in a blockquote, code, raw HTML, and a table's source hide the quote's `>` on every line, as a paragraph does. Only their first line used to.
 - Desktop: a document's text crosses from Rust to the page as UTF-8 bytes, not inside a JSON string, so a large file arrives sooner: 60 ms sooner for a 9.6 MB file, by the median of twelve runs. (#19)
+- Docs: the design doc's table rule and render-policy box, and two code comments, say what a click and a raw HTML block do now.

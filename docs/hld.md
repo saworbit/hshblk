@@ -47,7 +47,7 @@ The browser reader in this repository is not milestone one. It renders HTML, so 
 | Save | Encode the string with the recorded BOM and separator | On every file section 5 lets you save, that reproduces the bytes exactly. See section 5. |
 | Rust role | Save gate and path policy | Checks, encodes, and writes. Does not parse Markdown. |
 | Sanitize | Render policy only | Stripping HTML on save destroys READMEs. |
-| Tables, v1 | Unfold to source on entry | Nested cell editors are a later design, not an accident. |
+| Tables, v1 | Unfold to source when the keys or find enter them | Nested cell editors are a later design, not an accident. |
 
 Rejected:
 
@@ -108,7 +108,7 @@ Known risk, not a rejection: CodeMirror, Lezer, and ProseMirror share one primar
 │                    inside the scope root, no path from the webview  │
 │                                                                     │
 │  render policy: CSP in section 6, navigation denied                 │
-│                 raw HTML as source, or in a sandboxed frame         │
+│                 HTML blocks in a sandboxed frame, inline as source  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 

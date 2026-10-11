@@ -146,7 +146,7 @@ function follow(view: EditorView, href: string): (() => void) | null {
 
 /** A Ctrl or Cmd click on a link follows it. A plain click places the caret in its words. */
 export const modClickOpens = EditorView.domEventHandlers({
-  // The press would place the caret first, and a caret in a table unfolds its links away.
+  // The press would move the caret first. Following a link leaves it where it was.
   mousedown: (event, view) => following(event, view) !== null,
   click(event, view) {
     const go = following(event, view);
