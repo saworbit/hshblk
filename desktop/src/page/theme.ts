@@ -109,6 +109,9 @@ export const pageTheme = EditorView.theme({
     border: "0",
     pointerEvents: "none",
   },
+  ".pg-summary": { cursor: "pointer", padding: "0.3em 0" },
+  ".pg-summary::before": { content: '"▸"', display: "inline-block", width: "1.2em" },
+  ".pg-summary-open::before": { content: '"▾"' },
   ".pg-table": { overflowX: "auto", padding: "0.6em 0" },
   ".pg-table table": { borderCollapse: "collapse", width: "100%", fontSize: "0.95em" },
   ".pg-table th, .pg-table td": {

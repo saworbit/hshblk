@@ -7,9 +7,17 @@ import { filePath, isLocal } from "./assets.ts";
 import { markdown } from "./dialect.ts";
 import { around } from "./links.ts";
 import { scan, scanNow } from "./blocks.ts";
-import { foldAll, page, paint } from "./page.ts";
+import { foldAll, page, paint, printing } from "./page.ts";
 import { headingAt, headings } from "./references.ts";
-import { HtmlWidget, ImageWidget, TableWidget, TextWidget, type TableModel } from "./widgets.ts";
+import {
+  HtmlWidget,
+  ImageWidget,
+  SummaryWidget,
+  TableWidget,
+  TextWidget,
+  toggleDetails,
+  type TableModel,
+} from "./widgets.ts";
 
 /** A page with its whole tree parsed, as the reader sees it once the parse is done. */
 function open(doc: string): EditorState {
@@ -61,6 +69,8 @@ function named(widget: unknown): string {
   if (widget instanceof ImageWidget) return `[image ${widget.reference} · ${widget.alt}]`;
   if (widget instanceof TableWidget) return `[table ${widget.table.rows.length} rows]`;
   if (widget instanceof HtmlWidget) return `[html ${widget.html}]`;
+  if (widget instanceof SummaryWidget)
+    return `[summary ${widget.summary}${widget.open ? " open" : ""}]`;
   return "";
 }
 
@@ -485,6 +495,76 @@ describe("unfolding", () => {
     const folded = inBold.update({ effects: foldAll.of(null) }).state;
     assert.equal(visible(folded), "Title\n\nSome bold words.");
     assert.equal(visible(select(folded, doc.indexOf("bold"))), "Title\n\nSome **bold** words.");
+  });
+});
+
+describe("a <details> around markdown", () => {
+  const doc =
+    "<details>\n<summary>More <b>notes</b></summary>\n\nA **folded** body.\n\n</details>\n\nAfter";
+  const at = doc.indexOf("<details>");
+  const toggle = (state: EditorState) => state.update({ effects: toggleDetails.of(at) }).state;
+
+  it("draws its summary, and folds its body and closing tag until a click opens it", () => {
+    const state = open(doc);
+    assert.equal(visible(state), "[summary More <b>notes</b>]\n\n\n\nAfter");
+    const opened = toggle(state);
+    assert.equal(
+      visible(opened),
+      "[summary More <b>notes</b> open]\n\nA folded body.\n\n\n\nAfter",
+    );
+    assert.equal(visible(toggle(opened)), visible(state));
+  });
+
+  it("starts open when written open, and the same click closes it", () => {
+    const written = open(doc.replace("<details>", '<details open class="x">'));
+    assert.match(visible(written), /^\[summary More <b>notes<\/b> open\]\n\nA folded body\./);
+    assert.doesNotMatch(visible(toggle(written)), /folded/);
+  });
+
+  it("opens while a find match is in its body, and closes again when the selection leaves", () => {
+    const word = doc.indexOf("folded");
+    const found = open(doc).update({
+      selection: { anchor: word, head: word + 6 },
+      userEvent: "select.search",
+    }).state;
+    assert.match(visible(found), /^\[summary More <b>notes<\/b> open\]\n\nA \*\*folded\*\* body\./);
+    assert.doesNotMatch(visible(select(found, doc.length)), /folded/);
+    // A click in the body opens nothing, as a click anywhere.
+    assert.doesNotMatch(visible(click(open(doc), word)), /folded/);
+  });
+
+  it("shows a tag's source when the keys enter it", () => {
+    const inSummary = select(open(doc), doc.indexOf("More"));
+    assert.match(
+      visible(inSummary),
+      /^<details>\n<summary>More <b>notes<\/b><\/summary>\n\n\n\nAfter$/,
+    );
+    assert.match(visible(select(open(doc), doc.indexOf("</details>") + 2)), /<\/details>/);
+  });
+
+  it("opens every one for print, and puts them back after", () => {
+    const printed = open(doc).update({ effects: [foldAll.of(null), printing.of(true)] }).state;
+    assert.match(visible(printed), /A folded body\./);
+    assert.doesNotMatch(visible(printed.update({ effects: printing.of(false) }).state), /folded/);
+  });
+
+  it("pairs the tags as they nest, in the same container, and leaves a lone one a frame", () => {
+    const nested =
+      "<details>\n<summary>Outer</summary>\n\n<details>\n<summary>Inner</summary>\n\nDeep.\n\n</details>\n\nShallow.\n\n</details>";
+    const state = open(nested);
+    assert.equal(visible(state).replace(/\n+/g, " ").trim(), "[summary Outer]");
+    const outer = state.update({ effects: toggleDetails.of(0) }).state;
+    assert.equal(
+      visible(outer).replace(/\n+/g, " ").trim(),
+      "[summary Outer open] [summary Inner] Shallow.",
+    );
+    // An opening tag with no closing one, and one closed only inside a quote, stay frames.
+    for (const lone of [
+      "<details>\n<summary>Lone</summary>\n\nBody.",
+      "<details>\n\n> </details>",
+    ]) {
+      assert.match(visible(open(lone)), /^\[html <details>/, lone);
+    }
   });
 });
 

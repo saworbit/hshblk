@@ -53,6 +53,7 @@ Each file opens in a window of its own. A second file opens a second window in t
 - Copy and find work on the source, hidden syntax included. The status line says so.
 - Images load when they are inside the document's repository: the enclosing git repository, or the file's folder when there is none. A path that starts with `/` starts at that root, as on GitHub. Nothing loads from the network.
 - A raw HTML block is drawn in a frame that runs no script and fetches nothing, not even the images it names. Ctrl or ⌘ and a click opens a link in it, as on the page, and a click on a summary opens its details. Its text cannot be selected: copy works on the source. Inline HTML shows as source. No script in a document runs.
+- A `<details>` written as its own blocks around markdown, as a README writes it, shows its summary. A click on it opens or closes it, find opens it while a match is inside, and print shows it open.
 
 ## Building it
 

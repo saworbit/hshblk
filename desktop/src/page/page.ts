@@ -23,7 +23,7 @@ import { pageTree, wholeBlocks } from "./complete.ts";
 import { inlinesOf, plainText } from "./inlines.ts";
 import { addressTooltip, linkAt, linkSpan } from "./links.ts";
 import { destination, headings, type Definitions } from "./references.ts";
-import { ImageWidget, TextWidget } from "./widgets.ts";
+import { ImageWidget, SummaryWidget, TextWidget, toggleDetails } from "./widgets.ts";
 
 /** The source a piece of hidden syntax belongs to. A selection inside it shows the syntax. */
 type Fold = { from: number; to: number };
@@ -39,7 +39,11 @@ type Page = {
    * nothing, so the text never moves under the pointer. The keyboard and find open what they reach.
    */
   opening: EditorSelection | null;
-  /** The blocks' folds, less the ones the opening selection is in. */
+  /** The `<details>` the reader opened or closed, by where each starts. */
+  toggled: ReadonlySet<number>;
+  /** Whether the page is printing, which opens every `<details>`. */
+  printing: boolean;
+  /** The blocks' folds, less the ones the opening selection is in, and the details. */
   shown: DecorationSet;
 };
 
@@ -58,6 +62,9 @@ export const HANG_LIMIT = 24;
 
 /** Folds all the syntax again, as on arrival, until the reader next places a selection. */
 export const foldAll = StateEffect.define<null>();
+
+/** Opens every `<details>` while the page prints, and puts them back after. */
+export const printing = StateEffect.define<boolean>();
 
 /**
  * A large file holds more inline syntax than the window can decorate between two frames. So it
@@ -88,18 +95,36 @@ const painter = ViewPlugin.fromClass(
  * needs every line, and `painter` draws the rest near the viewport.
  */
 export const page = StateField.define<Page>({
-  create: (state) => build(state, null, null),
+  create: (state) => build(state, null, null, new Set(), false),
   update(current, tr) {
     const folded = tr.effects.some((effect) => effect.is(foldAll));
     const selected = tr.selection && tr.isUserEvent("select");
     const active = folded ? null : selected ? tr.state.selection : current.active;
     const pointer = tr.isUserEvent("select.pointer");
     const opening = folded ? null : selected ? (pointer ? null : active) : current.opening;
-    if (tr.docChanged || pageTree(tr.state) !== current.tree) {
-      return build(tr.state, active, opening);
+    let toggled = current.toggled;
+    let printed = current.printing;
+    for (const effect of tr.effects) {
+      if (effect.is(toggleDetails)) {
+        const next = new Set(toggled);
+        if (!next.delete(effect.value)) next.add(effect.value);
+        toggled = next;
+      } else if (effect.is(printing)) {
+        printed = effect.value;
+      }
     }
-    if (active === current.active && opening === current.opening) return current;
-    return { ...current, active, opening, shown: unfold(current.blocks.folds, opening) };
+    if (tr.docChanged) toggled = new Set([...toggled].map((from) => tr.changes.mapPos(from)));
+    if (tr.docChanged || pageTree(tr.state) !== current.tree) {
+      return build(tr.state, active, opening, toggled, printed);
+    }
+    const same =
+      active === current.active &&
+      opening === current.opening &&
+      toggled === current.toggled &&
+      printed === current.printing;
+    if (same) return current;
+    const shown = draw(current.blocks, opening, toggled, printed);
+    return { ...current, active, opening, toggled, printing: printed, shown };
   },
   provide: (field) => [
     EditorView.decorations.of((view) => view.plugin(painter)?.painted.styles ?? Decoration.none),
@@ -126,11 +151,45 @@ function build(
   state: EditorState,
   active: EditorSelection | null,
   opening: EditorSelection | null,
+  toggled: ReadonlySet<number>,
+  printing: boolean,
 ): Page {
   const tree = pageTree(state);
   // Until the whole document is parsed, the tree is only as long as CodeMirror has read.
   const blocks = wholeBlocks(state) ?? scanNow(state.doc, tree);
-  return { tree, blocks, active, opening, shown: unfold(blocks.folds, opening) };
+  const shown = draw(blocks, opening, toggled, printing);
+  return { tree, blocks, active, opening, toggled, printing, shown };
+}
+
+/**
+ * The blocks as drawn: their folds, less the ones the opening selection is in, and each
+ * `<details>` as its summary, its body folded while it is closed. Find or the keys in a closed
+ * body open it while they are there, and print opens them all.
+ */
+function draw(
+  blocks: Blocks,
+  opening: EditorSelection | null,
+  toggled: ReadonlySet<number>,
+  printing: boolean,
+): DecorationSet {
+  const folds = unfold(blocks.folds, opening);
+  if (blocks.details.length === 0) return folds;
+  const reached = (span: Fold) =>
+    opening?.ranges.some((range) => range.from <= span.to && range.to >= span.from) ?? false;
+  const add: Range<Decoration>[] = [];
+  for (const { summary, open, head, body, tail } of blocks.details) {
+    const from = head.source.from;
+    const shown = printing || open !== toggled.has(from) || (body !== null && reached(body));
+    if (!reached(head.source)) {
+      const widget = new SummaryWidget(summary, from, shown);
+      add.push(Decoration.replace({ widget, block: true }).range(head.lines.from, head.lines.to));
+    }
+    if (body && !shown) add.push(Decoration.replace({ block: true }).range(body.from, body.to));
+    if (!reached(tail.source)) {
+      add.push(Decoration.replace({ block: true }).range(tail.lines.from, tail.lines.to));
+    }
+  }
+  return folds.update({ add, sort: true });
 }
 
 /** The inline syntax from `from` to `to`, whole lines, drawn from the page's tree. */

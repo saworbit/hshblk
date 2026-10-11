@@ -1,3 +1,4 @@
+import { StateEffect } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { assetUrl, filePath, isLocal } from "./assets.ts";
 import type { Inline } from "./inlines.ts";
@@ -105,6 +106,48 @@ export class TableWidget extends WidgetType {
 
   ignoreEvent(): boolean {
     return false;
+  }
+}
+
+/** Opens or closes the `<details>` whose opening block starts here. */
+export const toggleDetails = StateEffect.define<number>();
+
+/**
+ * docs/hld.md §7: a `<details>` whose body is markdown, drawn as its summary. A click opens or
+ * closes it. The page folds the body's lines while it is closed.
+ */
+export class SummaryWidget extends WidgetType {
+  /** The summary's HTML, as written. */
+  readonly summary: string;
+  /** Where the details' opening block starts, which names it. */
+  readonly from: number;
+  readonly open: boolean;
+
+  constructor(summary: string, from: number, open: boolean) {
+    super();
+    this.summary = summary;
+    this.from = from;
+    this.open = open;
+  }
+
+  eq(other: SummaryWidget): boolean {
+    return other.summary === this.summary && other.from === this.from && other.open === this.open;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const summary = document.createElement("div");
+    summary.className = this.open ? "pg-summary pg-summary-open" : "pg-summary";
+    summary.setAttribute("role", "button");
+    summary.setAttribute("aria-expanded", String(this.open));
+    // Its words, as a browser shows them. A parsed document runs nothing and fetches nothing.
+    const words = new DOMParser().parseFromString(this.summary, "text/html").body.textContent;
+    summary.textContent = words?.replace(/\s+/g, " ").trim() || "Details";
+    // The press would move the caret first. Opening the details leaves it where it was.
+    summary.addEventListener("mousedown", (event) => event.preventDefault());
+    summary.addEventListener("click", () =>
+      view.dispatch({ effects: toggleDetails.of(this.from) }),
+    );
+    return summary;
   }
 }
 

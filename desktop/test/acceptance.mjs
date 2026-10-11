@@ -112,6 +112,13 @@ Inline <img src="x" onerror="window.ran = 'inline'"> HTML.
 
 ${FILLER}
 
+<details>
+<summary>More <b>notes</b></summary>
+
+A folded body.
+
+</details>
+
 [far]: https://example.com/far
 
 The **end**.
@@ -820,6 +827,78 @@ ${FILLER}
   });
 });
 
+describe("a <details> around markdown", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-details-"));
+  const file = join(folder, "details.md");
+  writeFileSync(
+    file,
+    `# Details
+
+<details>
+<summary>More <b>notes</b></summary>
+
+A folded body with a needle in it.
+
+</details>
+
+After.
+`,
+  );
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelector(".pg-summary"));
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  /** In the page: the summary's words and state, and whether the body shows. */
+  const state = () => {
+    const summary = document.querySelector(".pg-summary");
+    const box = summary.getBoundingClientRect();
+    return {
+      summary: summary.textContent,
+      open: summary.getAttribute("aria-expanded"),
+      body: [...document.querySelectorAll(".cm-line")].some((line) =>
+        line.textContent.includes("needle"),
+      ),
+      x: box.x + 40,
+      y: box.y + box.height / 2,
+    };
+  };
+
+  test("opens and closes from its summary", async () => {
+    const closed = await page.run(state);
+    assert.deepEqual([closed.summary, closed.open, closed.body], ["More notes", "false", false]);
+    await page.click(closed.x, closed.y);
+    const opened = await page.until(() => {
+      const summary = document.querySelector(".pg-summary");
+      const lines = [...document.querySelectorAll(".cm-line")].map((line) => line.textContent);
+      return summary?.getAttribute("aria-expanded") === "true" && lines;
+    });
+    assert.ok(opened.includes("A folded body with a needle in it."));
+    const at = await page.run(state);
+    await page.click(at.x, at.y);
+    await page.until(() => document.querySelector(".pg-summary[aria-expanded=false]"));
+    assert.equal((await page.run(state)).body, false);
+  });
+
+  test("find in its body opens it", async () => {
+    await page.press(Key.Control, "f");
+    await page.keys("needle");
+    await page.press(Key.Enter);
+    assert.equal(
+      await page.until(() => document.querySelector(".cm-searchMatch-selected")?.textContent),
+      "needle",
+    );
+    assert.equal((await page.run(state)).open, "true");
+    await page.press(Key.Escape);
+  });
+});
+
 describe("print", () => {
   const { file } = fixture();
 
@@ -828,6 +907,9 @@ describe("print", () => {
     assert.match(printed, /^Notes$/m);
     assert.match(printed, /^A reference link/m);
     assert.match(printed, /^Filler paragraph 1499\.$/m);
+    // A <details> prints open.
+    assert.match(printed, /More notes$/m);
+    assert.match(printed, /^A folded body\.$/m);
     assert.match(printed, /^The end\.$/m);
     assert.doesNotMatch(printed, /^# |\*\*|\[far\]/m);
   });
