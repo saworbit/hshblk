@@ -132,6 +132,7 @@ function paint(inline: Inline): Node {
     case "link": {
       const link = element("span", "pg-link", inline.children.map(paint));
       link.title = inline.href;
+      link.dataset.href = inline.href;
       return link;
     }
   }

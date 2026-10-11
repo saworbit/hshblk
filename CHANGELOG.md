@@ -16,5 +16,8 @@
 - Desktop: an image that shares its line with text or other images stays in the line, so a README's badge row stays a row. One that cannot show is a chip of its words. An image alone in its paragraph is still a block. (#50)
 - Desktop: a click on the line below a table lands on that line. The table's margin was outside what CodeMirror measures, so the click landed on the line above.
 - Desktop: a find match inside a link's address shows in the link's popover, marked, since the address never shows on the page. (#24)
+- Desktop: links that looked clickable now open. Ctrl or ⌘ and a click opens a link in a table, a mail autolink opens as `mailto:`, and a scheme written in capitals opens. A link that cannot open says why in the status line. (#43, #44, #45)
+- Desktop: a link to a heading in the same file, such as `[Tables](#tables)`, goes there from **Go to** in its popover or from Ctrl or ⌘ and a click. Headings are named as GitHub names them. (#54)
+- Desktop: a find match in a link's title, or anywhere else in its hidden syntax but the address, shows marked in the link's popover. (#53)
 - Docs: the design doc records how an image's destination names its file, and find in a link's address.
 - Desktop: a launch on a missing file or a folder leaves the welcome window open behind the error, so the app no longer runs on with no window. (#47)

@@ -7,7 +7,8 @@ import { filePath, isSibling } from "./assets.ts";
 import { markdown } from "./dialect.ts";
 import { around } from "./links.ts";
 import { foldAll, page } from "./page.ts";
-import { ImageWidget, TableWidget, TextWidget } from "./widgets.ts";
+import { headingAt, headings } from "./references.ts";
+import { ImageWidget, TableWidget, TextWidget, type TableModel } from "./widgets.ts";
 
 /** A page with its whole tree parsed, as the reader sees it once the parse is done. */
 function open(doc: string): EditorState {
@@ -96,8 +97,42 @@ describe("the page", () => {
     assert.deepEqual(titles, ["https://x.y", "/ridge"]);
   });
 
+  it("names each heading by the anchor GitHub gives it", () => {
+    const doc =
+      "# Tables\n\n## Tables\n\nSetext *Title*\n===\n\n# Café & *Co.* #\n\n#\n\n### Ends in **bold**";
+    const state = open(doc);
+    assert.deepEqual(Object.fromEntries(state.facet(headings)), {
+      tables: 0,
+      "tables-1": doc.indexOf("## Tables"),
+      "setext-title": doc.indexOf("Setext"),
+      "café--co": doc.indexOf("# Café"),
+      "ends-in-bold": doc.indexOf("### Ends"),
+    });
+    assert.equal(headingAt(state, "#tables-1"), doc.indexOf("## Tables"));
+    assert.equal(headingAt(state, "#caf%C3%A9--co"), doc.indexOf("# Café"));
+    assert.equal(headingAt(state, "#nothing-here"), undefined);
+    assert.equal(headingAt(state, "tables"), undefined);
+  });
+
   it("shows an autolink's address without its angle brackets", () => {
     assert.equal(visible(open("Mail <me@x.y> or <https://x.y>.")), "Mail me@x.y or https://x.y.");
+  });
+
+  it("points an email autolink at mailto:, on the page and in a table", () => {
+    const state = open("Mail <me@x.y> or <https://x.y>.\n\n| a |\n|---|\n| <cell@x.y> |");
+    const hrefs: string[] = [];
+    let model: TableModel | undefined;
+    for (const set of [styles(state), shown(state)]) {
+      set.between(0, state.doc.length, (_from, _to, decoration) => {
+        if (decoration.spec.attributes?.["data-href"])
+          hrefs.push(decoration.spec.attributes["data-href"]);
+        if (decoration.spec.widget instanceof TableWidget) model = decoration.spec.widget.table;
+      });
+    }
+    assert.deepEqual(hrefs, ["mailto:me@x.y", "https://x.y"]);
+    assert.deepEqual(model?.rows[0][0], [
+      { kind: "link", href: "mailto:cell@x.y", children: [{ kind: "text", text: "cell@x.y" }] },
+    ]);
   });
 
   it("paints escaped characters and decoded entities", () => {

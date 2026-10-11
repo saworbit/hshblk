@@ -16,7 +16,7 @@ Packages for Linux, macOS, and Windows come from the Desktop workflow on `main`.
 | `Ctrl+O` (`⌘O`) | Open a file |
 | `Ctrl+F` (`⌘F`) | Find, in the source |
 | `Ctrl+P` (`⌘P`) | Print the whole page |
-| `Ctrl` or `⌘` and click | Open a link in the browser |
+| `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading it names |
 
 Each file opens in its own window, and dropping one on a window opens it in another. Put the caret in a construct and its syntax shows. A link shows its words, and its address shows under it. Images load from inside the file's repository and nowhere else. Raw HTML shows as source, and no script in a file runs.
 

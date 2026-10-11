@@ -132,6 +132,7 @@ export const pageTheme = EditorView.theme({
     fontSize: "0.75rem",
     color: "var(--muted)",
   },
+  ".pg-address-lines": { display: "flex", flexDirection: "column", minWidth: "0" },
   ".pg-address-url": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   ".pg-address-url mark": {
     color: "inherit",

@@ -1,7 +1,7 @@
 import type { Text } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
 import { decodeHTML } from "entities";
-import { destination, type Definitions } from "./references.ts";
+import { autolinkHref, destination, type Definitions } from "./references.ts";
 
 /**
  * Inline content as plain data, for the places the page draws instead of decorating the
@@ -99,7 +99,7 @@ function inline(doc: Text, definitions: Definitions, node: SyntaxNode): Inline[]
     case "Autolink": {
       const url = node.getChild("URL");
       const address = url ? doc.sliceString(url.from, url.to) : source;
-      return [{ kind: "link", href: address, children: [text(address)] }];
+      return [{ kind: "link", href: autolinkHref(address), children: [text(address)] }];
     }
     case "Escape":
       return [text(source.slice(1))];
