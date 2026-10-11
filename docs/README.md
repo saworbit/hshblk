@@ -1,6 +1,5 @@
 # Docs
 
-- [reader.md](reader.md) is how the browser reader in this repository is built and tested.
 - [desktop.md](desktop.md) is the desktop app: installing it, making it what a double-click opens, building it, and its tests.
 - [hld.md](hld.md) is the design for the desktop app, and the editor it becomes. That is revision 3. It is not signed off.
 - [milestone-one.md](milestone-one.md) is the record of the desktop app's acceptance run, against hld.md §8.
