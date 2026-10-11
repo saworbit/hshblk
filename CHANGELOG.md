@@ -32,3 +32,4 @@
 - Desktop: in a blockquote, code, raw HTML, and a table's source hide the quote's `>` on every line, as a paragraph does. Only their first line used to.
 - Desktop: a document's text crosses from Rust to the page as UTF-8 bytes, not inside a JSON string, so a large file arrives sooner: 60 ms sooner for a 9.6 MB file, by the median of twelve runs. (#19)
 - Docs: the design doc's table rule and render-policy box, and two code comments, say what a click and a raw HTML block do now.
+- CI: the click-target gate stops with a message naming CodeMirror's internal `cmTile` when an upgrade renames it, not with a TypeError. (#77)
