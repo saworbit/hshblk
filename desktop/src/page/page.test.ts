@@ -139,6 +139,26 @@ describe("the page", () => {
     assert.equal(headingAt(state, "tables"), undefined);
   });
 
+  it("resolves full, collapsed, and shortcut references against definitions anywhere", () => {
+    const doc = "[a][Ridge] [Ridge][] [ridge]\n\n[RIDGE]: /ridge\n[ridge]: /ignored";
+    const state = open(doc);
+    assert.equal(visible(state).split("\n")[0], "a Ridge ridge");
+    const hrefs: string[] = [];
+    styles(state).between(0, state.doc.length, (_from, _to, decoration) => {
+      if (decoration.spec.attributes?.["data-href"])
+        hrefs.push(decoration.spec.attributes["data-href"]);
+    });
+    assert.deepEqual(hrefs, ["/ridge", "/ridge", "/ridge"]);
+  });
+
+  it("does not recover emphasis across unresolved brackets", () => {
+    assert.equal(visible(open("[foo *bar]* baz")), "[foo *bar]* baz");
+  });
+
+  it("breaks the line at two trailing spaces or a backslash", () => {
+    assert.equal(visible(open("one  \ntwo\\\nthree")), "one  \ntwo\nthree");
+  });
+
   it("shows an autolink's address without its angle brackets", () => {
     assert.equal(visible(open("Mail <me@x.y> or <https://x.y>.")), "Mail me@x.y or https://x.y.");
   });
@@ -569,9 +589,10 @@ describe("a <details> around markdown", () => {
 });
 
 describe("line endings", () => {
-  it("paints a CRLF file as it paints an LF one", () => {
+  it("paints a CRLF or CR file as it paints an LF one", () => {
     const lf = "# Title\n\n| a |\n|---|\n| b |\n\n*x*";
     assert.equal(visible(open(lf.replace(/\n/g, "\r\n"))), visible(open(lf)));
+    assert.equal(visible(open(lf.replace(/\n/g, "\r"))), visible(open(lf)));
   });
 });
 
