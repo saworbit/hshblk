@@ -72,6 +72,38 @@ class Session {
     ]);
   }
 
+  /** A click with a key held: `clickWith(Key.Control, x, y)`. */
+  clickWith(key, x, y) {
+    const pause = { type: "pause" };
+    return call("POST", `${this.#path}/actions`, {
+      actions: [
+        {
+          type: "key",
+          id: "keyboard",
+          actions: [
+            { type: "keyDown", value: key },
+            pause,
+            pause,
+            pause,
+            { type: "keyUp", value: key },
+          ],
+        },
+        {
+          type: "pointer",
+          id: "mouse",
+          parameters: { pointerType: "mouse" },
+          actions: [
+            pause,
+            move(x, y),
+            { type: "pointerDown", button: 0 },
+            { type: "pointerUp", button: 0 },
+            pause,
+          ],
+        },
+      ],
+    });
+  }
+
   drag(from, to) {
     return this.#pointer([
       move(from.x, from.y),

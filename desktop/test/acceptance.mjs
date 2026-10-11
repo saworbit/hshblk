@@ -54,6 +54,23 @@ async function gone() {
 /** Where the app starts, and so where Print to File writes. */
 const work = mkdtempSync(join(tmpdir(), "hshblk-work-"));
 
+/**
+ * What the app hands the system's opener, one address a line. A stand-in `xdg-open` writes it,
+ * so no test opens a browser.
+ */
+const opened = join(work, "opened.txt");
+{
+  const bin = join(work, "bin");
+  mkdirSync(bin);
+  writeFileSync(join(bin, "xdg-open"), `#!/bin/sh\nprintf '%s\\n' "$1" >> '${opened}'\n`, {
+    mode: 0o755,
+  });
+  process.env.PATH = `${bin}:${process.env.PATH}`;
+}
+
+const openedSoFar = () =>
+  readFileSync(opened, { encoding: "utf8", flag: "a+" }).split("\n").filter(Boolean);
+
 /** One transparent pixel. */
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
@@ -407,6 +424,63 @@ describe("one open document", () => {
 
   test("2. leaves the file's bytes and modification time as they were", async () => {
     assert.deepEqual(fingerprint(file), original);
+  });
+});
+
+describe("links that open", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-links-"));
+  const file = join(folder, "links.md");
+  writeFileSync(
+    file,
+    `[web](https://example.com/page), <someone@example.com>, [shouty](HTTPS://EXAMPLE.COM/UP), [script](javascript:alert(1))
+
+| Name | Link |
+|------|------|
+| row  | [table link](https://table.example.com) |
+| mail | <cell@example.com> |
+`,
+  );
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelector(".pg-table"));
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  /** Ctrl and a click on the words, as a reader opens a link. */
+  async function controlClick(words) {
+    const at = await page.run((words) => {
+      const link = [...document.querySelectorAll(".pg-link")].find(
+        (el) => el.textContent === words,
+      );
+      const box = link.getBoundingClientRect();
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    }, words);
+    await page.clickWith(Key.Control, at.x, at.y);
+  }
+
+  test("6. open from Ctrl and a click, on the page and in a table, in any case", async () => {
+    const expected = [
+      ["web", "https://example.com/page"],
+      ["someone@example.com", "mailto:someone@example.com"],
+      ["shouty", "HTTPS://EXAMPLE.COM/UP"],
+      ["table link", "https://table.example.com"],
+      ["cell@example.com", "mailto:cell@example.com"],
+    ];
+    const before = openedSoFar().length;
+    for (const [i, [words, address]] of expected.entries()) {
+      // An address that does not open goes first, so the next line shows it was skipped.
+      if (i === 3) await controlClick("script");
+      await controlClick(words);
+      for (let tries = 0; openedSoFar().length < before + i + 1 && tries < 50; tries += 1)
+        await sleep(100);
+      assert.equal(openedSoFar()[before + i], address, words);
+    }
+    assert.equal(openedSoFar().length, before + expected.length);
   });
 });
 

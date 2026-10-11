@@ -73,12 +73,19 @@ function address(view: EditorView, href: string, found: string): HTMLElement {
 
 /** A Ctrl or Cmd click on a link opens it. A plain click places the caret in its words. */
 export const modClickOpens = EditorView.domEventHandlers({
+  // The press would place the caret first, and a caret in a table unfolds its links away.
+  mousedown: (event, view) => opening(event, view) !== null,
   click(event, view) {
-    if (!(event.metaKey || event.ctrlKey)) return false;
-    const href = (event.target as Element).closest<HTMLElement>("[data-href]")?.dataset.href;
-    const open = view.state.facet(linkOpener);
-    if (!href || !open || !opens(href)) return false;
-    open(href);
+    const href = opening(event, view);
+    if (href === null) return false;
+    view.state.facet(linkOpener)?.(href);
     return true;
   },
 });
+
+/** The address a Ctrl or Cmd click on a link opens, or null when the click opens nothing. */
+function opening(event: MouseEvent, view: EditorView): string | null {
+  if (!(event.metaKey || event.ctrlKey)) return null;
+  const href = (event.target as Element).closest<HTMLElement>("[data-href]")?.dataset.href;
+  return href && view.state.facet(linkOpener) && opens(href) ? href : null;
+}
