@@ -466,6 +466,8 @@ describe("layout", () => {
 |---|
 | https://example.com/${"averylongaddress".repeat(8)} |
 
+A [link below the table](https://example.com/below) and more words.
+
 [![CI](https://example.com/ci.svg)](https://example.com/ci) [![npm](https://example.com/npm.svg)](https://example.com/npm) [![License: MIT](https://example.com/mit.svg)](LICENSE) [![codecov](https://example.com/cov.svg)](https://example.com/cov) [![Downloads](https://example.com/dl.svg)](https://example.com/dl)
 
 ![wide](wide.svg)
@@ -573,6 +575,25 @@ A dot ![dot](dot.png) in a line, and one at the end ![end](dot.png).
     });
     assert.ok(widths.table[0] > widths.table[1], "the long address scrolls in its table");
     assert.ok(widths.page[0] <= widths.page[1], "the page does not scroll sideways");
+  });
+
+  test("a click below a table lands where it was aimed", async () => {
+    await page.run(() =>
+      [...document.querySelectorAll(".pg-link")]
+        .find((el) => el.textContent === "link below the table")
+        .scrollIntoView({ block: "center" }),
+    );
+    const words = await page.until(() => {
+      const link = [...document.querySelectorAll(".pg-link")].find(
+        (el) => el.textContent === "link below the table",
+      );
+      const box = link?.getBoundingClientRect();
+      return box && box.top > 0 && { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    });
+    await page.click(words.x, words.y);
+    const address = await page.until(() => document.querySelector(".pg-address-url")?.textContent);
+    assert.equal(address, "https://example.com/below");
+    await page.press(Key.Escape);
   });
 
   test("an image in a line stays in it, and one alone is a block no wider than the page", async () => {
