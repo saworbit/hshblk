@@ -114,12 +114,14 @@ Not done yet ([hld.md](hld.md) §12, question 1):
 | `desktop/src/main.ts` | The window: open, print, the status line, and the welcome. |
 | `desktop/src/surface.ts` | The CodeMirror surface, with editing turned off. |
 | `desktop/src/page/` | The page: the dialect, its decorations, links, images, tables, the whole-document parse, and the theme. |
+| `desktop/scripts/` | What CI runs beside the tests: the licence check, and the check that a release tag names the version. |
 
 ## Tests
 
 | Command, in `desktop/` | Checks |
 |---|---|
 | `npm test` | The page's decorations, in Node. |
+| `npm run typecheck`, `npm run lint` | The page's TypeScript, strict, and ESLint on the scripts and tests, which no type checker reads. |
 | `cargo test`, in `src-tauri/` | Files, scopes, handles, and the resource channel. |
 | `node test/acceptance.mjs <app>` | [hld.md](hld.md) §8, items 1, 2, 4, 5, and 6, through the built app. |
 | `node test/gate/click-target.mjs <app>` | The click-target gate, §9. |
