@@ -107,4 +107,6 @@ npx tauri build         # the packages, in src-tauri/target/release/bundle
 
 `<app>` is a built binary, such as `src-tauri/target/debug/hshblk` after `npx tauri build --debug --no-bundle`. The tests that drive the app run on Linux under X. They need `tauri-driver` (`cargo install tauri-driver --locked`) and WebKitWebDriver (`webkit2gtk-driver`). Print also needs `xdotool` and `pdftotext`, and the double-click needs `gio` and a D-Bus session. CI runs them all under Xvfb, each in a D-Bus session of its own: [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml). The runner's own bus has a portal that cannot start, so a launch on it takes 30 seconds (see above).
 
+A debug build writes each request the resource channel answers, served or refused, as a line in the file `HSHBLK_ASSET_LOG` names. WebKitGTK's resource timing does not see the app's own schemes, so the acceptance test sets it and reads it for item 2. A release build has no log.
+
 The last run of each is recorded in [milestone-one.md](milestone-one.md) and [gates/](gates/).

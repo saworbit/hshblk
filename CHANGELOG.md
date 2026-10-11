@@ -32,5 +32,7 @@
 - Desktop: in a blockquote, code, raw HTML, and a table's source hide the quote's `>` on every line, as a paragraph does. Only their first line used to.
 - Desktop: a document's text crosses from Rust to the page as UTF-8 bytes, not inside a JSON string, so a large file arrives sooner: 60 ms sooner for a 9.6 MB file, by the median of twelve runs. (#19)
 - Docs: the design doc's table rule and render-policy box, and two code comments, say what a click and a raw HTML block do now.
+- CI: the click-target gate stops with a message naming CodeMirror's internal `cmTile` when an upgrade renames it, not with a TypeError. (#77)
+- CI: the no-fetch test counts what the resource channel was asked for. A debug build logs each request to the file `HSHBLK_ASSET_LOG` names, and the test fails if a frame asked for anything. (#78)
 - Desktop: Ctrl or ⌘ and a click opens a link in a raw HTML block, or goes to the heading it names, as on the page. WebKit runs none of the page's listeners in the frame, so the page now takes the pointer over it and reads the link from the frame's document. A click on a summary still opens its details. The frame's text can no longer be selected. (#74)
 - Desktop: a `<details>` written as its own blocks around a markdown body shows its summary, and a click on it opens or closes the body. Find opens it while a match is inside, `<details open>` starts open, and print shows every one open. Its tags were empty frames, and its body always showed. (#76)

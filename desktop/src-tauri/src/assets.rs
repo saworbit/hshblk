@@ -46,6 +46,40 @@ pub fn respond(documents: &Documents, request: &Request<Vec<u8>>) -> Response<Ve
     .expect("a response from a status, a header, and bytes")
 }
 
+/// The variable naming the file a debug build records each request in.
+#[cfg(debug_assertions)]
+pub const LOG_VARIABLE: &str = "HSHBLK_ASSET_LOG";
+
+/// Debug builds only: each request the channel answers, served or refused, as a line in the file
+/// `HSHBLK_ASSET_LOG` names. WebKitGTK's resource timing does not see the app's own schemes, so
+/// the §8 item 2 test counts what the channel was asked for here.
+#[cfg(debug_assertions)]
+pub fn record(webview: &str, request: &Request<Vec<u8>>, response: &Response<Vec<u8>>) {
+    if let Some(log) = std::env::var_os(LOG_VARIABLE) {
+        if let Err(error) = append(Path::new(&log), webview, request, response) {
+            eprintln!("{LOG_VARIABLE}: {error}");
+        }
+    }
+}
+
+/// One line: the window that asked, the status, and the path as asked.
+#[cfg(debug_assertions)]
+fn append(
+    log: &Path,
+    webview: &str,
+    request: &Request<Vec<u8>>,
+    response: &Response<Vec<u8>>,
+) -> std::io::Result<()> {
+    use std::io::Write;
+    let status = response.status().as_u16();
+    let line = format!("{webview} {status} {}\n", request.uri().path());
+    fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log)?
+        .write_all(line.as_bytes())
+}
+
 fn serve(documents: &Documents, path: &str) -> Result<(Vec<u8>, &'static str), Refusal> {
     let request = percent_decode_str(path.trim_start_matches('/')).decode_utf8_lossy();
     let (handle, reference) = request.split_once('/').ok_or(Refusal::UnknownDocument)?;
@@ -344,5 +378,25 @@ mod tests {
         ] {
             assert_eq!(image_type(file.as_bytes()), None, "{file}");
         }
+    }
+
+    #[test]
+    fn records_each_request_served_or_refused_as_a_line() {
+        let fixture = fixture();
+        let folder = tempfile::tempdir().unwrap();
+        let log = folder.path().join("assets.log");
+        let near = format!("/{}%2Fnear.png", fixture.handle);
+        for path in [near.as_str(), "/near.png"] {
+            let request = Request::builder()
+                .uri(format!("doc-asset://localhost{path}"))
+                .body(Vec::new())
+                .unwrap();
+            let response = respond(&fixture.documents, &request);
+            append(&log, "doc-window", &request, &response).unwrap();
+        }
+        assert_eq!(
+            fs::read_to_string(&log).unwrap(),
+            format!("doc-window 200 {near}\ndoc-window 404 /near.png\n")
+        );
     }
 }

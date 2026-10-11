@@ -72,6 +72,15 @@ const FIXTURE = [
 
 // --- in the page ---------------------------------------------------------------------------
 
+/**
+ * Whether caret() and caretAtPoint() can reach CodeMirror's view. They go through its internal
+ * tile tree, since the page does not expose the view and EditorView.findFromDOM needs the class.
+ * An upgrade can rename the internal, as cmView became cmTile.
+ */
+function viewReachable() {
+  return Boolean(document.querySelector(".cm-content")?.cmTile?.root?.view?.state);
+}
+
 /** The box of the character at a visible index, in the first line holding `marker`. */
 function charBox(marker, index) {
   const line = [...document.querySelectorAll(".cm-line")].find((el) =>
@@ -161,6 +170,12 @@ const record = (row, name, pass, detail) => cases.push({ row, name, pass, detail
 
 try {
   await page.until(() => document.querySelector(".cm-line"));
+  if (!(await page.run(viewReachable))) {
+    throw new Error(
+      "The gate cannot reach CodeMirror's view at .cm-content's cmTile.root.view. " +
+        "A CodeMirror upgrade renamed that internal: update caret() and caretAtPoint().",
+    );
+  }
   const neutral = await page.run(charBox, "A plain line to click on", 3);
   // The click returns before CodeMirror has drawn what it did. Until then the DOM selection
   // can sit between lines, so the caret is read once it is in one.

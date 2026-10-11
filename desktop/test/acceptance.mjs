@@ -71,6 +71,20 @@ const opened = join(work, "opened.txt");
 const openedSoFar = () =>
   readFileSync(opened, { encoding: "utf8", flag: "a+" }).split("\n").filter(Boolean);
 
+/**
+ * What the resource channel was asked for, one request a line: the window, the status, and the
+ * path as asked. A debug build writes it, since resource timing does not see the app's own schemes.
+ */
+const assetLog = join(work, "assets.log");
+process.env.HSHBLK_ASSET_LOG = assetLog;
+
+/** The paths a window asked the channel for. */
+const askedBy = (label) =>
+  readFileSync(assetLog, { encoding: "utf8", flag: "a+" })
+    .split("\n")
+    .filter((line) => line.startsWith(`${label} `))
+    .map((line) => line.split(" ")[2]);
+
 /** One transparent pixel. */
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
@@ -462,6 +476,16 @@ describe("one open document", () => {
     });
     await page.click(at.x, at.y);
     await sleep(500);
+    // The frames asked the channel for nothing. The page's own requests name its document's
+    // handle, which no HTML in the file can know, so any other request came from a frame.
+    const label = await page.run(() => window.__TAURI_INTERNALS__.metadata.currentWindow.label);
+    const asked = askedBy(label);
+    assert.ok(asked.length > 0, "the channel's log holds the page's own images");
+    const own = `/${label.replace(/^doc-/, "")}%2F`;
+    assert.deepEqual(
+      asked.filter((path) => !path.startsWith(own)),
+      [],
+    );
     for (const frame of await frames()) {
       // Never allow-scripts. The frame's policy refuses inline script too, but not every script.
       assert.equal(frame.sandbox, "allow-same-origin");
@@ -470,7 +494,8 @@ describe("one open document", () => {
       assert.equal(frame.ipc, false);
       // The refresh and the frame in the HTML went nowhere.
       assert.equal(frame.url, "about:srcdoc");
-      // Resource timing misses the app's own schemes, so the policy is checked as well as loads.
+      // Resource timing misses the app's own schemes, which the channel's log covers. The
+      // policy is checked as well.
       assert.match(frame.policy, /^default-src 'none';/);
       assert.equal(frame.loads, 0);
     }
