@@ -185,7 +185,7 @@ function cellsOf(cx: Context, row: SyntaxNode): Inline[][] {
   let cell: Inline[] | null = row.firstChild?.name === "TableDelimiter" ? null : [];
   for (const child of children(row)) {
     if (child.name === "TableCell") {
-      cell = contentOf(cx, child);
+      cell = unescapePipes(contentOf(cx, child));
     } else if (child.name === "TableDelimiter") {
       if (cell) cells.push(cell);
       cell = [];
@@ -193,6 +193,17 @@ function cellsOf(cx: Context, row: SyntaxNode): Inline[][] {
   }
   if (cell && row.lastChild?.name !== "TableDelimiter") cells.push(cell);
   return cells;
+}
+
+/** GFM: in a table cell, `\|` is a pipe, even in code. Lezer keeps the backslash in a code span. */
+function unescapePipes(inlines: Inline[]): Inline[] {
+  return inlines.map((inline) =>
+    inline.kind === "code"
+      ? { ...inline, text: inline.text.replaceAll("\\|", "|") }
+      : "children" in inline
+        ? { ...inline, children: unescapePipes(inline.children) }
+        : inline,
+  );
 }
 
 /** The inline content of a block, without the whitespace CommonMark strips from its ends. */
@@ -313,9 +324,17 @@ function normalize(label: string): string {
   return label.trim().replace(/\s+/g, " ").toLowerCase().toUpperCase();
 }
 
-/** A destination written as `<...>` may hold spaces. The angle brackets are not the address. */
+/** A backslash escape of ASCII punctuation, or an entity with its semicolon. */
+const ESCAPED =
+  /\\([!-/:-@[-`{-~])|&(?:#[xX][0-9a-fA-F]{1,6}|#[0-9]{1,7}|[A-Za-z][A-Za-z0-9]{1,31});/g;
+
+/**
+ * A destination written as `<...>` may hold spaces. The angle brackets are not the address, and
+ * its escapes and entities stand for the characters they name. Percent escapes stay: it is a URL.
+ */
 function unwrap(url: string): string {
-  return url.startsWith("<") && url.endsWith(">") ? url.slice(1, -1) : url;
+  const bare = url.startsWith("<") && url.endsWith(">") ? url.slice(1, -1) : url;
+  return bare.replace(ESCAPED, (match, escaped?: string) => escaped ?? decodeHTML(match));
 }
 
 /** A readable anchor from the heading's words, numbered when the same words come back. */

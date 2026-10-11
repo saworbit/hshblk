@@ -1,4 +1,5 @@
 import {
+  countColumn,
   type EditorSelection,
   type EditorState,
   type Range,
@@ -16,9 +17,16 @@ import {
 import type { SyntaxNode, Tree } from "@lezer/common";
 import { decodeHTML } from "entities";
 import { pageTree } from "./complete.ts";
-import { inlinesOf, plainText, type Inline } from "./inlines.ts";
+import { inlinesOf, plainText, unescapePipes, type Inline } from "./inlines.ts";
 import { addressTooltip, type LinkSpan } from "./links.ts";
-import { definitionsIn, destination, type Definitions } from "./references.ts";
+import {
+  anchorOf,
+  autolinkHref,
+  definitionsIn,
+  destination,
+  headings,
+  type Definitions,
+} from "./references.ts";
 import { ImageWidget, TableWidget, TextWidget, type Align, type TableModel } from "./widgets.ts";
 
 /** The source a piece of hidden syntax belongs to. A selection inside it shows the syntax. */
@@ -36,7 +44,12 @@ type Page = {
   shown: DecorationSet;
   /** Every link's words, in order, for the address shown at the caret. */
   links: LinkSpan[];
+  /** Each heading's GitHub anchor, to where it starts, for a link to it. */
+  anchors: Map<string, number>;
 };
+
+/** The widest hanging indent, in columns. A list item indented further does not hang. */
+export const HANG_LIMIT = 24;
 
 /** Folds all the syntax again, as on arrival, until the reader next places a selection. */
 export const foldAll = StateEffect.define<null>();
@@ -57,6 +70,7 @@ export const page = StateField.define<Page>({
   provide: (field) => [
     EditorView.decorations.from(field, (current) => current.styles),
     EditorView.decorations.from(field, (current) => current.shown),
+    headings.from(field, (current) => current.anchors),
     showTooltip.compute([field], (state) => {
       const { active, links } = state.field(field);
       if (!active) return null;
@@ -68,17 +82,18 @@ export const page = StateField.define<Page>({
         (link) =>
           link.source.from <= from && to <= link.source.to && (from < link.from || to > link.to),
       );
-      return addressTooltip(hidden, state.sliceDoc(from, to));
+      return addressTooltip(hidden, { text: state.sliceDoc(from, to), from });
     }),
   ],
 });
 
 function build(state: EditorState, active: EditorSelection | null): Page {
   const tree = pageTree(state);
-  const { styles, hidden, links } = new Painter(state.doc, definitionsIn(state.doc, tree)).paint(
-    tree,
-  );
-  return { tree, styles, folds: hidden, active, shown: unfold(hidden, active), links };
+  const { styles, hidden, links, anchors } = new Painter(
+    state.doc,
+    definitionsIn(state.doc, tree),
+  ).paint(tree);
+  return { tree, styles, folds: hidden, active, shown: unfold(hidden, active), links, anchors };
 }
 
 function unfold(folds: DecorationSet, active: EditorSelection | null): DecorationSet {
@@ -95,21 +110,25 @@ function unfold(folds: DecorationSet, active: EditorSelection | null): Decoratio
 class Painter {
   readonly doc: Text;
   readonly definitions: Definitions;
+  readonly #anchors = new Map<string, number>();
   readonly #styles: Range<Decoration>[] = [];
   readonly #hidden: Range<Decoration>[] = [];
   readonly #links: LinkSpan[] = [];
+  /** The markers drawn in a hanging item's box, which styles them. */
+  readonly #hung = new Set<number>();
 
   constructor(doc: Text, definitions: Definitions) {
     this.doc = doc;
     this.definitions = definitions;
   }
 
-  paint(tree: Tree): { styles: DecorationSet; hidden: DecorationSet; links: LinkSpan[] } {
+  paint(tree: Tree) {
     tree.iterate({ enter: (ref) => this.#visit(ref.node) });
     return {
       styles: Decoration.set(this.#styles, true),
       hidden: Decoration.set(this.#hidden, true),
       links: this.#links,
+      anchors: this.#anchors,
     };
   }
 
@@ -122,20 +141,25 @@ class Painter {
       case "ATXHeading3":
       case "ATXHeading4":
       case "ATXHeading5":
-      case "ATXHeading6":
+      case "ATXHeading6": {
         this.#lines(node.from, node.to, `pg-heading pg-h${node.name.slice(-1)}`);
-        for (const mark of node.getChildren("HeaderMark")) {
+        const marks = node.getChildren("HeaderMark");
+        const closing = marks.length > 1 ? marks.at(-1) : undefined;
+        this.#anchor(node, marks[0]?.to ?? node.from, closing?.from ?? node.to);
+        for (const mark of marks) {
           // Opening marks take the space after them, closing marks the space before.
           if (mark.from === node.from)
             this.#hide(fold, mark.from, this.#spaceAfter(mark.to, node.to));
           else this.#hide(fold, this.#spaceBefore(mark.from, node.from), mark.to);
         }
         return;
+      }
       case "SetextHeading1":
       case "SetextHeading2": {
         const underline = node.getChild("HeaderMark");
         const end = underline ? underline.from - 1 : node.to;
         this.#lines(node.from, end, `pg-heading pg-h${node.name.slice(-1)}`);
+        this.#anchor(node, node.from, underline?.from ?? node.to);
         if (underline) {
           this.#hide(fold, underline.from, underline.to);
           this.#foldLine(fold, underline.from, "pg-collapsed");
@@ -158,13 +182,13 @@ class Painter {
         if (reference === null) return;
         const [open, close] = node.getChildren("LinkMark");
         const alt = plainText(inlinesOf(this.doc, this.definitions, node, open.to, close.from));
-        this.#hide(fold, node.from, node.to, new ImageWidget(reference, alt));
+        this.#hide(fold, node.from, node.to, new ImageWidget(reference, alt, !this.#alone(node)));
         return false;
       }
       case "Autolink": {
         const url = node.getChild("URL");
         if (!url) return false;
-        this.#linkWords(url.from, url.to, this.doc.sliceString(url.from, url.to), node);
+        this.#linkWords(url.from, url.to, autolinkHref(this.#slice(url)), node);
         this.#conceal(node.from, url.from);
         this.#conceal(url.to, node.to);
         return false;
@@ -190,8 +214,12 @@ class Painter {
         );
         return false;
       }
+      case "ListItem":
+        this.#hang(node);
+        return;
       case "ListMark":
-        this.#style(Decoration.mark({ class: "pg-list-mark" }), node.from, node.to);
+        if (!this.#hung.has(node.from))
+          this.#style(Decoration.mark({ class: "pg-list-mark" }), node.from, node.to);
         return false;
       case "FencedCode":
         this.#lines(node.from, node.to, "pg-code-block");
@@ -222,6 +250,12 @@ class Painter {
     }
   }
 
+  /** A heading's anchor, from its words between `from` and `to`. */
+  #anchor(heading: SyntaxNode, from: number, to: number): void {
+    const words = plainText(inlinesOf(this.doc, this.definitions, heading, from, to));
+    if (words) this.#anchors.set(anchorOf(words, new Set(this.#anchors.keys())), heading.from);
+  }
+
   /**
    * A link shows its words, and its syntax stays hidden even with the caret inside: the address
    * shows at the caret instead. A reference with no definition is not a link, and is left as written.
@@ -233,6 +267,61 @@ class Painter {
     this.#linkWords(open.to, close.from, href, node);
     this.#conceal(node.from, open.to);
     this.#conceal(close.from, node.to);
+  }
+
+  /**
+   * A list item's wrapped lines start under its text, not its marker. Each line of its
+   * paragraphs hangs by the columns before its text, and what fills them, the indent and the
+   * marker as written, is drawn that many columns wide, so the first line meets the rest.
+   */
+  #hang(item: SyntaxNode): void {
+    const mark = item.getChild("ListMark");
+    const first = item.getChild("Paragraph");
+    // A quote's marks are hidden, so they take no columns. Its items stay as they were.
+    for (let up = item.parent; up; up = up.parent) if (up.name === "Blockquote") return;
+    if (!mark || !first) return;
+    const column = (from: number, to: number) => countColumn(this.doc.sliceString(from, to), 4);
+    const text = column(this.doc.lineAt(first.from).from, first.from);
+    if (text < 1 || text > HANG_LIMIT) return;
+    const box = (from: number, to: number, width: number, className = "") =>
+      this.#style(Decoration.mark({ class: `${className} pg-box-${width}`.trim() }), from, to);
+    for (const paragraph of item.getChildren("Paragraph")) {
+      for (let pos = paragraph.from; pos <= paragraph.to;) {
+        const line = this.doc.lineAt(pos);
+        pos = line.to + 1;
+        const indent = /^[ \t]*/.exec(line.text)![0].length;
+        if (line.from <= mark.from && mark.from <= line.to) {
+          if (indent !== mark.from - line.from || first.from > line.to) continue;
+          const before = column(line.from, mark.from);
+          if (before > 0) box(line.from, mark.from, before);
+          box(mark.from, first.from, text - before, "pg-list-mark");
+          this.#hung.add(mark.from);
+          this.#lines(line.from, line.from, `pg-hang-${text}`);
+        } else if (indent > 0) {
+          box(line.from, line.from + indent, text);
+          this.#lines(line.from, line.from, `pg-hang-${text}`);
+        } else {
+          this.#lines(line.from, line.from, `pg-pad-${text}`);
+        }
+      }
+    }
+  }
+
+  /** Whether an image is all its paragraph holds, inside any links that hold only it. */
+  #alone(image: SyntaxNode): boolean {
+    let top = image;
+    for (let link = top.parent; link?.name === "Link"; link = top.parent) {
+      const [open, close] = link.getChildren("LinkMark");
+      if (open.to !== top.from || close.from !== top.to) return false;
+      if (destination(this.doc, link, this.definitions) === null) return false;
+      top = link;
+    }
+    const block = top.parent;
+    return (
+      block?.name === "Paragraph" &&
+      !this.doc.sliceString(block.from, top.from).trim() &&
+      !this.doc.sliceString(top.to, block.to).trim()
+    );
   }
 
   #linkWords(from: number, to: number, href: string, source: SyntaxNode): void {
@@ -273,7 +362,7 @@ class Painter {
     let cell: Inline[] | null = row.firstChild?.name === "TableDelimiter" ? null : [];
     for (let child = row.firstChild; child; child = child.nextSibling) {
       if (child.name === "TableCell") {
-        cell = inlinesOf(this.doc, this.definitions, child);
+        cell = unescapePipes(inlinesOf(this.doc, this.definitions, child));
       } else if (child.name === "TableDelimiter") {
         if (cell) cells.push(cell);
         cell = [];

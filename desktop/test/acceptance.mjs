@@ -54,6 +54,23 @@ async function gone() {
 /** Where the app starts, and so where Print to File writes. */
 const work = mkdtempSync(join(tmpdir(), "hshblk-work-"));
 
+/**
+ * What the app hands the system's opener, one address a line. A stand-in `xdg-open` writes it,
+ * so no test opens a browser.
+ */
+const opened = join(work, "opened.txt");
+{
+  const bin = join(work, "bin");
+  mkdirSync(bin);
+  writeFileSync(join(bin, "xdg-open"), `#!/bin/sh\nprintf '%s\\n' "$1" >> '${opened}'\n`, {
+    mode: 0o755,
+  });
+  process.env.PATH = `${bin}:${process.env.PATH}`;
+}
+
+const openedSoFar = () =>
+  readFileSync(opened, { encoding: "utf8", flag: "a+" }).split("\n").filter(Boolean);
+
 /** One transparent pixel. */
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
@@ -212,7 +229,8 @@ function settled(total) {
     images.length + missing.length === total &&
     images.every((image) => image.complete && image.naturalWidth > 0) && {
       images: images.map((image) => ({ alt: image.alt, width: image.naturalWidth })),
-      missing: missing.map((el) => el.textContent),
+      // A chip in a line says why on hover. A block says it in its words.
+      missing: missing.map((el) => el.title || el.textContent),
     }
   );
 }
@@ -408,6 +426,191 @@ describe("one open document", () => {
   test("2. leaves the file's bytes and modification time as they were", async () => {
     assert.deepEqual(fingerprint(file), original);
   });
+
+  test("keeps punctuation on the line of the code, emphasis, or link it follows, at any width", async () => {
+    // Find has left the page at the end of the file. The paragraph is near its top.
+    await page.run(() => (document.querySelector(".cm-scroller").scrollTop = 0));
+    await page.until(() =>
+      [...document.querySelectorAll(".cm-line")].some((el) =>
+        el.textContent.startsWith("A paragraph with"),
+      ),
+    );
+    // Narrower and narrower, a pixel at a time, so a line ends at every character in turn.
+    const stranded = await page.run(() => {
+      const content = document.querySelector(".cm-content");
+      const line = [...document.querySelectorAll(".cm-line")].find((el) =>
+        el.textContent.startsWith("A paragraph with"),
+      );
+      const chars = [];
+      const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode())
+        for (let i = 0; i < node.length; i += 1) if (node.data[i].trim()) chars.push([node, i]);
+      const middle = ([node, i]) => {
+        const range = document.createRange();
+        range.setStart(node, i);
+        range.setEnd(node, i + 1);
+        const box = range.getBoundingClientRect();
+        return (box.top + box.bottom) / 2;
+      };
+      const found = [];
+      for (let width = 160; width <= 720; width += 1) {
+        content.style.maxWidth = `${width}px`;
+        for (let k = 1; k < chars.length; k += 1) {
+          const [node, i] = chars[k];
+          if (/[.,]/.test(node.data[i]) && Math.abs(middle(chars[k]) - middle(chars[k - 1])) > 8)
+            found.push(
+              `${width}px: "${node.data[i]}" after "${chars[k - 1][0].data[chars[k - 1][1]]}"`,
+            );
+        }
+      }
+      content.style.maxWidth = "";
+      return found;
+    });
+    assert.deepEqual(stranded, []);
+  });
+});
+
+describe("links that open", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-links-"));
+  const file = join(folder, "links.md");
+  writeFileSync(
+    file,
+    `[web](https://example.com/page), <someone@example.com>, [shouty](HTTPS://EXAMPLE.COM/UP), [script](javascript:alert(1))
+
+[Tables](#tables), [nowhere](#nothing-here), and [the docs](https://example.com/docs "A title here").
+
+| Name | Link |
+|------|------|
+| row  | [table link](https://table.example.com) |
+| mail | <cell@example.com> |
+
+${FILLER}
+
+## Tables
+
+${FILLER}
+`,
+  );
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelector(".pg-table"));
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  /**
+   * The middle of a link's words, once it is in the window and holds still. CodeMirror draws only
+   * what is near the window, and measures what a scroll brings in, which may move it.
+   */
+  function linkAt(words) {
+    return page.until((words) => {
+      const link = [...document.querySelectorAll(".pg-link")].find(
+        (el) => el.textContent === words,
+      );
+      if (!link) {
+        // Every link in this file is near its top.
+        document.querySelector(".cm-scroller").scrollTop = 0;
+        return null;
+      }
+      const box = link.getBoundingClientRect();
+      if (box.top < 0 || box.bottom > innerHeight) {
+        link.scrollIntoView({ block: "center" });
+        return null;
+      }
+      const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const still = window.lastLinkAt?.x === at.x && window.lastLinkAt?.y === at.y;
+      window.lastLinkAt = at;
+      return still && at;
+    }, words);
+  }
+
+  /** Ctrl and a click on the words, as a reader opens a link. */
+  async function controlClick(words) {
+    const at = await linkAt(words);
+    await page.clickWith(Key.Control, at.x, at.y);
+  }
+
+  test("6. open from Ctrl and a click, on the page and in a table, in any case", async () => {
+    const expected = [
+      ["web", "https://example.com/page"],
+      ["someone@example.com", "mailto:someone@example.com"],
+      ["shouty", "HTTPS://EXAMPLE.COM/UP"],
+      ["table link", "https://table.example.com"],
+      ["cell@example.com", "mailto:cell@example.com"],
+    ];
+    const before = openedSoFar().length;
+    for (const [i, [words, address]] of expected.entries()) {
+      // An address that does not open goes first, so the next line shows it was skipped.
+      if (i === 3) await controlClick("script");
+      await controlClick(words);
+      for (let tries = 0; openedSoFar().length < before + i + 1 && tries < 50; tries += 1)
+        await sleep(100);
+      assert.equal(openedSoFar()[before + i], address, words);
+    }
+    assert.equal(openedSoFar().length, before + expected.length);
+  });
+
+  /** In the page: the heading line holding the caret, once it is near the top of the window. */
+  const atHeading = () => {
+    const node = getSelection().focusNode;
+    const line = (node?.nodeType === Node.TEXT_NODE ? node.parentElement : node)?.closest(
+      ".cm-line",
+    );
+    if (!line?.classList.contains("pg-heading")) return null;
+    const top = document.querySelector(".cm-scroller").getBoundingClientRect().top;
+    return line.getBoundingClientRect().top - top < 100 && line.textContent;
+  };
+
+  test("a link to a heading in the file goes there, from Go to and from Ctrl and a click", async () => {
+    const words = await linkAt("Tables");
+    await page.click(words.x, words.y);
+    // A tooltip is placed off the page until CodeMirror measures where it goes.
+    const button = await page.until(() => {
+      const button = document.querySelector(".pg-address button");
+      const box = button?.getBoundingClientRect();
+      const inside = box && box.top >= 0 && box.bottom <= innerHeight;
+      return (
+        inside && { text: button.textContent, x: box.x + box.width / 2, y: box.y + box.height / 2 }
+      );
+    });
+    assert.equal(button.text, "Go to");
+    await page.click(button.x, button.y);
+    assert.match(await page.until(atHeading), /^(## )?Tables$/);
+    await controlClick("Tables");
+    assert.match(await page.until(atHeading), /^(## )?Tables$/);
+  });
+
+  test("a link to no heading shows its address, and nothing to follow", async () => {
+    const words = await linkAt("nowhere");
+    await page.click(words.x, words.y);
+    const popover = await page.until(() => {
+      const box = document.querySelector(".pg-address");
+      return (
+        box?.textContent.includes("#nothing-here") && {
+          text: box.textContent,
+          buttons: box.querySelectorAll("button").length,
+        }
+      );
+    });
+    assert.deepEqual(popover, { text: "#nothing-here", buttons: 0 });
+  });
+
+  test("a find match in a link's title shows, marked, in its popover", async () => {
+    await page.press(Key.Control, "f");
+    await page.run(() => document.querySelector(".cm-search input[name=search]").select());
+    await page.keys("A title");
+    await page.press(Key.Enter);
+    const popover = await page.until(() => {
+      const mark = document.querySelector(".pg-address-source mark");
+      return mark && [mark.textContent, document.querySelector(".pg-address-url").textContent];
+    });
+    assert.deepEqual(popover, ["A title", "https://example.com/docs"]);
+    await page.press(Key.Escape);
+  });
 });
 
 describe("print", () => {
@@ -420,6 +623,23 @@ describe("print", () => {
     assert.match(printed, /^Filler paragraph 1499\.$/m);
     assert.match(printed, /^The end\.$/m);
     assert.doesNotMatch(printed, /^# |\*\*|\[far\]/m);
+  });
+});
+
+describe("a file that does not open", () => {
+  // With no window, the driver waits for one without end. A timeout says what went wrong.
+  const timeout = 30_000;
+
+  test("leaves a window to open another from, and to quit by", { timeout }, async () => {
+    for (const path of [join(work, "missing.md"), work]) {
+      const page = await launch(app, [path]);
+      try {
+        assert.ok(await page.until(() => document.querySelector(".welcome-open")));
+      } finally {
+        await page.close();
+        await gone();
+      }
+    }
   });
 });
 
@@ -442,5 +662,190 @@ describe("quit and reopen", () => {
     }
     assert.deepEqual(listing(root), files, `written under ${relative(tmpdir(), root)}`);
     assert.deepEqual(fingerprint(file), bytes);
+  });
+});
+
+describe("layout", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-layout-"));
+  const file = join(folder, "layout.md");
+  const long = "and this sentence goes on long enough to wrap at the default window size ".repeat(
+    3,
+  );
+  writeFileSync(
+    file,
+    `- A browser product, ${long}
+  1. A nested item, ${long}
+     More of it, ${long}
+
+| Decision | Host | Document |
+|---|---|---|
+| Host | provisional | The reason is who patches the engine. ${long} |
+
+| Address |
+|---|
+| https://example.com/${"averylongaddress".repeat(8)} |
+
+A [link below the table](https://example.com/below) and more words.
+
+[![CI](https://example.com/ci.svg)](https://example.com/ci) [![npm](https://example.com/npm.svg)](https://example.com/npm) [![License: MIT](https://example.com/mit.svg)](LICENSE) [![codecov](https://example.com/cov.svg)](https://example.com/cov) [![Downloads](https://example.com/dl.svg)](https://example.com/dl)
+
+![wide](wide.svg)
+
+A dot ![dot](dot.png) in a line, and one at the end ![end](dot.png).
+`,
+  );
+  writeFileSync(join(folder, "dot.png"), PNG);
+  writeFileSync(
+    join(folder, "wide.svg"),
+    '<svg xmlns="http://www.w3.org/2000/svg" width="3000" height="40"><rect width="3000" height="40" fill="gray"/></svg>',
+  );
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelectorAll(".pg-table").length === 2);
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  test("a list item's wrapped lines start under its text, at every level", async () => {
+    const starts = await page.run(() =>
+      [...document.querySelectorAll(".cm-line")]
+        .filter((line) => /pg-hang-/.test(line.className))
+        .map((line) => {
+          // From after the indent and the marker to the end: one left edge a visual line.
+          const range = document.createRange();
+          range.setStartAfter([...line.querySelectorAll("[class*='pg-box-']")].at(-1));
+          range.setEndAfter(line.lastChild);
+          const lefts = new Map();
+          for (const { top, left } of range.getClientRects()) {
+            const row = Math.round(top);
+            lefts.set(row, Math.min(left, lefts.get(row) ?? Infinity));
+          }
+          return [...lefts.values()].map(Math.round);
+        }),
+    );
+    assert.equal(starts.length, 3);
+    for (const lefts of starts) {
+      assert.ok(lefts.length > 1, "the line wraps");
+      assert.ok(Math.max(...lefts) - Math.min(...lefts) <= 1, `lines start at ${lefts}`);
+    }
+    // The nested item's text, and its next line's, sit right of the outer item's.
+    assert.ok(starts[1][0] > starts[0][0]);
+    assert.equal(starts[2][0], starts[1][0]);
+  });
+
+  test("a click in the hanging space puts the caret at the start of that visual line", async () => {
+    const target = await page.run(() => {
+      const line = document.querySelector(".cm-line[class*='pg-hang-']");
+      const range = document.createRange();
+      range.selectNodeContents(line);
+      const rows = [...range.getClientRects()].sort((a, b) => a.top - b.top || a.left - b.left);
+      const second = rows.find((rect) => rect.top > rows[0].top + 1);
+      const box = line.getBoundingClientRect();
+      return { x: box.left + 2, y: second.top + second.height / 2, left: second.left };
+    });
+    await page.click(target.x, target.y);
+    const caret = await page.until(() => {
+      const selection = getSelection();
+      if (!selection.isCollapsed || selection.focusNode?.nodeType !== Node.TEXT_NODE) return null;
+      // The character after the caret, which at a wrap is the first of the visual line below.
+      const range = document.createRange();
+      range.setStart(selection.focusNode, selection.focusOffset);
+      range.setEnd(selection.focusNode, selection.focusOffset + 1);
+      const { top, left, height } = range.getBoundingClientRect();
+      return { y: top + height / 2, left };
+    });
+    assert.ok(Math.abs(caret.y - target.y) <= 2, `caret row ${caret.y}, clicked ${target.y}`);
+    assert.ok(
+      Math.abs(caret.left - target.left) <= 1,
+      `caret at ${caret.left}, row at ${target.left}`,
+    );
+  });
+
+  test("a table's short columns keep their words whole", async () => {
+    const lines = await page.run(() =>
+      [...document.querySelectorAll(".pg-table")][0]
+        .querySelectorAll("th, tr:first-child td:not(:last-child)")
+        .values()
+        .map((cell) => {
+          const range = document.createRange();
+          range.selectNodeContents(cell);
+          return [cell.textContent, new Set([...range.getClientRects()].map((r) => r.top)).size];
+        })
+        .toArray(),
+    );
+    assert.deepEqual(lines, [
+      ["Decision", 1],
+      ["Host", 1],
+      ["Document", 1],
+      ["Host", 1],
+      ["provisional", 1],
+    ]);
+    const widths = await page.run(() => {
+      const [, wide] = document.querySelectorAll(".pg-table");
+      const scroller = document.querySelector(".cm-scroller");
+      return {
+        table: [wide.scrollWidth, wide.clientWidth],
+        page: [scroller.scrollWidth, scroller.clientWidth],
+      };
+    });
+    assert.ok(widths.table[0] > widths.table[1], "the long address scrolls in its table");
+    assert.ok(widths.page[0] <= widths.page[1], "the page does not scroll sideways");
+  });
+
+  test("a click below a table lands where it was aimed", async () => {
+    await page.run(() =>
+      [...document.querySelectorAll(".pg-link")]
+        .find((el) => el.textContent === "link below the table")
+        .scrollIntoView({ block: "center" }),
+    );
+    const words = await page.until(() => {
+      const link = [...document.querySelectorAll(".pg-link")].find(
+        (el) => el.textContent === "link below the table",
+      );
+      const box = link?.getBoundingClientRect();
+      return box && box.top > 0 && { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    });
+    await page.click(words.x, words.y);
+    const address = await page.until(() => document.querySelector(".pg-address-url")?.textContent);
+    assert.equal(address, "https://example.com/below");
+    await page.press(Key.Escape);
+  });
+
+  test("an image in a line stays in it, and one alone is a block no wider than the page", async () => {
+    const seen = await page.until(() => {
+      const images = [...document.querySelectorAll("img.pg-image")];
+      if (images.length < 3 || !images.every((image) => image.complete)) return null;
+      const rows = (els) =>
+        new Set(els.map((el) => Math.round(el.getBoundingClientRect().top))).size;
+      const chips = [...document.querySelectorAll(".pg-image-chip")];
+      const wide = document.querySelector("img[alt='wide']");
+      const content = document.querySelector(".cm-content").getBoundingClientRect();
+      const dot = document.querySelector("img[alt='end']");
+      // The full stop after the last image: the line's last character.
+      const line = dot.closest(".cm-line");
+      const range = document.createRange();
+      range.setStart(line.lastChild, line.lastChild.length - 1);
+      range.setEnd(line.lastChild, line.lastChild.length);
+      const stop = range.getBoundingClientRect();
+      const image = dot.getBoundingClientRect();
+      return {
+        chips: chips.map((chip) => chip.textContent),
+        chipRows: rows(chips),
+        wide: wide.getBoundingClientRect().width <= content.width,
+        wideAlone: wide.closest(".pg-figure") !== null,
+        inLine: document.querySelector("img[alt='dot']").closest(".pg-figure-inline") !== null,
+        stop: [range.toString(), Math.abs(stop.bottom - image.bottom) < stop.height],
+      };
+    });
+    assert.deepEqual(seen.chips, ["CI", "npm", "License: MIT", "codecov", "Downloads"]);
+    assert.ok(seen.chipRows <= 2, `the badges take ${seen.chipRows} rows`);
+    assert.ok(seen.wide, "the lone image is no wider than the page");
+    assert.ok(seen.wideAlone, "the lone image is a block");
+    assert.ok(seen.inLine, "an image between words stays in the line");
+    assert.deepEqual(seen.stop, [".", true]);
   });
 });
