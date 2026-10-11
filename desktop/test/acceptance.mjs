@@ -423,6 +423,23 @@ describe("print", () => {
   });
 });
 
+describe("a file that does not open", () => {
+  // With no window, the driver waits for one without end. A timeout says what went wrong.
+  const timeout = 30_000;
+
+  test("leaves a window to open another from, and to quit by", { timeout }, async () => {
+    for (const path of [join(work, "missing.md"), work]) {
+      const page = await launch(app, [path]);
+      try {
+        assert.ok(await page.until(() => document.querySelector(".welcome-open")));
+      } finally {
+        await page.close();
+        await gone();
+      }
+    }
+  });
+});
+
 describe("quit and reopen", () => {
   const { root, file } = fixture();
   const files = listing(root);
