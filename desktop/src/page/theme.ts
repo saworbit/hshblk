@@ -78,6 +78,10 @@ export const pageTheme = EditorView.theme({
     verticalAlign: "top",
     padding: "0.4em 1em 0.4em 0",
     borderBottom: "1px solid var(--rule)",
+    // Not CodeMirror's `anywhere`, which sizes a column by one letter. A word too long for its
+    // column still breaks, and the table scrolls when its words cannot fit.
+    overflowWrap: "break-word",
+    wordBreak: "normal",
   },
   ".pg-table th": { fontWeight: "560" },
 

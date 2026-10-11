@@ -410,6 +410,70 @@ describe("one open document", () => {
   });
 });
 
+describe("layout", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-layout-"));
+  const file = join(folder, "layout.md");
+  const long = "and this sentence goes on long enough to wrap at the default window size ".repeat(
+    3,
+  );
+  writeFileSync(
+    file,
+    `- A browser product, ${long}
+  1. A nested item, ${long}
+     More of it, ${long}
+
+| Decision | Host | Document |
+|---|---|---|
+| Host | provisional | The reason is who patches the engine. ${long} |
+
+| Address |
+|---|
+| https://example.com/${"averylongaddress".repeat(8)} |
+`,
+  );
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelectorAll(".pg-table").length === 2);
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  test("a table's short columns keep their words whole", async () => {
+    const lines = await page.run(() =>
+      [...document.querySelectorAll(".pg-table")][0]
+        .querySelectorAll("th, tr:first-child td:not(:last-child)")
+        .values()
+        .map((cell) => {
+          const range = document.createRange();
+          range.selectNodeContents(cell);
+          return [cell.textContent, new Set([...range.getClientRects()].map((r) => r.top)).size];
+        })
+        .toArray(),
+    );
+    assert.deepEqual(lines, [
+      ["Decision", 1],
+      ["Host", 1],
+      ["Document", 1],
+      ["Host", 1],
+      ["provisional", 1],
+    ]);
+    const widths = await page.run(() => {
+      const [, wide] = document.querySelectorAll(".pg-table");
+      const scroller = document.querySelector(".cm-scroller");
+      return {
+        table: [wide.scrollWidth, wide.clientWidth],
+        page: [scroller.scrollWidth, scroller.clientWidth],
+      };
+    });
+    assert.ok(widths.table[0] > widths.table[1], "the long address scrolls in its table");
+    assert.ok(widths.page[0] <= widths.page[1], "the page does not scroll sideways");
+  });
+});
+
 describe("print", () => {
   const { file } = fixture();
 
