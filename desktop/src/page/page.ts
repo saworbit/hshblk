@@ -1,4 +1,5 @@
 import {
+  countColumn,
   type EditorSelection,
   type EditorState,
   type Range,
@@ -37,6 +38,9 @@ type Page = {
   /** Every link's words, in order, for the address shown at the caret. */
   links: LinkSpan[];
 };
+
+/** The widest hanging indent, in columns. A list item indented further does not hang. */
+export const HANG_LIMIT = 24;
 
 /** Folds all the syntax again, as on arrival, until the reader next places a selection. */
 export const foldAll = StateEffect.define<null>();
@@ -98,6 +102,8 @@ class Painter {
   readonly #styles: Range<Decoration>[] = [];
   readonly #hidden: Range<Decoration>[] = [];
   readonly #links: LinkSpan[] = [];
+  /** The markers drawn in a hanging item's box, which styles them. */
+  readonly #hung = new Set<number>();
 
   constructor(doc: Text, definitions: Definitions) {
     this.doc = doc;
@@ -190,8 +196,12 @@ class Painter {
         );
         return false;
       }
+      case "ListItem":
+        this.#hang(node);
+        return;
       case "ListMark":
-        this.#style(Decoration.mark({ class: "pg-list-mark" }), node.from, node.to);
+        if (!this.#hung.has(node.from))
+          this.#style(Decoration.mark({ class: "pg-list-mark" }), node.from, node.to);
         return false;
       case "FencedCode":
         this.#lines(node.from, node.to, "pg-code-block");
@@ -233,6 +243,44 @@ class Painter {
     this.#linkWords(open.to, close.from, href, node);
     this.#conceal(node.from, open.to);
     this.#conceal(close.from, node.to);
+  }
+
+  /**
+   * A list item's wrapped lines start under its text, not its marker. Each line of its
+   * paragraphs hangs by the columns before its text, and what fills them, the indent and the
+   * marker as written, is drawn that many columns wide, so the first line meets the rest.
+   */
+  #hang(item: SyntaxNode): void {
+    const mark = item.getChild("ListMark");
+    const first = item.getChild("Paragraph");
+    // A quote's marks are hidden, so they take no columns. Its items stay as they were.
+    for (let up = item.parent; up; up = up.parent) if (up.name === "Blockquote") return;
+    if (!mark || !first) return;
+    const column = (from: number, to: number) => countColumn(this.doc.sliceString(from, to), 4);
+    const text = column(this.doc.lineAt(first.from).from, first.from);
+    if (text < 1 || text > HANG_LIMIT) return;
+    const box = (from: number, to: number, width: number, className = "") =>
+      this.#style(Decoration.mark({ class: `${className} pg-box-${width}`.trim() }), from, to);
+    for (const paragraph of item.getChildren("Paragraph")) {
+      for (let pos = paragraph.from; pos <= paragraph.to;) {
+        const line = this.doc.lineAt(pos);
+        pos = line.to + 1;
+        const indent = /^[ \t]*/.exec(line.text)![0].length;
+        if (line.from <= mark.from && mark.from <= line.to) {
+          if (indent !== mark.from - line.from || first.from > line.to) continue;
+          const before = column(line.from, mark.from);
+          if (before > 0) box(line.from, mark.from, before);
+          box(mark.from, first.from, text - before, "pg-list-mark");
+          this.#hung.add(mark.from);
+          this.#lines(line.from, line.from, `pg-hang-${text}`);
+        } else if (indent > 0) {
+          box(line.from, line.from + indent, text);
+          this.#lines(line.from, line.from, `pg-hang-${text}`);
+        } else {
+          this.#lines(line.from, line.from, `pg-pad-${text}`);
+        }
+      }
+    }
   }
 
   #linkWords(from: number, to: number, href: string, source: SyntaxNode): void {

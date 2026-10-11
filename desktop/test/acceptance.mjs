@@ -442,6 +442,61 @@ describe("layout", () => {
     await gone();
   });
 
+  test("a list item's wrapped lines start under its text, at every level", async () => {
+    const starts = await page.run(() =>
+      [...document.querySelectorAll(".cm-line")]
+        .filter((line) => /pg-hang-/.test(line.className))
+        .map((line) => {
+          // From after the indent and the marker to the end: one left edge a visual line.
+          const range = document.createRange();
+          range.setStartAfter([...line.querySelectorAll("[class*='pg-box-']")].at(-1));
+          range.setEndAfter(line.lastChild);
+          const lefts = new Map();
+          for (const { top, left } of range.getClientRects()) {
+            const row = Math.round(top);
+            lefts.set(row, Math.min(left, lefts.get(row) ?? Infinity));
+          }
+          return [...lefts.values()].map(Math.round);
+        }),
+    );
+    assert.equal(starts.length, 3);
+    for (const lefts of starts) {
+      assert.ok(lefts.length > 1, "the line wraps");
+      assert.ok(Math.max(...lefts) - Math.min(...lefts) <= 1, `lines start at ${lefts}`);
+    }
+    // The nested item's text, and its next line's, sit right of the outer item's.
+    assert.ok(starts[1][0] > starts[0][0]);
+    assert.equal(starts[2][0], starts[1][0]);
+  });
+
+  test("a click in the hanging space puts the caret at the start of that visual line", async () => {
+    const target = await page.run(() => {
+      const line = document.querySelector(".cm-line[class*='pg-hang-']");
+      const range = document.createRange();
+      range.selectNodeContents(line);
+      const rows = [...range.getClientRects()].sort((a, b) => a.top - b.top || a.left - b.left);
+      const second = rows.find((rect) => rect.top > rows[0].top + 1);
+      const box = line.getBoundingClientRect();
+      return { x: box.left + 2, y: second.top + second.height / 2, left: second.left };
+    });
+    await page.click(target.x, target.y);
+    const caret = await page.until(() => {
+      const selection = getSelection();
+      if (!selection.isCollapsed || selection.focusNode?.nodeType !== Node.TEXT_NODE) return null;
+      // The character after the caret, which at a wrap is the first of the visual line below.
+      const range = document.createRange();
+      range.setStart(selection.focusNode, selection.focusOffset);
+      range.setEnd(selection.focusNode, selection.focusOffset + 1);
+      const { top, left, height } = range.getBoundingClientRect();
+      return { y: top + height / 2, left };
+    });
+    assert.ok(Math.abs(caret.y - target.y) <= 2, `caret row ${caret.y}, clicked ${target.y}`);
+    assert.ok(
+      Math.abs(caret.left - target.left) <= 1,
+      `caret at ${caret.left}, row at ${target.left}`,
+    );
+  });
+
   test("a table's short columns keep their words whole", async () => {
     const lines = await page.run(() =>
       [...document.querySelectorAll(".pg-table")][0]

@@ -147,6 +147,39 @@ describe("the page", () => {
     assert.deepEqual(lineClasses(state, styles).slice(0, 2), ["pg-quote", "pg-quote"]);
   });
 
+  it("hangs a list item's lines under its text, at every level", () => {
+    const doc = "- one\n  more\n- two\n  1. nested\n     deeper\nlazy\n\n> - quoted";
+    const state = open(doc);
+    assert.equal(
+      visible(state),
+      "- one\n  more\n- two\n  1. nested\n     deeper\nlazy\n\n- quoted",
+    );
+    assert.deepEqual(lineClasses(state, styles), [
+      "pg-hang-2",
+      "pg-hang-2",
+      "pg-hang-2",
+      "pg-hang-5",
+      "pg-hang-5",
+      "pg-pad-5",
+      "",
+      "pg-quote",
+    ]);
+    const boxes: string[] = [];
+    styles(state).between(0, state.doc.length, (from, to, decoration) => {
+      if (/pg-box|pg-list-mark/.test(decoration.spec.class ?? ""))
+        boxes.push(`${JSON.stringify(state.sliceDoc(from, to))} ${decoration.spec.class}`);
+    });
+    assert.deepEqual(boxes, [
+      '"- " pg-list-mark pg-box-2',
+      '"  " pg-box-2',
+      '"- " pg-list-mark pg-box-2',
+      '"  " pg-box-2',
+      '"1. " pg-list-mark pg-box-3',
+      '"     " pg-box-5',
+      '"-" pg-list-mark',
+    ]);
+  });
+
   it("leaves code, raw HTML, bare addresses, and task boxes as the source", () => {
     const doc =
       "```js\n**not bold**\n```\n\n<div>raw</div>\n\nA <b>tag</b>, https://x.y, and - [x] a box.";

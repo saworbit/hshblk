@@ -1,4 +1,17 @@
 import { EditorView } from "@codemirror/view";
+import { HANG_LIMIT } from "./page.ts";
+
+/**
+ * A list item's lines hang under its text. The page names a width in columns, so a class a
+ * width: the CSP takes no inline style.
+ */
+const hangs = Object.fromEntries(
+  Array.from({ length: HANG_LIMIT }, (_, i) => i + 1).flatMap((n) => [
+    [`.pg-hang-${n}`, { paddingLeft: `${n}ch`, textIndent: `-${n}ch` }],
+    [`.pg-pad-${n}`, { paddingLeft: `${n}ch` }],
+    [`.pg-box-${n}`, { display: "inline-block", width: `${n}ch`, textIndent: "0" }],
+  ]),
+);
 
 /**
  * The page's faces, over CodeMirror's base theme. The colours are the variables in
@@ -45,6 +58,7 @@ export const pageTheme = EditorView.theme({
     textUnderlineOffset: "0.25em",
   },
   ".pg-list-mark": { color: "var(--muted)" },
+  ...hangs,
   ".pg-quote": { color: "var(--muted)", borderLeft: "2px solid var(--rule)", paddingLeft: "1em" },
   ".pg-code-block, .pg-source-block": {
     fontFamily: "var(--mono)",
