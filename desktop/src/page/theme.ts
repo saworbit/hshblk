@@ -31,6 +31,10 @@ export const pageTheme = EditorView.theme({
   ".pg-em": { fontStyle: "italic" },
   ".pg-strong": { fontWeight: "650" },
   ".pg-strike": { color: "var(--muted)", textDecoration: "line-through" },
+  // Hidden syntax draws as an empty span between two images, which CodeMirror adds for a caret
+  // beside a widget. A line may break at an image, so a full stop could wrap onto a line alone.
+  ".cm-widgetBuffer:has(+ [contenteditable=false]:empty)": { display: "none" },
+  "[contenteditable=false]:empty + .cm-widgetBuffer": { display: "none" },
   ".pg-code": {
     fontFamily: "var(--mono)",
     fontSize: "0.86em",
