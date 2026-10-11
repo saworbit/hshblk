@@ -215,7 +215,7 @@ CSP:
 
 Document-supplied script never runs. "Script blocked" was wrong, because CodeMirror is script.
 
-Raw HTML is never parsed into the editor document. A raw HTML block is drawn from its source in a sandboxed frame. The frame runs no script: its sandbox has no `allow-scripts`, and its own policy refuses script too. It shares the page's origin, so the page can size it to what it holds. With no script in it, nothing in it can use that origin. Its policy is `default-src 'none'`: it fetches nothing the HTML names, images and stylesheets included, and it takes no style from the HTML. It loads only the page's own fonts, from the app. Inline HTML is shown as source. Each block is a frame of its own, so a `<details>` whose summary and body are separate blocks does not fold its body. `<details>` rendering as a widget is an explicit later behaviour, not implied by "the bytes survived."
+Raw HTML is never parsed into the editor document. A raw HTML block is drawn from its source in a sandboxed frame. The frame runs no script: its sandbox has no `allow-scripts`, and its own policy refuses script too. It shares the page's origin, so the page can size it to what it holds. With no script in it, nothing in it can use that origin. The page takes the pointer over the frame, since WebKit runs no listener in a frame without `allow-scripts`, the page's own included. It reads what is under the pointer from the frame's document: a Ctrl or ⌘ click on a link there follows it as a link on the page, and a click on a `<summary>` opens or closes its `<details>`. The frame's text cannot be selected. Copy works on the source. Its policy is `default-src 'none'`: it fetches nothing the HTML names, images and stylesheets included, and it takes no style from the HTML. It loads only the page's own fonts, from the app. Inline HTML is shown as source. Each block is a frame of its own, with one exception. A `<details>` whose opening tag and summary are a block of their own, and whose closing tag is another in the same container, with markdown between, is drawn by the page, not in frames. It shows its summary's words, and a click on them opens or closes it. While it is closed, its body's lines fold, unless a find match or the keys are in them. `<details open>` starts open, and print opens every one.
 
 Remote images: milestone one does not load them, and `img-src` enforces it. That is provisional. Changing the default waits on a measured broken-README rate. A user-authorised exception is a later trust-boundary change, not a silent relaxation.
 
@@ -240,6 +240,7 @@ Each construct has one rule:
 | Reference with no definition | Its brackets, as written. |
 | List marker | As written: `-`, `*`, `1.`, `1)`. |
 | Raw HTML block | Drawn in a sandboxed frame (§6). A selection in it shows its source. |
+| `<details>` around markdown | Its summary, which a click opens or closes. Its body folds while it is closed. A selection in a tag shows that tag's source. |
 | Inline HTML | As written. |
 | Image in the repository | The image, through the resource channel. Its destination, escapes and entities resolved, is a URL, so it is decoded once to name the file: `screen%20shot.png` is `screen shot.png`. A leading `/` is the repository's root (§6). |
 | Remote image | Its alternative text, in milestone one. |

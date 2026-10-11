@@ -16,6 +16,25 @@ export type Blocks = {
   anchors: Map<string, number>;
   /** Tables and raw HTML, drawn in place of their source, and definitions, not drawn at all. */
   folds: DecorationSet;
+  /** Each `<details>` written as its own blocks around a markdown body. The page draws these. */
+  details: Details[];
+};
+
+type Span = { from: number; to: number };
+
+/**
+ * A `<details>` whose opening and closing tags are raw HTML blocks of their own, with markdown
+ * between them, as a README writes it. Each block's source, and the whole lines it is on.
+ */
+export type Details = {
+  /** The summary's HTML, empty when there is none. */
+  summary: string;
+  /** Written `<details open>`. */
+  open: boolean;
+  head: { source: Span; lines: Span };
+  /** The lines between the two tags, or null when there are none. */
+  body: Span | null;
+  tail: { source: Span; lines: Span };
 };
 
 /** The blocks that hold other blocks. The scan goes into these and no others. */
@@ -26,6 +45,12 @@ const HTML = new Set(["HTMLBlock", "CommentBlock", "ProcessingInstructionBlock"]
 
 /** How many blocks the scan reads between pauses. */
 const STRIDE = 1000;
+
+/** A block that opens a `<details>`, and its summary, if that is all the block holds. */
+const OPENS = /^<details(\s[^>]*)?>\s*(?:<summary(?:\s[^>]*)?>([\s\S]*?)<\/summary\s*>\s*)?$/i;
+
+/** A block that closes one, and holds nothing else. */
+const CLOSES = /^<\/details\s*>$/i;
 
 /**
  * Reads the blocks of `tree`, and pauses now and then so a caller can spread it over events. It
@@ -61,8 +86,12 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
     if (words) anchors.set(anchorOf(words, anchors), heading.from);
     yield;
   }
+  const details = pairDetails(doc, drawn);
+  // A details' own tags are drawn by the page, not in frames.
+  const tags = new Set(details.flatMap(({ head, tail }) => [head.source.from, tail.source.from]));
   const folds: Range<Decoration>[] = [];
   for (const node of drawn) {
+    if (tags.has(node.from)) continue;
     // A definition is not drawn: the links that use it carry its address.
     const widget =
       node.name === "Table"
@@ -75,7 +104,7 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
     folds.push(Decoration.replace({ fold, widget, block: true }).range(lines.from, lines.to));
     yield;
   }
-  return { definitions, anchors, folds: Decoration.set(folds, true) };
+  return { definitions, anchors, folds: Decoration.set(folds, true), details };
 }
 
 /** The scan without pauses, for a tree small enough to read at once. */
@@ -85,6 +114,52 @@ export function scanNow(doc: Text, tree: Tree): Blocks {
     const step = steps.next();
     if (step.done) return step.value;
   }
+}
+
+/**
+ * Pairs each block that opens a `<details>` with the block that closes it, in the same container,
+ * as tags nest. One with no partner stays a frame.
+ */
+function pairDetails(doc: Text, drawn: SyntaxNode[]): Details[] {
+  const opened: { node: SyntaxNode; tag: RegExpExecArray }[] = [];
+  const paired: Details[] = [];
+  for (const node of drawn) {
+    if (node.name !== "HTMLBlock") continue;
+    const html = htmlOf(doc, node).trim();
+    const tag = OPENS.exec(html);
+    if (tag) {
+      opened.push({ node, tag });
+      continue;
+    }
+    if (!CLOSES.test(html)) continue;
+    let at = opened.length - 1;
+    while (at >= 0 && !sameContainer(opened[at].node, node)) at -= 1;
+    if (at < 0) continue;
+    // Any opened after it, in a container now closed, has no partner.
+    const [{ node: head, tag: written }] = opened.splice(at);
+    paired.push(detailsOf(doc, head, written, node));
+  }
+  return paired.sort((a, b) => a.head.source.from - b.head.source.from);
+}
+
+function sameContainer(a: SyntaxNode, b: SyntaxNode): boolean {
+  return a.parent?.name === b.parent?.name && a.parent?.from === b.parent?.from;
+}
+
+function detailsOf(doc: Text, head: SyntaxNode, tag: RegExpExecArray, tail: SyntaxNode): Details {
+  const lines = (node: SyntaxNode) => ({
+    from: doc.lineAt(node.from).from,
+    to: doc.lineAt(node.to).to,
+  });
+  const first = doc.lineAt(head.to).number + 1;
+  const last = doc.lineAt(tail.from).number - 1;
+  return {
+    summary: tag[2] ?? "",
+    open: /(^|\s)open(\s|=|$)/i.test(tag[1] ?? ""),
+    head: { source: { from: head.from, to: head.to }, lines: lines(head) },
+    body: first <= last ? { from: doc.line(first).from, to: doc.line(last).to } : null,
+    tail: { source: { from: tail.from, to: tail.to }, lines: lines(tail) },
+  };
 }
 
 /** A raw HTML block as written, less the marks of the quote it is in. */

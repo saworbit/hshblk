@@ -2,6 +2,7 @@ import { Facet, type Text } from "@codemirror/state";
 import { EditorView, type Tooltip } from "@codemirror/view";
 import type { SyntaxNode, Tree } from "@lezer/common";
 import { autolinkHref, destination, headingAt, type Definitions } from "./references.ts";
+import { htmlAt } from "./widgets.ts";
 
 /** A link's words in the source, the whole link as written, and where it points. */
 export type LinkSpan = {
@@ -155,9 +156,14 @@ export const modClickOpens = EditorView.domEventHandlers({
   },
 });
 
-/** What a Ctrl or Cmd click on a link does, or null when the click follows nothing. */
+/**
+ * What a Ctrl or Cmd click on a link does, or null when the click follows nothing. A link in an
+ * HTML block's frame follows the same way as one on the page.
+ */
 function following(event: MouseEvent, view: EditorView): (() => void) | null {
   if (!(event.metaKey || event.ctrlKey)) return null;
-  const href = (event.target as Element).closest<HTMLElement>("[data-href]")?.dataset.href;
+  const href =
+    (event.target as Element).closest<HTMLElement>("[data-href]")?.dataset.href ??
+    htmlAt(view, event.clientX, event.clientY)?.closest("a[href]")?.getAttribute("href")?.trim();
   return href ? follow(view, href) : null;
 }

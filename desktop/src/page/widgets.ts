@@ -1,3 +1,4 @@
+import { StateEffect } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { assetUrl, filePath, isLocal } from "./assets.ts";
 import type { Inline } from "./inlines.ts";
@@ -108,6 +109,48 @@ export class TableWidget extends WidgetType {
   }
 }
 
+/** Opens or closes the `<details>` whose opening block starts here. */
+export const toggleDetails = StateEffect.define<number>();
+
+/**
+ * docs/hld.md §7: a `<details>` whose body is markdown, drawn as its summary. A click opens or
+ * closes it. The page folds the body's lines while it is closed.
+ */
+export class SummaryWidget extends WidgetType {
+  /** The summary's HTML, as written. */
+  readonly summary: string;
+  /** Where the details' opening block starts, which names it. */
+  readonly from: number;
+  readonly open: boolean;
+
+  constructor(summary: string, from: number, open: boolean) {
+    super();
+    this.summary = summary;
+    this.from = from;
+    this.open = open;
+  }
+
+  eq(other: SummaryWidget): boolean {
+    return other.summary === this.summary && other.from === this.from && other.open === this.open;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const summary = document.createElement("div");
+    summary.className = this.open ? "pg-summary pg-summary-open" : "pg-summary";
+    summary.setAttribute("role", "button");
+    summary.setAttribute("aria-expanded", String(this.open));
+    // Its words, as a browser shows them. A parsed document runs nothing and fetches nothing.
+    const words = new DOMParser().parseFromString(this.summary, "text/html").body.textContent;
+    summary.textContent = words?.replace(/\s+/g, " ").trim() || "Details";
+    // The press would move the caret first. Opening the details leaves it where it was.
+    summary.addEventListener("mousedown", (event) => event.preventDefault());
+    summary.addEventListener("click", () =>
+      view.dispatch({ effects: toggleDetails.of(this.from) }),
+    );
+    return summary;
+  }
+}
+
 /** The height each HTML block last took, so its frame, drawn again, starts there. */
 const htmlHeights = new Map<string, number>();
 
@@ -116,8 +159,8 @@ const fitting = new WeakMap<HTMLElement, ResizeObserver>();
 
 /**
  * docs/hld.md §7: a raw HTML block, drawn in a sandboxed frame. The frame shares the page's
- * origin, so the page can size it to what it holds, and it never runs script. Its policy fetches
- * nothing the HTML names.
+ * origin, so the page can size it to what it holds and read what is under the pointer, and it
+ * never runs script. Its policy fetches nothing the HTML names.
  */
 export class HtmlWidget extends WidgetType {
   readonly html: string;
@@ -173,6 +216,40 @@ export class HtmlWidget extends WidgetType {
     fitting.set(frame, observer);
   }
 }
+
+/**
+ * What is under a point in an HTML block's frame, read from the page. The page takes the pointer
+ * over a frame (theme.ts), and shares its origin, so it reads the frame's document without
+ * running anything in it.
+ */
+export function htmlAt(view: EditorView, x: number, y: number): Element | null {
+  for (const frame of view.contentDOM.querySelectorAll<HTMLIFrameElement>("iframe.pg-html")) {
+    const box = frame.getBoundingClientRect();
+    if (x < box.left || x >= box.right || y < box.top || y >= box.bottom) continue;
+    const left = box.left + frame.clientLeft;
+    const top = box.top + frame.clientTop;
+    return frame.contentDocument?.elementFromPoint(x - left, y - top) ?? null;
+  }
+  return null;
+}
+
+/**
+ * A click on a summary in an HTML block opens or closes its details, as the frame would if it
+ * had the pointer.
+ */
+export const summaryToggles = EditorView.domEventHandlers({
+  click(event, view) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
+      return false;
+    const summary = htmlAt(view, event.clientX, event.clientY)?.closest("summary");
+    const details = summary?.parentElement;
+    // The frame's elements are of its own window, so they are known by name, not by class.
+    if (details?.localName !== "details" || details.querySelector(":scope > summary") !== summary)
+      return false;
+    (details as HTMLDetailsElement).open = !(details as HTMLDetailsElement).open;
+    return true;
+  },
+});
 
 /**
  * The frame's document. Its policy loads the page's own fonts and nothing else, and refuses the
