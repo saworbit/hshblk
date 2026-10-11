@@ -111,6 +111,28 @@ describe("the page", () => {
     );
   });
 
+  it("keeps an image in its line, unless it is all its paragraph holds", () => {
+    const state = open(
+      "![alone](a.png)\n\n[![linked](b.png)](https://x.y)\n\nText ![in](c.png) line.\n\n" +
+        "[![CI](d.svg)](https://x.y) [![npm](e.svg)](https://x.y)\n\n" +
+        "[![gone](f.png)][nowhere]\n\n# ![heading](g.png)",
+    );
+    const inline: Record<string, boolean> = {};
+    shown(state).between(0, state.doc.length, (_from, _to, decoration) => {
+      const widget = decoration.spec.widget;
+      if (widget instanceof ImageWidget) inline[widget.alt] = widget.inline;
+    });
+    assert.deepEqual(inline, {
+      alone: false,
+      linked: false,
+      in: true,
+      CI: true,
+      npm: true,
+      gone: true,
+      heading: true,
+    });
+  });
+
   it("reads escapes and entities in a destination, and keeps percent escapes", () => {
     assert.equal(
       visible(open("![a](screen\\_shot.png) ![b](<a &amp; b.png>) ![c](c%20d.png)")),
@@ -159,6 +181,39 @@ describe("the page", () => {
     const state = open("> one\n> two\n\n- a\n1. b");
     assert.equal(visible(state), "one\ntwo\n\n- a\n1. b");
     assert.deepEqual(lineClasses(state, styles).slice(0, 2), ["pg-quote", "pg-quote"]);
+  });
+
+  it("hangs a list item's lines under its text, at every level", () => {
+    const doc = "- one\n  more\n- two\n  1. nested\n     deeper\nlazy\n\n> - quoted";
+    const state = open(doc);
+    assert.equal(
+      visible(state),
+      "- one\n  more\n- two\n  1. nested\n     deeper\nlazy\n\n- quoted",
+    );
+    assert.deepEqual(lineClasses(state, styles), [
+      "pg-hang-2",
+      "pg-hang-2",
+      "pg-hang-2",
+      "pg-hang-5",
+      "pg-hang-5",
+      "pg-pad-5",
+      "",
+      "pg-quote",
+    ]);
+    const boxes: string[] = [];
+    styles(state).between(0, state.doc.length, (from, to, decoration) => {
+      if (/pg-box|pg-list-mark/.test(decoration.spec.class ?? ""))
+        boxes.push(`${JSON.stringify(state.sliceDoc(from, to))} ${decoration.spec.class}`);
+    });
+    assert.deepEqual(boxes, [
+      '"- " pg-list-mark pg-box-2',
+      '"  " pg-box-2',
+      '"- " pg-list-mark pg-box-2',
+      '"  " pg-box-2',
+      '"1. " pg-list-mark pg-box-3',
+      '"     " pg-box-5',
+      '"-" pg-list-mark',
+    ]);
   });
 
   it("leaves code, raw HTML, bare addresses, and task boxes as the source", () => {

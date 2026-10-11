@@ -11,6 +11,10 @@
 - Desktop: an image whose file name holds `#` or `?`, such as `c%23.png`, now loads. (#39)
 - Desktop: an SVG that starts with a comment, a doctype, or a long XML declaration now shows. (#52)
 - CI: the print test waits for the app's window to show before it focuses it, so a window still mapping no longer fails it.
+- Desktop: a table's short columns keep their words whole, and its table scrolls when they cannot fit. (#42)
+- Desktop: a wrapped list item's lines start under its text, not its marker, at every level of nesting. (#49)
+- Desktop: an image that shares its line with text or other images stays in the line, so a README's badge row stays a row. One that cannot show is a chip of its words. An image alone in its paragraph is still a block. (#50)
+- Desktop: a click on the line below a table lands on that line. The table's margin was outside what CodeMirror measures, so the click landed on the line above.
 - Desktop: a find match inside a link's address shows in the link's popover, marked, since the address never shows on the page. (#24)
 - Docs: the design doc records how an image's destination names its file, and find in a link's address.
 - Desktop: a launch on a missing file or a folder leaves the welcome window open behind the error, so the app no longer runs on with no window. (#47)

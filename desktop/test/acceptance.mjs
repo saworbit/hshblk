@@ -212,7 +212,8 @@ function settled(total) {
     images.length + missing.length === total &&
     images.every((image) => image.complete && image.naturalWidth > 0) && {
       images: images.map((image) => ({ alt: image.alt, width: image.naturalWidth })),
-      missing: missing.map((el) => el.textContent),
+      // A chip in a line says why on hover. A block says it in its words.
+      missing: missing.map((el) => el.title || el.textContent),
     }
   );
 }
@@ -501,5 +502,190 @@ describe("quit and reopen", () => {
     }
     assert.deepEqual(listing(root), files, `written under ${relative(tmpdir(), root)}`);
     assert.deepEqual(fingerprint(file), bytes);
+  });
+});
+
+describe("layout", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-layout-"));
+  const file = join(folder, "layout.md");
+  const long = "and this sentence goes on long enough to wrap at the default window size ".repeat(
+    3,
+  );
+  writeFileSync(
+    file,
+    `- A browser product, ${long}
+  1. A nested item, ${long}
+     More of it, ${long}
+
+| Decision | Host | Document |
+|---|---|---|
+| Host | provisional | The reason is who patches the engine. ${long} |
+
+| Address |
+|---|
+| https://example.com/${"averylongaddress".repeat(8)} |
+
+A [link below the table](https://example.com/below) and more words.
+
+[![CI](https://example.com/ci.svg)](https://example.com/ci) [![npm](https://example.com/npm.svg)](https://example.com/npm) [![License: MIT](https://example.com/mit.svg)](LICENSE) [![codecov](https://example.com/cov.svg)](https://example.com/cov) [![Downloads](https://example.com/dl.svg)](https://example.com/dl)
+
+![wide](wide.svg)
+
+A dot ![dot](dot.png) in a line, and one at the end ![end](dot.png).
+`,
+  );
+  writeFileSync(join(folder, "dot.png"), PNG);
+  writeFileSync(
+    join(folder, "wide.svg"),
+    '<svg xmlns="http://www.w3.org/2000/svg" width="3000" height="40"><rect width="3000" height="40" fill="gray"/></svg>',
+  );
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelectorAll(".pg-table").length === 2);
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  test("a list item's wrapped lines start under its text, at every level", async () => {
+    const starts = await page.run(() =>
+      [...document.querySelectorAll(".cm-line")]
+        .filter((line) => /pg-hang-/.test(line.className))
+        .map((line) => {
+          // From after the indent and the marker to the end: one left edge a visual line.
+          const range = document.createRange();
+          range.setStartAfter([...line.querySelectorAll("[class*='pg-box-']")].at(-1));
+          range.setEndAfter(line.lastChild);
+          const lefts = new Map();
+          for (const { top, left } of range.getClientRects()) {
+            const row = Math.round(top);
+            lefts.set(row, Math.min(left, lefts.get(row) ?? Infinity));
+          }
+          return [...lefts.values()].map(Math.round);
+        }),
+    );
+    assert.equal(starts.length, 3);
+    for (const lefts of starts) {
+      assert.ok(lefts.length > 1, "the line wraps");
+      assert.ok(Math.max(...lefts) - Math.min(...lefts) <= 1, `lines start at ${lefts}`);
+    }
+    // The nested item's text, and its next line's, sit right of the outer item's.
+    assert.ok(starts[1][0] > starts[0][0]);
+    assert.equal(starts[2][0], starts[1][0]);
+  });
+
+  test("a click in the hanging space puts the caret at the start of that visual line", async () => {
+    const target = await page.run(() => {
+      const line = document.querySelector(".cm-line[class*='pg-hang-']");
+      const range = document.createRange();
+      range.selectNodeContents(line);
+      const rows = [...range.getClientRects()].sort((a, b) => a.top - b.top || a.left - b.left);
+      const second = rows.find((rect) => rect.top > rows[0].top + 1);
+      const box = line.getBoundingClientRect();
+      return { x: box.left + 2, y: second.top + second.height / 2, left: second.left };
+    });
+    await page.click(target.x, target.y);
+    const caret = await page.until(() => {
+      const selection = getSelection();
+      if (!selection.isCollapsed || selection.focusNode?.nodeType !== Node.TEXT_NODE) return null;
+      // The character after the caret, which at a wrap is the first of the visual line below.
+      const range = document.createRange();
+      range.setStart(selection.focusNode, selection.focusOffset);
+      range.setEnd(selection.focusNode, selection.focusOffset + 1);
+      const { top, left, height } = range.getBoundingClientRect();
+      return { y: top + height / 2, left };
+    });
+    assert.ok(Math.abs(caret.y - target.y) <= 2, `caret row ${caret.y}, clicked ${target.y}`);
+    assert.ok(
+      Math.abs(caret.left - target.left) <= 1,
+      `caret at ${caret.left}, row at ${target.left}`,
+    );
+  });
+
+  test("a table's short columns keep their words whole", async () => {
+    const lines = await page.run(() =>
+      [...document.querySelectorAll(".pg-table")][0]
+        .querySelectorAll("th, tr:first-child td:not(:last-child)")
+        .values()
+        .map((cell) => {
+          const range = document.createRange();
+          range.selectNodeContents(cell);
+          return [cell.textContent, new Set([...range.getClientRects()].map((r) => r.top)).size];
+        })
+        .toArray(),
+    );
+    assert.deepEqual(lines, [
+      ["Decision", 1],
+      ["Host", 1],
+      ["Document", 1],
+      ["Host", 1],
+      ["provisional", 1],
+    ]);
+    const widths = await page.run(() => {
+      const [, wide] = document.querySelectorAll(".pg-table");
+      const scroller = document.querySelector(".cm-scroller");
+      return {
+        table: [wide.scrollWidth, wide.clientWidth],
+        page: [scroller.scrollWidth, scroller.clientWidth],
+      };
+    });
+    assert.ok(widths.table[0] > widths.table[1], "the long address scrolls in its table");
+    assert.ok(widths.page[0] <= widths.page[1], "the page does not scroll sideways");
+  });
+
+  test("a click below a table lands where it was aimed", async () => {
+    await page.run(() =>
+      [...document.querySelectorAll(".pg-link")]
+        .find((el) => el.textContent === "link below the table")
+        .scrollIntoView({ block: "center" }),
+    );
+    const words = await page.until(() => {
+      const link = [...document.querySelectorAll(".pg-link")].find(
+        (el) => el.textContent === "link below the table",
+      );
+      const box = link?.getBoundingClientRect();
+      return box && box.top > 0 && { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    });
+    await page.click(words.x, words.y);
+    const address = await page.until(() => document.querySelector(".pg-address-url")?.textContent);
+    assert.equal(address, "https://example.com/below");
+    await page.press(Key.Escape);
+  });
+
+  test("an image in a line stays in it, and one alone is a block no wider than the page", async () => {
+    const seen = await page.until(() => {
+      const images = [...document.querySelectorAll("img.pg-image")];
+      if (images.length < 3 || !images.every((image) => image.complete)) return null;
+      const rows = (els) =>
+        new Set(els.map((el) => Math.round(el.getBoundingClientRect().top))).size;
+      const chips = [...document.querySelectorAll(".pg-image-chip")];
+      const wide = document.querySelector("img[alt='wide']");
+      const content = document.querySelector(".cm-content").getBoundingClientRect();
+      const dot = document.querySelector("img[alt='end']");
+      // The full stop after the last image: the line's last character.
+      const line = dot.closest(".cm-line");
+      const range = document.createRange();
+      range.setStart(line.lastChild, line.lastChild.length - 1);
+      range.setEnd(line.lastChild, line.lastChild.length);
+      const stop = range.getBoundingClientRect();
+      const image = dot.getBoundingClientRect();
+      return {
+        chips: chips.map((chip) => chip.textContent),
+        chipRows: rows(chips),
+        wide: wide.getBoundingClientRect().width <= content.width,
+        wideAlone: wide.closest(".pg-figure") !== null,
+        inLine: document.querySelector("img[alt='dot']").closest(".pg-figure-inline") !== null,
+        stop: [range.toString(), Math.abs(stop.bottom - image.bottom) < stop.height],
+      };
+    });
+    assert.deepEqual(seen.chips, ["CI", "npm", "License: MIT", "codecov", "Downloads"]);
+    assert.ok(seen.chipRows <= 2, `the badges take ${seen.chipRows} rows`);
+    assert.ok(seen.wide, "the lone image is no wider than the page");
+    assert.ok(seen.wideAlone, "the lone image is a block");
+    assert.ok(seen.inLine, "an image between words stays in the line");
+    assert.deepEqual(seen.stop, [".", true]);
   });
 });
