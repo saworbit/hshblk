@@ -3,5 +3,10 @@
   "identifier": "default",
   "description": "What a page may ask of Rust: its own document, the open dialog, and a link handed to the browser. Nothing from Tauri's core or its plugins.",
   "windows": ["*"],
-  "permissions": ["allow-open-document", "allow-pick-document", "allow-open-url"]
+  "permissions": [
+    "allow-open-document",
+    "allow-document-text",
+    "allow-pick-document",
+    "allow-open-url"
+  ]
 }

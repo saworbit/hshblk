@@ -4,7 +4,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createSurface, printPage } from "./surface.ts";
 
-type Opened = { text: string; name: string; readOnlyReason: string | null };
+type Opened = { name: string; readOnlyReason: string | null };
 
 const root = document.querySelector<HTMLElement>("#page")!;
 const nonce = document.querySelector<HTMLMetaElement>('meta[name="style-nonce"]')?.content;
@@ -15,12 +15,19 @@ const handle = getCurrentWindow().label.match(/^doc-([0-9a-f]+)$/)?.[1];
 const pick = () => void invoke("pick_document");
 
 if (handle) {
-  const opened = await invoke<Opened>("open_document");
+  // The text comes as bytes, which cross faster than a long string as JSON. As Rust holds it:
+  // a byte order mark at its start, if one is there, is part of the text.
+  const [opened, text] = await Promise.all([
+    invoke<Opened>("open_document"),
+    invoke<ArrayBuffer>("document_text").then((bytes) =>
+      new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes),
+    ),
+  ]);
   // docs/hld.md §8, item 3, from here to the engine's first-contentful-paint: the page's share.
   performance.mark("document-opened");
   document.title = opened.name;
   const status = statusLine(opened);
-  const view = createSurface(root, opened.text, {
+  const view = createSurface(root, text, {
     assets: (file) => convertFileSrc(`${handle}/${file}`, "doc-asset"),
     nonce: nonce && !nonce.startsWith("__TAURI") ? nonce : undefined,
     // A link that does not open says why, in the status line.

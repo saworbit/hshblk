@@ -180,7 +180,7 @@ A second file, by double-click or by `app file.md`, goes to the app that is alre
 
 IPC, milestone one:
 
-- `open(handle) -> { string, name, read_only_reason }` after the resolver accepts the path.
+- `open(handle) -> { name, read_only_reason }` after the resolver accepts the path, and `document_text(handle) -> bytes`, the string as UTF-8. A long text crosses faster as bytes than as a JSON string (§8, item 3).
 - `read_asset`, served as a custom scheme: `doc-asset://<handle>/<relative>`. Not Tauri's asset protocol, which is addressed by path (`convertFileSrc(filePath)`).
 - `open_url(url)`. `http`, `https`, and `mailto` only, opened in the system browser. A click on a link never navigates the webview.
 
