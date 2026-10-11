@@ -5,9 +5,9 @@ import { EditorState, RangeSet } from "@codemirror/state";
 import { showTooltip, type DecorationSet } from "@codemirror/view";
 import { filePath, isLocal } from "./assets.ts";
 import { markdown } from "./dialect.ts";
-import { around } from "./links.ts";
+import { around, modClickOpens, showFrameLink } from "./links.ts";
 import { scan, scanNow } from "./blocks.ts";
-import { foldAll, page, paint, printing } from "./page.ts";
+import { foldAll, page, paint, printing, toggleDetailsAtCaret } from "./page.ts";
 import { headingAt, headings } from "./references.ts";
 import {
   HtmlWidget,
@@ -466,6 +466,18 @@ describe("unfolding", () => {
     );
   });
 
+  it("shows the address of a link in an HTML block that a click lands on, until the caret moves", () => {
+    const html = '<p><a href="https://x.y/ridge">the ridge</a></p>\n\nAfter';
+    const state = EditorState.create({ doc: html, extensions: [markdown, page, modClickOpens] });
+    const link = { pos: 0, index: 0, href: "https://x.y/ridge" };
+    const clicked = click(state, 0).update({ effects: showFrameLink.of(link) }).state;
+    const tooltips = clicked.facet(showTooltip).filter(Boolean);
+    assert.equal(tooltips.length, 1);
+    assert.equal(tooltips[0]?.pos, 0);
+    assert.deepEqual(click(clicked, html.length).facet(showTooltip).filter(Boolean), []);
+    assert.deepEqual(select(clicked, 0).facet(showTooltip).filter(Boolean), []);
+  });
+
   it("shows a link's address when a find match lies in its hidden syntax", () => {
     const linked = "See [the ridge](https://x.y/ridge) today.";
     const at = linked.indexOf("x.y");
@@ -560,6 +572,26 @@ describe("a <details> around markdown", () => {
       /^<details>\n<summary>More <b>notes<\/b><\/summary>\n\n\n\nAfter$/,
     );
     assert.match(visible(select(open(doc), doc.indexOf("</details>") + 2)), /<\/details>/);
+  });
+
+  it("opens and closes from Enter on its tags, whether its summary shows or its source", () => {
+    const enter = (state: EditorState): EditorState | null => {
+      let next: EditorState | null = null;
+      toggleDetailsAtCaret({ state, dispatch: (tr) => (next = tr.state) });
+      return next;
+    };
+    // A click opens no syntax, so the summary shows over the caret.
+    const clicked = enter(click(open(doc), doc.indexOf("More")))!;
+    assert.match(visible(clicked), /^\[summary More <b>notes<\/b> open\]\n\nA folded body\./);
+    assert.doesNotMatch(visible(enter(clicked)!), /folded/);
+    // The keys open its source, and Enter still opens it.
+    const keyed = enter(select(open(doc), doc.indexOf("<summary>")))!;
+    assert.match(
+      visible(keyed),
+      /^<details>\n<summary>More <b>notes<\/b><\/summary>\n\nA folded body\./,
+    );
+    // Anywhere else, Enter is left to the keymap.
+    assert.equal(enter(select(open(doc), doc.indexOf("After"))), null);
   });
 
   it("opens every one for print, and puts them back after", () => {

@@ -119,7 +119,8 @@ const fenced = true;
 
 <div onclick="window.ran = 'click'">Raw <b>HTML</b> block</div>
 
-<p style="background: url(near.png)"><img src="near.png" alt="framed"> <img src="doc-asset://localhost/near.png" alt="asset"> <img src="https://example.com/remote.png" alt="remote"> <img src="../../outside.png" alt="outside"> <img srcset="near.png 1x" alt="srcset"> <link rel="stylesheet" href="near.css"> <iframe src="https://example.com/"></iframe></p>
+<p style="background: url(near.png)"><img src="near.png" alt="framed"> <img src="doc-asset://localhost/near.png" alt="asset"> <img src="https://example.com/remote.png" alt="remote"> <img src="../../outside.png" alt="outside"> <img srcset="near.png 1x" alt="srcset"> <link rel="stylesheet" href="near.css"> <iframe src="https://example.com/"></iframe> <svg width="8" height="8"><image href="doc-asset://localhost/svg.png"/><image xlink:href="doc-asset://localhost/xlink.png"/></svg> <input type="image" src="doc-asset://localhost/input.png" alt="input"> <video poster="doc-asset://localhost/poster.png"></video></p>
+<table background="doc-asset://localhost/table.png"><tr><td>Table</td></tr></table>
 <meta http-equiv="refresh" content="0; url=https://example.com/">
 
 Inline <img src="x" onerror="window.ran = 'inline'"> HTML.
@@ -481,8 +482,9 @@ describe("one open document", () => {
     });
     await page.click(at.x, at.y);
     await sleep(500);
-    // The frames asked the channel for nothing. The page's own requests name its document's
-    // handle, which no HTML in the file can know, so any other request came from a frame.
+    // The frames asked the channel for nothing, not for an SVG <image>, an image input, a poster,
+    // or a table's background either. The page's own requests name its document's handle, which
+    // no HTML in the file can know, so any other request came from a frame.
     const label = await page.run(() => window.__TAURI_INTERNALS__.metadata.currentWindow.label);
     const asked = askedBy(label);
     assert.ok(asked.length > 0, "the channel's log holds the page's own images");
@@ -811,6 +813,42 @@ ${FILLER}
     assert.match(await page.until(atHeading), /^(## )?Tables$/);
   });
 
+  test("a plain click on a link in an HTML block shows its address under it", async () => {
+    /** In the page: the popover, once it shows the address asked for and sits in the window. */
+    const popover = (address) => {
+      const box = document.querySelector(".pg-address");
+      const shown = box?.getBoundingClientRect();
+      const button = box?.querySelector("button");
+      const press = button?.getBoundingClientRect();
+      return (
+        box?.querySelector(".pg-address-url").textContent === address &&
+        shown.top >= 0 &&
+        shown.bottom <= innerHeight && {
+          top: shown.top,
+          left: shown.left,
+          button: button?.textContent,
+          x: press && press.x + press.width / 2,
+          y: press && press.y + press.height / 2,
+        }
+      );
+    };
+    const web = await inFrame("html link");
+    await page.click(web.x, web.y);
+    const shown = await page.until(popover, "https://html.example.com/");
+    assert.equal(shown.button, "Open");
+    // Under the link's words, as on the page.
+    assert.ok(
+      shown.top > web.y && shown.top - web.y < 40 && shown.left < web.x,
+      JSON.stringify({ shown, web }),
+    );
+    const heading = await inFrame("html heading");
+    await page.click(heading.x, heading.y);
+    const goTo = await page.until(popover, "#tables");
+    assert.equal(goTo.button, "Go to");
+    await page.click(goTo.x, goTo.y);
+    assert.match(await page.until(atHeading), /^(## )?Tables$/);
+  });
+
   test("a summary in an HTML block opens and closes its details from a click", async () => {
     const details = () =>
       [...document.querySelectorAll("iframe.pg-html")]
@@ -926,6 +964,28 @@ After.
     await page.click(at.x, at.y);
     await page.until(() => document.querySelector(".pg-summary[aria-expanded=false]"));
     assert.equal((await page.run(state)).body, false);
+  });
+
+  test("opens and closes from Enter with the caret on its tags", async () => {
+    const title = await page.run(() => {
+      const box = document.querySelector(".pg-h1").getBoundingClientRect();
+      return { x: box.x + 20, y: box.y + box.height / 2 };
+    });
+    // A click on the title opens nothing. The keys bring the caret onto the tags: down to the
+    // blank line, and right onto the opening tag, which shows its source.
+    await page.click(title.x, title.y);
+    await page.press(Key.ArrowDown);
+    await page.press(Key.ArrowRight);
+    /** In the page: whether the tags show as source, with the body showing or not as asked. */
+    const tagsWithBody = (body) => {
+      const lines = [...document.querySelectorAll(".cm-line")].map((line) => line.textContent);
+      return lines.includes("<details>") && lines.some((line) => line.includes("needle")) === body;
+    };
+    await page.until(tagsWithBody, false);
+    await page.press(Key.Enter);
+    await page.until(tagsWithBody, true);
+    await page.press(Key.Enter);
+    await page.until(tagsWithBody, false);
   });
 
   test("find in its body opens it", async () => {

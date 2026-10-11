@@ -5,8 +5,8 @@ import { EditorView, keymap } from "@codemirror/view";
 import { assetUrl, type AssetUrl } from "./page/assets.ts";
 import { completeParse, finishParse } from "./page/complete.ts";
 import { markdown } from "./page/dialect.ts";
-import { foldAll, page, printing } from "./page/page.ts";
-import { linkOpener, modClickOpens } from "./page/links.ts";
+import { foldAll, page, printing, toggleDetailsAtCaret } from "./page/page.ts";
+import { linkOpener, modClickOpens, showFrameLink } from "./page/links.ts";
 import { clickPastLineEnd } from "./page/pointer.ts";
 import { pageTheme } from "./page/theme.ts";
 import { summaryToggles } from "./page/widgets.ts";
@@ -49,7 +49,12 @@ export function createSurface(
         EditorView.contentAttributes.of({ "aria-label": "Document", spellcheck: "false" }),
         search({ top: true }),
         // Movement and selection. The state is read-only, so the editing commands here do nothing.
-        keymap.of([...searchKeymap, ...standardKeymap]),
+        // Enter on a <details>'s tags opens or closes it.
+        keymap.of([
+          { key: "Enter", run: toggleDetailsAtCaret },
+          ...searchKeymap,
+          ...standardKeymap,
+        ]),
         options.nonce ? EditorView.cspNonce.of(options.nonce) : [],
         options.extensions ?? [],
       ],
@@ -59,11 +64,11 @@ export function createSurface(
 
 /**
  * Prints the page as it reads, docs/hld.md §7: every line drawn, every `<details>` open, and no
- * syntax open under the selection, which is for the screen.
+ * syntax or address open under the selection, which are for the screen.
  */
 export function printPage(view: EditorView): void {
   finishParse(view);
-  view.dispatch({ effects: [foldAll.of(null), printing.of(true)] });
+  view.dispatch({ effects: [foldAll.of(null), printing.of(true), showFrameLink.of(null)] });
   addEventListener("afterprint", () => view.dispatch({ effects: printing.of(false) }), {
     once: true,
   });
