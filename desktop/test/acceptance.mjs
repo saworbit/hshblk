@@ -484,6 +484,7 @@ describe("one open document", () => {
       metadata: JSON.stringify(window.__TAURI_INTERNALS__.metadata),
       requests: performance.getEntriesByType("resource").map((entry) => entry.name),
       opened: JSON.stringify(await window.__TAURI_INTERNALS__.invoke("open_document")),
+      text: new TextDecoder().decode(await window.__TAURI_INTERNALS__.invoke("document_text")),
     }));
     for (const [where, text] of Object.entries(seen)) {
       const value = Array.isArray(text) ? text.join("\n") : text;
@@ -492,6 +493,7 @@ describe("one open document", () => {
     }
     assert.equal(seen.title, "notes.md");
     assert.equal(JSON.parse(seen.opened).name, "notes.md");
+    assert.ok(seen.text.startsWith("# Notes\n"), "document_text is the text, as bytes");
   });
 
   test("6. opens only web and mail addresses", async () => {

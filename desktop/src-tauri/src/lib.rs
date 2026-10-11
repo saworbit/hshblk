@@ -7,29 +7,45 @@ mod windows;
 use std::path::Path;
 
 use serde::Serialize;
+use tauri::ipc::Response;
 use tauri::{Manager, RunEvent, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
-use documents::Documents;
+use std::sync::Arc;
+
+use documents::{Document, Documents};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Opened {
-    text: String,
     name: String,
     read_only_reason: Option<&'static str>,
 }
 
-/// The text of the window's own document. A window can read no other.
+/// The window's own document. A window can read no other.
+fn own_document(window: &WebviewWindow, documents: &Documents) -> Result<Arc<Document>, String> {
+    let handle = windows::handle_of(window.label()).ok_or("This window shows no document.")?;
+    Ok(documents.get(handle).ok_or("That document is closed.")?)
+}
+
+/// What the window's document is called, and why it is read only, if it is.
 #[tauri::command]
 fn open_document(window: WebviewWindow, documents: State<'_, Documents>) -> Result<Opened, String> {
-    let handle = windows::handle_of(window.label()).ok_or("This window shows no document.")?;
-    let document = documents.get(handle).ok_or("That document is closed.")?;
+    let document = own_document(&window, &documents)?;
     Ok(Opened {
-        text: document.text.clone(),
         name: document.name.clone(),
         read_only_reason: document.facts.read_only_reason(),
     })
+}
+
+/// The window's document as UTF-8 bytes. A long text crosses faster as bytes than as JSON.
+#[tauri::command]
+fn document_text(
+    window: WebviewWindow,
+    documents: State<'_, Documents>,
+) -> Result<Response, String> {
+    let document = own_document(&window, &documents)?;
+    Ok(Response::new(document.text.as_bytes().to_vec()))
 }
 
 /// Rust runs the dialog, so the path it returns never reaches the page.
@@ -78,6 +94,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             open_document,
+            document_text,
             pick_document,
             open_url
         ])

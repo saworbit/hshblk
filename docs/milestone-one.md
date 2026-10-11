@@ -13,7 +13,7 @@ Run: 2026-10-10. Ubuntu 24.04 LTS in a cloud container: four cores of a 2.1 GHz 
 | 3. First paint within 1 second | `test/timing.mjs` | On this machine: the largest file at the line, and its tenfold over by up to 0.18 s. See below. |
 | 4. Quit and reopen | `test/acceptance.mjs` | Pass. Each launch goes straight to the page. Nothing is written beside the file. |
 | 5. Copy, find, print | `test/acceptance.mjs` | Pass. Copy gives the source. Find matches hidden syntax and reaches the end of the file. Print, through GTK's dialog to a PDF, has every line, drawn, with no syntax showing. |
-| 6. No path reaches the page | `test/acceptance.mjs` | Pass. No path in the DOM, the URL, the window's metadata, resource requests, or `open_document`'s reply, the only reply that carries data. Errors name no path either. `open_url` refuses `file:`. |
+| 6. No path reaches the page | `test/acceptance.mjs` | Pass. No path in the DOM, the URL, the window's metadata, resource requests, or the replies of `open_document` and `document_text`, the only replies that carry data. Errors name no path either. `open_url` refuses `file:`. |
 | 7. Double-click | `test/double-click.sh` | Linux: pass. Through the installed package and `gio`, the way a file manager opens a file, and a second file opens a second window in the same process. macOS and Windows: not run. |
 
 ## Item 3
@@ -27,7 +27,7 @@ Milliseconds from the process's start, three runs a file, release build:
 | Ten times that | 9,565,739 | 790–856 | 1027–1081 | 1103–1176 | 3950–4064 |
 
 - Most of the second is the engine's. The page starts loading 0.76 to 0.86 s after the process does, whatever the file, before any of this code runs. Under Xvfb with no GPU that is likely the worst case. A desktop session should be the first thing timed on the named machine.
-- The page's own share is about 0.2 s for the largest file and 0.3 s for the tenfold. About half of the tenfold's is the 9 MB string crossing IPC as JSON. Sending it as bytes is the lever if the named machine misses.
+- The page's own share is about 0.2 s for the largest file and 0.3 s for the tenfold. About half of the tenfold's is the 9 MB string crossing IPC. Since #19 it crosses as bytes, not JSON. On 2026-10-11, over twelve runs each, the tenfold's document arrived 60 ms sooner by the median, and the page's share fell by 40 ms. Handing the text over as the window opens saved about 25 ms more, at the cost of putting the file's text in a script. Compressing it, or asking for it before the page's code loads, saved nothing. The rest is WebKitGTK passing the bytes from Rust to the page.
 - The whole parse runs after first paint, between events, and so does the read of its definitions, heading anchors, and tables. When it lands, only the lines near the viewport are drawn again. On 2026-10-11, on this container, the window's longest wait after first paint on the tenfold was 0.09 s, against over 5 s before. The whole parse column above is from before, and holds the old redraw.
 
 ## Found and fixed on the way
