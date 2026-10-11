@@ -49,7 +49,7 @@ Each file opens in a window of its own. A second file opens a second window in t
 | `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading it names |
 
 - Dropping a file on a window opens it in a new window.
-- Put the caret in a construct and its syntax shows, so `**bold**` reads as written. A link never unfolds: its address shows in a popover under it, with **Open** for web and mail addresses. A find match in the address shows there, marked.
+- Move the caret into a construct with the keys, or find in it, and its syntax shows, so `**bold**` reads as written. A click places the caret and opens nothing, so the text holds still under the pointer. A link never unfolds: its address shows in a popover under it, with **Open** for web and mail addresses. A find match in the address shows there, marked.
 - Copy and find work on the source, hidden syntax included. The status line says so.
 - Images load when they are inside the document's repository: the enclosing git repository, or the file's folder when there is none. A path that starts with `/` starts at that root, as on GitHub. Nothing loads from the network.
 - A raw HTML block is drawn in a frame that runs no script and fetches nothing, not even the images it names. Inline HTML shows as source. No script in a document runs.

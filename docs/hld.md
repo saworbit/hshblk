@@ -244,6 +244,8 @@ Each construct has one rule:
 | Image in the repository | The image, through the resource channel. Its destination, escapes and entities resolved, is a URL, so it is decoded once to name the file: `screen%20shot.png` is `screen shot.png`. A leading `/` is the repository's root (§6). |
 | Remote image | Its alternative text, in milestone one. |
 
+A construct's syntax opens when the keyboard or find puts the selection in it, and folds again when the selection leaves. A click or a drag places the caret and opens nothing, so the text never moves under the pointer: opened marks wrapped a word at a line's end onto the next line (§9, row 5). A link's syntax never opens. Its address shows in a popover, for a click too.
+
 Accepted deviation from CommonMark: Lezer parses link-shaped brackets as a link before any definition is known. Un-linking an unresolved reference brings back the brackets, but not emphasis CommonMark would find across them. `[foo *bar]* baz` with no definition is `[foo <em>bar]</em> baz` in CommonMark, and plain text here. Fixing it needs a reparse with the definitions known. Not in milestone one.
 
 - Copy from the decorated view copies source, and the UI says so.
@@ -277,18 +279,19 @@ Product UI waits on two results. The full Linux matrix does not.
 
 **Click-target prototype.** One file. Decorations hide `**bold**` and a folded link. Arrow movement through a block widget must not jump. This is the blind spot revision 1 missed.
 
-CodeMirror resolves a click's position at mousedown, before the syntax unfolds, so a click in the middle of a word lands by construction. The gate tests what that does not cover:
+CodeMirror resolves a click's position at mousedown, and a click opens no syntax (§7), so a click in the middle of a word lands by construction. The gate tests what that does not cover:
 
 | Case | Pass |
 |---|---|
 | Click on the first or last visible character of `**bold**` | Caret inside the marks, beside that character. |
 | Click past the end of a line that ends in a folded construct | Caret after the closing marks. |
-| Click on a folded link in a paragraph wrapped to the window | The clicked character stays on its visual line after the link unfolds. |
+| Click on a folded link in a paragraph wrapped to the window | The clicked character stays on its visual line. |
 | Drag from plain text across a folded construct | Selection ends on the character under the pointer at release. |
+| Click on the first character of bold, italic, or code in a paragraph wrapped to the window | The clicked character stays on its visual line. |
 
 Fail any row and do not build the viewer shell.
 
-Result, 2026-10-10: pass, 14 of 14, on WebKitGTK 2.52.6, after one fix and one decision. The record is [gates/click-target.md](gates/click-target.md).
+Result, 2026-10-10: pass, 14 of 14, on WebKitGTK 2.52.6, after one fix and one decision. The bold, italic, and code row came on 2026-10-11 and failed until a click stopped opening syntax: 26 of 26 since. The record is [gates/click-target.md](gates/click-target.md).
 
 **Corpus through the real input path.** Programmatic dispatch does not count. Drive Enter, Backspace, and paste through WebDriver on Windows and Linux; `tauri-driver` has no macOS support. WebDriver cannot commit an IME composition, so IME is the manual part of the host spot-check. Paste includes a Mac clipboard into a CRLF file and a Windows clipboard into an LF file. Assert changed ranges stay inside ranges the user input touched, once our keymap exists. Until that keymap exists, the stock Markdown keymap is expected to fail this test, and that failure is the point.
 

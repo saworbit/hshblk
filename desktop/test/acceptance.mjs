@@ -322,7 +322,9 @@ describe("the window's keys, wherever focus is", () => {
       const box = document.querySelector(".pg-strong").getBoundingClientRect();
       return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     });
+    // A click opens no syntax. A key that moves the caret does.
     await page.click(at.x, at.y);
+    await page.press(Key.ArrowRight);
     await page.until(() => document.querySelector(".cm-content").textContent.includes("**bold**"));
     await page.press(Key.Control, "f");
     assert.equal(await page.until(focused), "search");

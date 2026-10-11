@@ -28,3 +28,4 @@
 - Docs: SECURITY.md names a reporting route that works while the repository is private: email, to the address on the maintainer's GitHub profile. (#56)
 - Desktop: a raw HTML block is drawn, in a sandboxed frame that runs no script and fetches nothing, not even the images it names. It takes the page's fonts and colours. Inline HTML still shows as source. (#25)
 - Desktop: an image path that starts with `/`, such as `/images/logo.png`, loads from the repository's root, as GitHub reads it. It still cannot leave the repository. The corpus survey reads it the same way and counts these on their own: 12 in the corpus. (#40)
+- Desktop: a click or a drag places the caret and opens no syntax, so the text never moves under the pointer. Opened marks could wrap a word at a line's end onto the next line. The keys and find still open the syntax they reach, and a link's popover still shows on a click. The click-target gate has a row for bold, italic, and code. (#26)

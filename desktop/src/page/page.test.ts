@@ -18,8 +18,13 @@ function open(doc: string): EditorState {
   return state.update({}).state;
 }
 
-/** The reader puts the cursor at `pos`, by pointer or key. */
+/** The reader moves the cursor to `pos` with the keys. */
 function select(state: EditorState, pos: number): EditorState {
+  return state.update({ selection: { anchor: pos }, userEvent: "select" }).state;
+}
+
+/** The reader clicks at `pos`. */
+function click(state: EditorState, pos: number): EditorState {
   return state.update({ selection: { anchor: pos }, userEvent: "select.pointer" }).state;
 }
 
@@ -396,6 +401,17 @@ describe("unfolding", () => {
     assert.equal(visible(inTitle), "# Title\n\nSome bold words.");
   });
 
+  it("opens nothing where the reader clicks, so the text holds still, until a key moves the caret", () => {
+    const clicked = click(open(doc), doc.indexOf("bold"));
+    assert.equal(visible(clicked), "Title\n\nSome bold words.");
+    assert.equal(
+      visible(select(clicked, doc.indexOf("bold") + 1)),
+      "Title\n\nSome **bold** words.",
+    );
+    const table = "| a |\n|---|\n| b |";
+    assert.equal(visible(click(open(table), 2)), "[table 1 rows]");
+  });
+
   it("never unfolds a link: its address shows at the caret instead", () => {
     const linked = "See [the ridge](https://x.y/ridge) today.";
     const inLink = select(open(linked), linked.indexOf("ridge"));
@@ -404,6 +420,11 @@ describe("unfolding", () => {
     assert.equal(tooltips.length, 1);
     assert.equal(tooltips[0]?.pos, linked.indexOf("the ridge"));
     assert.deepEqual(select(inLink, 1).facet(showTooltip).filter(Boolean), []);
+    // A click shows the address too, though it opens nothing.
+    assert.equal(
+      click(open(linked), linked.indexOf("ridge")).facet(showTooltip).filter(Boolean).length,
+      1,
+    );
   });
 
   it("shows a link's address when a find match lies in its hidden syntax", () => {

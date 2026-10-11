@@ -34,7 +34,12 @@ type Page = {
   blocks: Blocks;
   /** The reader's own selection. Null until they place one, so nothing opens on arrival. */
   active: EditorSelection | null;
-  /** The blocks' folds, less the ones the active selection is in. */
+  /**
+   * The selection that opens syntax: the reader's, unless the pointer placed it. A click opens
+   * nothing, so the text never moves under the pointer. The keyboard and find open what they reach.
+   */
+  opening: EditorSelection | null;
+  /** The blocks' folds, less the ones the opening selection is in. */
   shown: DecorationSet;
 };
 
@@ -44,7 +49,7 @@ type Painted = {
   styles: DecorationSet;
   /** Syntax hidden while the selection is elsewhere. */
   folds: DecorationSet;
-  /** The folds, less the ones the active selection is in. */
+  /** The folds, less the ones the opening selection is in. */
   shown: DecorationSet;
 };
 
@@ -71,8 +76,8 @@ const painter = ViewPlugin.fromClass(
       const now = update.state.field(page);
       if (update.viewportChanged || now.tree !== before.tree || now.blocks !== before.blocks) {
         this.painted = paint(update.state, update.view.viewport);
-      } else if (now.active !== before.active) {
-        this.painted = { ...this.painted, shown: unfold(this.painted.folds, now.active) };
+      } else if (now.opening !== before.opening) {
+        this.painted = { ...this.painted, shown: unfold(this.painted.folds, now.opening) };
       }
     }
   },
@@ -83,16 +88,18 @@ const painter = ViewPlugin.fromClass(
  * needs every line, and `painter` draws the rest near the viewport.
  */
 export const page = StateField.define<Page>({
-  create: (state) => build(state, null),
+  create: (state) => build(state, null, null),
   update(current, tr) {
-    const active = tr.effects.some((effect) => effect.is(foldAll))
-      ? null
-      : tr.selection && tr.isUserEvent("select")
-        ? tr.state.selection
-        : current.active;
-    if (tr.docChanged || pageTree(tr.state) !== current.tree) return build(tr.state, active);
-    if (active === current.active) return current;
-    return { ...current, active, shown: unfold(current.blocks.folds, active) };
+    const folded = tr.effects.some((effect) => effect.is(foldAll));
+    const selected = tr.selection && tr.isUserEvent("select");
+    const active = folded ? null : selected ? tr.state.selection : current.active;
+    const pointer = tr.isUserEvent("select.pointer");
+    const opening = folded ? null : selected ? (pointer ? null : active) : current.opening;
+    if (tr.docChanged || pageTree(tr.state) !== current.tree) {
+      return build(tr.state, active, opening);
+    }
+    if (active === current.active && opening === current.opening) return current;
+    return { ...current, active, opening, shown: unfold(current.blocks.folds, opening) };
   },
   provide: (field) => [
     EditorView.decorations.of((view) => view.plugin(painter)?.painted.styles ?? Decoration.none),
@@ -115,26 +122,30 @@ export const page = StateField.define<Page>({
   ],
 });
 
-function build(state: EditorState, active: EditorSelection | null): Page {
+function build(
+  state: EditorState,
+  active: EditorSelection | null,
+  opening: EditorSelection | null,
+): Page {
   const tree = pageTree(state);
   // Until the whole document is parsed, the tree is only as long as CodeMirror has read.
   const blocks = wholeBlocks(state) ?? scanNow(state.doc, tree);
-  return { tree, blocks, active, shown: unfold(blocks.folds, active) };
+  return { tree, blocks, active, opening, shown: unfold(blocks.folds, opening) };
 }
 
 /** The inline syntax from `from` to `to`, whole lines, drawn from the page's tree. */
 export function paint(state: EditorState, { from, to }: { from: number; to: number }): Painted {
-  const { tree, blocks, active } = state.field(page);
+  const { tree, blocks, opening } = state.field(page);
   const { styles, folds } = new Painter(state.doc, blocks.definitions, from, to).paint(tree);
-  return { styles, folds, shown: unfold(folds, active) };
+  return { styles, folds, shown: unfold(folds, opening) };
 }
 
-function unfold(folds: DecorationSet, active: EditorSelection | null): DecorationSet {
-  if (!active) return folds;
+function unfold(folds: DecorationSet, opening: EditorSelection | null): DecorationSet {
+  if (!opening) return folds;
   return folds.update({
     filter: (_from, _to, decoration) => {
       const fold: Fold = decoration.spec.fold;
-      return !active.ranges.some((range) => range.from <= fold.to && range.to >= fold.from);
+      return !opening.ranges.some((range) => range.from <= fold.to && range.to >= fold.from);
     },
   });
 }

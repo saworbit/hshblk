@@ -92,22 +92,17 @@ function charBox(marker, index) {
   return null;
 }
 
-/** The selection's focus as text: what is before it and after it on its line. */
+/**
+ * The selection's head in the source: what is before it and after it on its line. A click opens
+ * no syntax, so the marks around the caret have no text in the DOM, and the source is read from
+ * CodeMirror's state, through its view on the content element.
+ */
 function caret() {
-  const selection = getSelection();
-  const line = selection.focusNode?.parentElement?.closest(".cm-line");
-  if (!line) return null;
-  const range = document.createRange();
-  range.setStart(line, 0);
-  range.setEnd(selection.focusNode, selection.focusOffset);
-  const before = range.toString();
-  const collapsed = selection.isCollapsed;
-  return {
-    before,
-    after: line.textContent.slice(before.length),
-    line: line.textContent,
-    collapsed,
-  };
+  const view = document.querySelector(".cm-content").cmTile.root.view;
+  const { head, empty } = view.state.selection.main;
+  const line = view.state.doc.lineAt(head);
+  const before = line.text.slice(0, head - line.from);
+  return { before, after: line.text.slice(before.length), line: line.text, collapsed: empty };
 }
 
 /**
@@ -137,15 +132,17 @@ function afterCaretBox() {
   return null;
 }
 
-/** What the caret would be if the pointer were placed here now, as caret() reports it. */
+/**
+ * Where the browser itself puts a caret at a point, in the source, as caret() reports it. The
+ * point is the browser's hit test, not CodeMirror's, which the drag used.
+ */
 function caretAtPoint(x, y) {
+  const view = document.querySelector(".cm-content").cmTile.root.view;
   const point = document.caretRangeFromPoint(x, y);
-  const line = point?.startContainer.parentElement?.closest(".cm-line");
-  if (!line) return null;
-  const range = document.createRange();
-  range.setStart(line, 0);
-  range.setEnd(point.startContainer, point.startOffset);
-  return { before: range.toString() };
+  if (!point) return null;
+  const head = view.posAtDOM(point.startContainer, point.startOffset);
+  const line = view.state.doc.lineAt(head);
+  return { before: line.text.slice(0, head - line.from) };
 }
 
 // --- the gate ------------------------------------------------------------------------------
@@ -266,8 +263,8 @@ try {
     `ends after ${JSON.stringify(selected.before.slice(-12))}, pointer at ${JSON.stringify(under?.before.slice(-12))}`,
   );
 
-  // Row 5: bold, italic, and code unfold their marks inline, and the clicked character keeps its
-  // line. The marks are one or two characters, so only a word near a line's end can move. The
+  // Row 5: a click on bold, italic, or code keeps the clicked character on its line. A click
+  // opens no marks (§7). If it did, a word near a line's end could wrap to the next. The
   // paragraph is last, below the others, so the page scrolls to it, and a click on its first
   // word puts the caret in plain text between cases.
   await page.run(() => {
