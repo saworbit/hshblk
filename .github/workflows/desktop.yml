@@ -112,7 +112,9 @@ jobs:
       - run: npx tauri build --debug --bundles deb
       - name: Install the package, as a reader would
         run: sudo dpkg -i src-tauri/target/debug/bundle/deb/*.deb
-      # Each in a session bus of its own, as a desktop has, and not the runner's.
+      # Each in a session bus of its own, as a desktop has, and not the runner's. The runner's
+      # bus can start a desktop portal that never comes up without a display, and GTK waits
+      # 30 s for it at every launch (docs/desktop.md).
       - name: Section 8, items 1, 2, 4, 5, and 6
         run: xvfb-run -a -s "-screen 0 1280x900x24" dbus-run-session -- node test/acceptance.mjs src-tauri/target/debug/hshblk
       - name: Section 9, the click-target gate

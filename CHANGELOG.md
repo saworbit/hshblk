@@ -22,3 +22,4 @@
 - Desktop: a find match in a link's title, or anywhere else in its hidden syntax but the address, shows marked in the link's popover. (#53)
 - Docs: the design doc records how an image's destination names its file, and find in a link's address.
 - Desktop: a launch on a missing file or a folder leaves the welcome window open behind the error, so the app no longer runs on with no window. (#47)
+- Docs: why a launch can take 30 seconds on Linux, and the one line that fixes it. A desktop portal that cannot start holds GTK up; CI keeps each test in a bus of its own because of it. (#23)
