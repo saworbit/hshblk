@@ -1,5 +1,5 @@
-import { Facet, type Text } from "@codemirror/state";
-import { EditorView, type Tooltip } from "@codemirror/view";
+import { type Extension, Facet, StateEffect, StateField, type Text } from "@codemirror/state";
+import { EditorView, type Rect, showTooltip, type Tooltip } from "@codemirror/view";
 import type { SyntaxNode, Tree } from "@lezer/common";
 import { autolinkHref, destination, headingAt, type Definitions } from "./references.ts";
 import { htmlAt } from "./widgets.ts";
@@ -145,16 +145,87 @@ function follow(view: EditorView, href: string): (() => void) | null {
   return open && opens(href) ? () => open(href) : null;
 }
 
-/** A Ctrl or Cmd click on a link follows it. A plain click places the caret in its words. */
-export const modClickOpens = EditorView.domEventHandlers({
-  // The press would move the caret first. Following a link leaves it where it was.
-  mousedown: (event, view) => following(event, view) !== null,
-  click(event, view) {
-    const go = following(event, view);
-    go?.();
-    return go !== null;
+/** A link in an HTML block: where the block starts, which of its links it is, and its address. */
+export type FrameLink = { pos: number; index: number; href: string };
+
+/** Shows the address of a link in an HTML block, or with null, hides it. */
+export const showFrameLink = StateEffect.define<FrameLink | null>();
+
+/**
+ * The link in an HTML block that a plain click landed on. Its address shows as a page link's
+ * does, under its words, until the selection moves.
+ */
+const frameLink = StateField.define<FrameLink | null>({
+  create: () => null,
+  update(link, tr) {
+    for (const effect of tr.effects) if (effect.is(showFrameLink)) return effect.value;
+    return tr.selection || tr.docChanged ? null : link;
   },
+  provide: (field) =>
+    showTooltip.from(field, (link): Tooltip | null => {
+      if (!link) return null;
+      const span = { from: link.pos, to: link.pos, source: { from: link.pos, to: link.pos } };
+      return {
+        pos: link.pos,
+        above: false,
+        create: (view) => ({
+          dom: address(view, { ...span, href: link.href }),
+          // CodeMirror hides a tooltip it gets no place for, as when the frame is not drawn.
+          getCoords: () => frameLinkBox(view, link) as Rect,
+        }),
+      };
+    }),
 });
+
+/** Where a link in an HTML block's frame starts on the screen, or null when it is not drawn. */
+function frameLinkBox(view: EditorView, { pos, index }: FrameLink): Rect | null {
+  for (const frame of view.contentDOM.querySelectorAll<HTMLIFrameElement>("iframe.pg-html")) {
+    if (view.posAtDOM(frame) !== pos) continue;
+    const link = frame.contentDocument?.querySelectorAll("a[href]")[index];
+    const words = link?.getClientRects()[0];
+    if (!words) return null;
+    const box = frame.getBoundingClientRect();
+    const left = box.left + frame.clientLeft;
+    const top = box.top + frame.clientTop;
+    return {
+      left: left + words.left,
+      right: left + words.right,
+      top: top + words.top,
+      bottom: top + words.bottom,
+    };
+  }
+  return null;
+}
+
+/**
+ * A Ctrl or Cmd click on a link follows it. A plain click places the caret in its words, or on a
+ * link in an HTML block, which has no words in the source to place it in, shows its address.
+ */
+export const modClickOpens: Extension = [
+  frameLink,
+  EditorView.domEventHandlers({
+    // The press would move the caret first. Following a link leaves it where it was.
+    mousedown: (event, view) => following(event, view) !== null,
+    click(event, view) {
+      const go = following(event, view);
+      go?.();
+      return go !== null || showsFrameLink(event, view);
+    },
+  }),
+];
+
+/** Shows the address of the link in an HTML block under a plain click, if there is one. */
+function showsFrameLink(event: MouseEvent, view: EditorView): boolean {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
+    return false;
+  const link = htmlAt(view, event.clientX, event.clientY)?.closest("a[href]");
+  const frame = link?.ownerDocument.defaultView?.frameElement;
+  const href = link?.getAttribute("href")?.trim();
+  if (!link || !frame || !href) return false;
+  const index = [...link.ownerDocument.querySelectorAll("a[href]")].indexOf(link);
+  view.dispatch({ effects: showFrameLink.of({ pos: view.posAtDOM(frame), index, href }) });
+  return true;
+}
 
 /**
  * What a Ctrl or Cmd click on a link does, or null when the click follows nothing. A link in an

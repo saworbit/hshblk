@@ -5,7 +5,7 @@ import { EditorState, RangeSet } from "@codemirror/state";
 import { showTooltip, type DecorationSet } from "@codemirror/view";
 import { filePath, isLocal } from "./assets.ts";
 import { markdown } from "./dialect.ts";
-import { around } from "./links.ts";
+import { around, modClickOpens, showFrameLink } from "./links.ts";
 import { scan, scanNow } from "./blocks.ts";
 import { foldAll, page, paint, printing, toggleDetailsAtCaret } from "./page.ts";
 import { headingAt, headings } from "./references.ts";
@@ -464,6 +464,18 @@ describe("unfolding", () => {
       click(open(linked), linked.indexOf("ridge")).facet(showTooltip).filter(Boolean).length,
       1,
     );
+  });
+
+  it("shows the address of a link in an HTML block that a click lands on, until the caret moves", () => {
+    const html = '<p><a href="https://x.y/ridge">the ridge</a></p>\n\nAfter';
+    const state = EditorState.create({ doc: html, extensions: [markdown, page, modClickOpens] });
+    const link = { pos: 0, index: 0, href: "https://x.y/ridge" };
+    const clicked = click(state, 0).update({ effects: showFrameLink.of(link) }).state;
+    const tooltips = clicked.facet(showTooltip).filter(Boolean);
+    assert.equal(tooltips.length, 1);
+    assert.equal(tooltips[0]?.pos, 0);
+    assert.deepEqual(click(clicked, html.length).facet(showTooltip).filter(Boolean), []);
+    assert.deepEqual(select(clicked, 0).facet(showTooltip).filter(Boolean), []);
   });
 
   it("shows a link's address when a find match lies in its hidden syntax", () => {

@@ -813,6 +813,42 @@ ${FILLER}
     assert.match(await page.until(atHeading), /^(## )?Tables$/);
   });
 
+  test("a plain click on a link in an HTML block shows its address under it", async () => {
+    /** In the page: the popover, once it shows the address asked for and sits in the window. */
+    const popover = (address) => {
+      const box = document.querySelector(".pg-address");
+      const shown = box?.getBoundingClientRect();
+      const button = box?.querySelector("button");
+      const press = button?.getBoundingClientRect();
+      return (
+        box?.querySelector(".pg-address-url").textContent === address &&
+        shown.top >= 0 &&
+        shown.bottom <= innerHeight && {
+          top: shown.top,
+          left: shown.left,
+          button: button?.textContent,
+          x: press && press.x + press.width / 2,
+          y: press && press.y + press.height / 2,
+        }
+      );
+    };
+    const web = await inFrame("html link");
+    await page.click(web.x, web.y);
+    const shown = await page.until(popover, "https://html.example.com/");
+    assert.equal(shown.button, "Open");
+    // Under the link's words, as on the page.
+    assert.ok(
+      shown.top > web.y && shown.top - web.y < 40 && shown.left < web.x,
+      JSON.stringify({ shown, web }),
+    );
+    const heading = await inFrame("html heading");
+    await page.click(heading.x, heading.y);
+    const goTo = await page.until(popover, "#tables");
+    assert.equal(goTo.button, "Go to");
+    await page.click(goTo.x, goTo.y);
+    assert.match(await page.until(atHeading), /^(## )?Tables$/);
+  });
+
   test("a summary in an HTML block opens and closes its details from a click", async () => {
     const details = () =>
       [...document.querySelectorAll("iframe.pg-html")]

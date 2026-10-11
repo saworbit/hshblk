@@ -43,3 +43,4 @@
 - Docs: desktop.md lists `npm run typecheck` and `npm run lint` with the tests, and `desktop/scripts/` in the file layout.
 - Desktop: a raw HTML block's frame asks for no image the page did not name. Besides a srcset, the page now drops an SVG `<image>`'s address, an image input's, a video's poster, and a table's background before the frame is drawn, so none of them reaches the resource channel. (#84)
 - Desktop: Enter opens or closes a `<details>` around markdown while the caret is on its tags, whether its summary shows or its source. (#86)
+- Desktop: a click on a link in a raw HTML block shows its address in a popover under it, with **Open** or **Go to**, as a link on the page does. (#85)
