@@ -4,7 +4,7 @@ Hash Block as a program of its own. Double-click a markdown file and it opens in
 
 ## Installing
 
-The Desktop workflow builds the packages on every push to `main`. Open the latest run on `main` under **Actions**, **Desktop**, and download the artifact for your system, `hash-block-Linux`, `hash-block-macOS`, or `hash-block-Windows`. Each is kept for 14 days. There are no releases yet.
+The Desktop workflow builds the packages on every push to `main`. Open the latest run on `main` under **Actions**, **Desktop**, and download the artifact for your system, `hash-block-Linux`, `hash-block-macOS`, or `hash-block-Windows`. Each is kept for 14 days. A release, once one is published, is under **Releases**.
 
 | System | In the artifact |
 |---|---|
@@ -71,6 +71,28 @@ npm ci
 npm run tauri dev       # a window on Vite's dev server
 npx tauri build         # the packages, in src-tauri/target/release/bundle
 ```
+
+## Releasing
+
+1. Set the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json`, and merge that to `main`.
+2. Tag the merge and push the tag: `git tag v0.2.0 && git push origin v0.2.0`.
+3. The Desktop workflow checks that the tag names the version in all three, runs every test, builds the packages on each system, and puts them in a draft release with notes from the merged pull requests. A second run on the same tag replaces the draft's packages.
+4. Read the draft under **Releases**, and publish it by hand.
+
+The macOS app is signed and notarized when the repository has these secrets. Without them it is built unsigned, as on `main`:
+
+| Secret | Holds |
+|---|---|
+| `APPLE_CERTIFICATE` | The Developer ID Application certificate, exported from Keychain Access as `.p12`, in base64: `openssl base64 -A -in certificate.p12` |
+| `APPLE_CERTIFICATE_PASSWORD` | The password set on that export |
+| `APPLE_ID` | The Apple account that notarizes |
+| `APPLE_PASSWORD` | An app-specific password for that account |
+| `APPLE_TEAM_ID` | The team the certificate belongs to |
+
+Not done yet ([hld.md](hld.md) §12, question 1):
+
+- Windows signing. A code-signing certificate issued since June 2023 keeps its key in hardware or in a signing service, so it cannot be a secret here. Each service signs through its own command, set as `bundle.windows.signCommand`. That waits on choosing one.
+- The updater. It needs a key pair: the public key in `tauri.conf.json`, the private key as a secret. The app also has to say how it offers an update, and on Linux Tauri updates only an AppImage, not the `.deb` or `.rpm` built now.
 
 ## How a file becomes a page
 
