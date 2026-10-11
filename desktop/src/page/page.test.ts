@@ -243,6 +243,8 @@ describe("an image's file", () => {
   it("is the destination decoded once, less its query and fragment", () => {
     assert.equal(filePath("screen%20shot.png"), "screen shot.png");
     assert.equal(filePath("caf%C3%A9.png?v=2#top"), "café.png");
+    assert.equal(filePath("./near.png?v=2"), "./near.png");
+    assert.equal(filePath("c%23.png"), "c#.png");
     assert.equal(filePath("100%25.png"), "100%.png");
   });
 

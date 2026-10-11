@@ -56,9 +56,9 @@ fn serve(documents: &Documents, path: &str) -> Result<(Vec<u8>, &'static str), R
     Ok((bytes, kind))
 }
 
-/// The file a reference names, if a document may show it.
+/// The file a reference names, if a document may show it. The page has already dropped the
+/// destination's query and fragment, so a `#` or `?` here is part of the file's name.
 pub fn resolve(document: &Document, reference: &str) -> Result<PathBuf, Refusal> {
-    let reference = reference.split(['?', '#']).next().unwrap_or_default();
     let relative = Path::new(reference);
     let plain = relative.components().all(|part| {
         matches!(
@@ -126,8 +126,8 @@ mod tests {
         outside: PathBuf,
     }
 
-    /// repo/.git, repo/docs/notes.md beside near.png and two names with spaces or accents,
-    /// repo/images/far.png, and a file outside.
+    /// repo/.git, repo/docs/notes.md beside near.png and names with a space, an accent, or a
+    /// `#`, repo/images/far.png, and a file outside.
     fn fixture() -> Fixture {
         let root = tempfile::tempdir().unwrap();
         let repo = root.path().join("repo");
@@ -138,6 +138,7 @@ mod tests {
         fs::write(repo.join("docs/near.png"), PNG).unwrap();
         fs::write(repo.join("docs/screen shot.png"), PNG).unwrap();
         fs::write(repo.join("docs/café.png"), PNG).unwrap();
+        fs::write(repo.join("docs/c#.png"), PNG).unwrap();
         fs::write(repo.join("docs/fake.png"), "not an image").unwrap();
         fs::write(repo.join("images/far.png"), PNG).unwrap();
         let outside = root.path().join("secret.png");
@@ -163,8 +164,23 @@ mod tests {
     fn serves_a_sibling_image_and_one_up_inside_the_repository() {
         let fixture = fixture();
         assert_eq!(ask(&fixture, "near.png"), Ok("image/png"));
-        assert_eq!(ask(&fixture, "./near.png?v=2"), Ok("image/png"));
+        assert_eq!(ask(&fixture, "./near.png"), Ok("image/png"));
         assert_eq!(ask(&fixture, "../images/far.png"), Ok("image/png"));
+    }
+
+    #[test]
+    fn serves_a_file_whose_name_holds_a_hash_or_a_question_mark() {
+        let fixture = fixture();
+        assert_eq!(ask(&fixture, "c#.png"), Ok("image/png"));
+        // Windows takes no `?` in a file name.
+        #[cfg(unix)]
+        {
+            let document = fixture.documents.get(&fixture.handle).unwrap();
+            fs::write(document.path.parent().unwrap().join("why?.png"), PNG).unwrap();
+            assert_eq!(ask(&fixture, "why?.png"), Ok("image/png"));
+        }
+        // The page drops a query and a fragment before it asks, so here they name a file.
+        assert_eq!(ask(&fixture, "./near.png?v=2"), Err(Refusal::Missing));
     }
 
     #[test]
