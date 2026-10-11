@@ -9,7 +9,7 @@ Run: 2026-10-10. Ubuntu 24.04 LTS in a cloud container: four cores of a 2.1 GHz 
 | Item | Checked by | Result |
 |---|---|---|
 | 1. A page, not a code buffer; images | `test/acceptance.mjs` | Pass. Headings, emphasis, code, a list, a fenced block, a table, and links are drawn. A link defined at the end of a long file resolves at the top. Images beside the file and via `../` load. One outside the repository, one through a symlink that leaves it, and a remote one do not, and forged requests from the page for those are refused. |
-| 2. No script; raw HTML as source; the file untouched | `test/acceptance.mjs` | Pass. A script block, an `onclick`, and an `onerror` stay as text. The file's hash and modification time are the same afterwards. |
+| 2. No script; raw HTML in a frame that fetches nothing; the file untouched | `test/acceptance.mjs` | Pass. A script block and a clicked `onclick` run nothing in their frames. An image, a stylesheet, a frame, and a refresh in an HTML block load nothing. An inline `onerror` stays as text. The file's hash and modification time are the same afterwards. |
 | 3. First paint within 1 second | `test/timing.mjs` | On this machine: the largest file at the line, and its tenfold over by up to 0.18 s. See below. |
 | 4. Quit and reopen | `test/acceptance.mjs` | Pass. Each launch goes straight to the page. Nothing is written beside the file. |
 | 5. Copy, find, print | `test/acceptance.mjs` | Pass. Copy gives the source. Find matches hidden syntax and reaches the end of the file. Print, through GTK's dialog to a PDF, has every line, drawn, with no syntax showing. |

@@ -210,12 +210,12 @@ CSP:
 - `img-src`: `doc-asset:` and the `http://doc-asset.localhost` form Tauri serves custom schemes as on Windows.
 - `font-src`: the bundle.
 - `connect-src`: Tauri IPC only, `ipc:` and `http://ipc.localhost`.
-- `frame-src 'none'` until the sandboxed HTML frame exists.
-- Navigation: the webview's navigation handler denies every origin but the app's own.
+- `frame-src 'none'`. A raw HTML block's frame is a `srcdoc` document, which loads no URL, so `'none'` still keeps every frame from loading or navigating to one.
+- Navigation: the webview's navigation handler denies every origin but the app's own, and `about:srcdoc`, the document of a raw HTML block's frame.
 
 Document-supplied script never runs. "Script blocked" was wrong, because CodeMirror is script.
 
-Raw HTML: in milestone one, shown as source, not parsed into the editor document. A later rendered HTML block goes in a sandboxed frame with no script and no shared origin. `<details>` rendering as a widget is an explicit later behaviour, not implied by "the bytes survived."
+Raw HTML is never parsed into the editor document. A raw HTML block is drawn from its source in a sandboxed frame. The frame runs no script: its sandbox has no `allow-scripts`, and its own policy refuses script too. It shares the page's origin, so the page can size it to what it holds. With no script in it, nothing in it can use that origin. Its policy is `default-src 'none'`: it fetches nothing the HTML names, images and stylesheets included, and it takes no style from the HTML. It loads only the page's own fonts, from the app. Inline HTML is shown as source. Each block is a frame of its own, so a `<details>` whose summary and body are separate blocks does not fold its body. `<details>` rendering as a widget is an explicit later behaviour, not implied by "the bytes survived."
 
 Remote images: milestone one does not load them, and `img-src` enforces it. That is provisional. Changing the default waits on a measured broken-README rate. A user-authorised exception is a later trust-boundary change, not a silent relaxation.
 
@@ -239,6 +239,7 @@ Each construct has one rule:
 | Link reference definition | Nothing. The links that use it carry its address. |
 | Reference with no definition | Its brackets, as written. |
 | List marker | As written: `-`, `*`, `1.`, `1)`. |
+| Raw HTML block | Drawn in a sandboxed frame (§6). A selection in it shows its source. |
 | Inline HTML | As written. |
 | Sibling image | The image, through the resource channel. Its destination, escapes and entities resolved, is a URL, so it is decoded once to name the file: `screen%20shot.png` is `screen shot.png`. |
 | Remote image | Its alternative text, in milestone one. |
@@ -259,7 +260,7 @@ Milestone one ships the open side only: launch, double-click, `pick`, drop, `ope
 From `app file.md`, on a named machine:
 
 1. A file in the section 7 dialect, with headings, lists, a fenced block, a GFM table, and a sibling image, paints as a page rather than a code buffer. A remote image does not load. An image via `../` inside the repository loads. One outside it, or through a symlink that leaves it, does not.
-2. A script tag does not run. Raw HTML is shown as source. The file's bytes and modification time are unchanged.
+2. A script tag does not run. A raw HTML block is drawn in a frame that runs no script and fetches nothing. Inline HTML is shown as source. The file's bytes and modification time are unchanged.
 3. The section 9 fixtures reach first paint within 1 second. Time to a complete parse is recorded beside it, because CodeMirror parses lazily: first paint can pass while find, the outline, and print still wait.
 4. Quit and reopen the same path from the shell. No vault, no licence dialog, no write beside the file.
 5. Copy, find, and print behave as section 7 says, including the accepted gaps.

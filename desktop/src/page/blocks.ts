@@ -3,7 +3,7 @@ import { Decoration, type DecorationSet } from "@codemirror/view";
 import type { SyntaxNode, Tree } from "@lezer/common";
 import { inlinesOf, plainText, unescapePipes, type Inline } from "./inlines.ts";
 import { anchorOf, define, type Definitions } from "./references.ts";
-import { TableWidget, type Align, type TableModel } from "./widgets.ts";
+import { HtmlWidget, TableWidget, type Align, type TableModel } from "./widgets.ts";
 
 /**
  * What the page takes from every line, not only the lines in view: the definitions links name,
@@ -14,12 +14,15 @@ export type Blocks = {
   definitions: Definitions;
   /** Each heading's GitHub anchor, to where it starts, for a link to it. */
   anchors: Map<string, number>;
-  /** Tables, drawn in place of their source, and definitions, not drawn at all. */
+  /** Tables and raw HTML, drawn in place of their source, and definitions, not drawn at all. */
   folds: DecorationSet;
 };
 
 /** The blocks that hold other blocks. The scan goes into these and no others. */
 const CONTAINERS = new Set(["Document", "Blockquote", "BulletList", "OrderedList", "ListItem"]);
+
+/** Raw HTML, drawn in a frame. A comment or an instruction draws nothing there. */
+const HTML = new Set(["HTMLBlock", "CommentBlock", "ProcessingInstructionBlock"]);
 
 /** How many blocks the scan reads between pauses. */
 const STRIDE = 1000;
@@ -38,7 +41,7 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
     if (name === "LinkReference") {
       define(definitions, doc, cursor.node);
       drawn.push(cursor.node);
-    } else if (name === "Table") {
+    } else if (name === "Table" || HTML.has(name)) {
       drawn.push(cursor.node);
     } else if (name.startsWith("ATXHeading") || name.startsWith("SetextHeading")) {
       headings.push(cursor.node);
@@ -62,7 +65,11 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
   for (const node of drawn) {
     // A definition is not drawn: the links that use it carry its address.
     const widget =
-      node.name === "Table" ? new TableWidget(table(doc, definitions, node)) : undefined;
+      node.name === "Table"
+        ? new TableWidget(table(doc, definitions, node))
+        : HTML.has(node.name)
+          ? new HtmlWidget(htmlOf(doc, node))
+          : undefined;
     const fold = { from: node.from, to: node.to };
     const lines = { from: doc.lineAt(node.from).from, to: doc.lineAt(node.to).to };
     folds.push(Decoration.replace({ fold, widget, block: true }).range(lines.from, lines.to));
@@ -78,6 +85,17 @@ export function scanNow(doc: Text, tree: Tree): Blocks {
     const step = steps.next();
     if (step.done) return step.value;
   }
+}
+
+/** A raw HTML block as written, less the marks of the quote it is in. */
+function htmlOf(doc: Text, node: SyntaxNode): string {
+  let html = "";
+  let pos = node.from;
+  for (const mark of node.getChildren("QuoteMark")) {
+    html += doc.sliceString(pos, mark.from);
+    pos = doc.sliceString(mark.to, mark.to + 1) === " " ? mark.to + 1 : mark.to;
+  }
+  return html + doc.sliceString(pos, node.to);
 }
 
 /** Where a heading's words are: between its marks, or above its underline. */

@@ -100,6 +100,7 @@ export const pageTheme = EditorView.theme({
   },
   // Padding, not margin: CodeMirror measures a block widget without its margins, and a click
   // below one would land on the line above.
+  ".pg-html": { display: "block", width: "100%", height: "0", border: "0" },
   ".pg-table": { overflowX: "auto", padding: "0.6em 0" },
   ".pg-table table": { borderCollapse: "collapse", width: "100%", fontSize: "0.95em" },
   ".pg-table th, .pg-table td": {

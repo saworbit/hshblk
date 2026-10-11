@@ -105,6 +105,9 @@ const fenced = true;
 
 <div onclick="window.ran = 'click'">Raw <b>HTML</b> block</div>
 
+<p style="background: url(near.png)"><img src="near.png" alt="framed"> <img src="doc-asset://localhost/near.png" alt="asset"> <link rel="stylesheet" href="near.css"> <iframe src="https://example.com/"></iframe></p>
+<meta http-equiv="refresh" content="0; url=https://example.com/">
+
 Inline <img src="x" onerror="window.ran = 'inline'"> HTML.
 
 ${FILLER}
@@ -405,20 +408,61 @@ describe("one open document", () => {
     assert.deepEqual(loads, [true, false, false, false, false, false]);
   });
 
-  test("2. runs no script and shows raw HTML as source", async () => {
+  test("2. runs no script, and draws raw HTML blocks in frames that fetch nothing", async () => {
     assert.equal(await page.run(() => window.ran ?? null), null);
-    const source = (await page.run(texts, ".pg-source-block")).join("\n");
-    assert.match(source, /<script>window\.ran = "block";<\/script>/);
-    assert.match(source, /<div onclick=/);
-    // CodeMirror draws only the lines near the window, and this one is just below it.
+    // CodeMirror draws only the lines near the window, and these are just below it.
     const inline = await page.until(() => {
       const line = [...document.querySelectorAll(".cm-line")].find((el) =>
         el.textContent.startsWith("Inline "),
       );
-      if (!line) [...document.querySelectorAll(".pg-source-block")].at(-1).scrollIntoView();
+      if (!line) [...document.querySelectorAll(".pg-html")].at(-1)?.scrollIntoView();
       return line?.textContent;
     });
     assert.match(inline, /^Inline <img src="x" onerror=/);
+    const frames = () =>
+      page.until(() => {
+        const frames = [...document.querySelectorAll("iframe.pg-html")];
+        if (frames.length < 3 || frames.some((f) => f.contentDocument?.readyState !== "complete"))
+          return null;
+        return frames.map((frame) => ({
+          sandbox: frame.getAttribute("sandbox"),
+          url: frame.contentDocument.URL,
+          text: frame.contentDocument.body.textContent.trim(),
+          scripts: frame.contentDocument.scripts.length,
+          ran: frame.contentWindow.ran ?? null,
+          ipc: "__TAURI_INTERNALS__" in frame.contentWindow,
+          height: frame.getBoundingClientRect().height,
+          policy: frame.contentDocument.querySelector("meta[http-equiv=Content-Security-Policy]")
+            ?.content,
+          images: [...frame.contentDocument.images].map((image) => image.naturalWidth),
+          loads: frame.contentWindow.performance.getEntriesByType("resource").length,
+        }));
+      });
+    const [script, block, fetching] = await frames();
+    assert.deepEqual([script.scripts, script.ran, script.height], [1, null, 0]);
+    assert.equal(block.text, "Raw HTML block");
+    assert.ok(block.height > 10, `the frame is ${block.height}px tall`);
+    // A click on the block's onclick runs nothing either.
+    const at = await page.run(() => {
+      const box = document.querySelectorAll("iframe.pg-html")[1].getBoundingClientRect();
+      return { x: box.x + 20, y: box.y + box.height / 2 };
+    });
+    await page.click(at.x, at.y);
+    await sleep(500);
+    for (const frame of await frames()) {
+      // Never allow-scripts. The frame's policy refuses inline script too, but not every script.
+      assert.equal(frame.sandbox, "allow-same-origin");
+      assert.equal(frame.ran, null);
+      // It shares the page's origin, but not the app's IPC.
+      assert.equal(frame.ipc, false);
+      // The refresh and the frame in the HTML went nowhere.
+      assert.equal(frame.url, "about:srcdoc");
+      // Resource timing misses the app's own schemes, so the policy is checked as well as loads.
+      assert.match(frame.policy, /^default-src 'none';/);
+      assert.equal(frame.loads, 0);
+    }
+    assert.deepEqual(fetching.images, [0, 0]);
+    assert.equal(await page.run(() => window.ran ?? null), null);
     assert.equal(await page.run(() => document.querySelectorAll(".cm-content script").length), 0);
     const images = await page.run(
       () => document.querySelectorAll(".cm-content img:not(.pg-image, .cm-widgetBuffer)").length,
