@@ -32,6 +32,17 @@ export function inlinesOf(
   return out.filter((inline) => inline.kind !== "text" || inline.text);
 }
 
+/** GFM: in a table cell, `\|` is a pipe, even in code. Lezer keeps the backslash in a code span. */
+export function unescapePipes(inlines: Inline[]): Inline[] {
+  return inlines.map((inline) =>
+    inline.kind === "code"
+      ? { ...inline, text: inline.text.replaceAll("\\|", "|") }
+      : "children" in inline
+        ? { ...inline, children: unescapePipes(inline.children) }
+        : inline,
+  );
+}
+
 export function plainText(inlines: Inline[]): string {
   return inlines
     .map((inline) => ("text" in inline ? inline.text : plainText(inline.children)))

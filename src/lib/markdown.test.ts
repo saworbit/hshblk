@@ -227,6 +227,17 @@ describe("tables", () => {
   });
 });
 
+describe("a table cell's code", () => {
+  it("takes the backslash off an escaped pipe, in a table and nowhere else", () => {
+    const [table, paragraph] = blocks("| a |\n|---|\n| `c \\| d` |\n\n`a \\| b`");
+    assert.deepEqual(table.kind === "table" && table.rows, [[[{ kind: "code", text: "c | d" }]]]);
+    assert.deepEqual(paragraph, {
+      kind: "paragraph",
+      children: [{ kind: "code", text: "a \\| b" }],
+    });
+  });
+});
+
 describe("the page", () => {
   it("reads a file with CRLF or CR line endings as it reads LF", () => {
     const lf = "# Title\n\n| a | b |\n| - | - |\n| c | d |\n\n```\nx\n```\n";

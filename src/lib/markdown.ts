@@ -185,7 +185,7 @@ function cellsOf(cx: Context, row: SyntaxNode): Inline[][] {
   let cell: Inline[] | null = row.firstChild?.name === "TableDelimiter" ? null : [];
   for (const child of children(row)) {
     if (child.name === "TableCell") {
-      cell = contentOf(cx, child);
+      cell = unescapePipes(contentOf(cx, child));
     } else if (child.name === "TableDelimiter") {
       if (cell) cells.push(cell);
       cell = [];
@@ -193,6 +193,17 @@ function cellsOf(cx: Context, row: SyntaxNode): Inline[][] {
   }
   if (cell && row.lastChild?.name !== "TableDelimiter") cells.push(cell);
   return cells;
+}
+
+/** GFM: in a table cell, `\|` is a pipe, even in code. Lezer keeps the backslash in a code span. */
+function unescapePipes(inlines: Inline[]): Inline[] {
+  return inlines.map((inline) =>
+    inline.kind === "code"
+      ? { ...inline, text: inline.text.replaceAll("\\|", "|") }
+      : "children" in inline
+        ? { ...inline, children: unescapePipes(inline.children) }
+        : inline,
+  );
 }
 
 /** The inline content of a block, without the whitespace CommonMark strips from its ends. */

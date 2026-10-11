@@ -141,6 +141,20 @@ describe("the page", () => {
     });
   });
 
+  it("takes the backslash off an escaped pipe in a table cell's code, and nowhere else", () => {
+    const state = open("| a |\n|---|\n| `c \\| d` |\n\n`a \\| b`");
+    let model: unknown;
+    shown(state).between(0, state.doc.length, (_from, _to, decoration) => {
+      if (decoration.spec.widget instanceof TableWidget) model = decoration.spec.widget.table;
+    });
+    assert.deepEqual(model, {
+      align: [null],
+      head: [[{ kind: "text", text: "a" }]],
+      rows: [[[{ kind: "code", text: "c | d" }]]],
+    });
+    assert.equal(visible(state), "[table 1 rows]\n\na \\| b");
+  });
+
   it("hides quote marks and keeps list markers as written", () => {
     const state = open("> one\n> two\n\n- a\n1. b");
     assert.equal(visible(state), "one\ntwo\n\n- a\n1. b");
