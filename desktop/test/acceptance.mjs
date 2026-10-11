@@ -410,6 +410,41 @@ describe("one open document", () => {
   });
 });
 
+describe("print", () => {
+  const { file } = fixture();
+
+  test("5. prints every line of the page, drawn, with no syntax open", async () => {
+    const printed = await printByKeyboard(file);
+    assert.match(printed, /^Notes$/m);
+    assert.match(printed, /^A reference link/m);
+    assert.match(printed, /^Filler paragraph 1499\.$/m);
+    assert.match(printed, /^The end\.$/m);
+    assert.doesNotMatch(printed, /^# |\*\*|\[far\]/m);
+  });
+});
+
+describe("quit and reopen", () => {
+  const { root, file } = fixture();
+  const files = listing(root);
+  const bytes = fingerprint(file);
+
+  test("4. opens straight to the page, twice, and writes nothing beside the file", async () => {
+    for (let run = 0; run < 2; run += 1) {
+      const page = await launch(app, [file]);
+      try {
+        const heading = await page.until(() => document.querySelector(".pg-h1")?.textContent);
+        assert.equal(heading, "Notes");
+        assert.equal(await page.run(() => document.querySelector(".welcome")), null);
+      } finally {
+        await page.close();
+        await gone();
+      }
+    }
+    assert.deepEqual(listing(root), files, `written under ${relative(tmpdir(), root)}`);
+    assert.deepEqual(fingerprint(file), bytes);
+  });
+});
+
 describe("layout", () => {
   const folder = mkdtempSync(join(tmpdir(), "hshblk-layout-"));
   const file = join(folder, "layout.md");
@@ -526,40 +561,5 @@ describe("layout", () => {
     });
     assert.ok(widths.table[0] > widths.table[1], "the long address scrolls in its table");
     assert.ok(widths.page[0] <= widths.page[1], "the page does not scroll sideways");
-  });
-});
-
-describe("print", () => {
-  const { file } = fixture();
-
-  test("5. prints every line of the page, drawn, with no syntax open", async () => {
-    const printed = await printByKeyboard(file);
-    assert.match(printed, /^Notes$/m);
-    assert.match(printed, /^A reference link/m);
-    assert.match(printed, /^Filler paragraph 1499\.$/m);
-    assert.match(printed, /^The end\.$/m);
-    assert.doesNotMatch(printed, /^# |\*\*|\[far\]/m);
-  });
-});
-
-describe("quit and reopen", () => {
-  const { root, file } = fixture();
-  const files = listing(root);
-  const bytes = fingerprint(file);
-
-  test("4. opens straight to the page, twice, and writes nothing beside the file", async () => {
-    for (let run = 0; run < 2; run += 1) {
-      const page = await launch(app, [file]);
-      try {
-        const heading = await page.until(() => document.querySelector(".pg-h1")?.textContent);
-        assert.equal(heading, "Notes");
-        assert.equal(await page.run(() => document.querySelector(".welcome")), null);
-      } finally {
-        await page.close();
-        await gone();
-      }
-    }
-    assert.deepEqual(listing(root), files, `written under ${relative(tmpdir(), root)}`);
-    assert.deepEqual(fingerprint(file), bytes);
   });
 });
