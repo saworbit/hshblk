@@ -105,11 +105,55 @@ pub fn image_type(bytes: &[u8]) -> Option<&'static str> {
     }
 }
 
-/// SVG is text, so it is known by its first element. In an image, its scripts never run.
+/// SVG is text, so it is known by its root element, after what XML lets come before it: a byte
+/// order mark, white space, the XML declaration, comments, processing instructions, and a
+/// doctype with its internal subset. In an image, its scripts never run.
 fn is_svg(bytes: &[u8]) -> bool {
-    let head = String::from_utf8_lossy(&bytes[..bytes.len().min(1024)]);
-    let head = head.trim_start_matches('\u{FEFF}').trim_start();
-    head.starts_with("<svg") || (head.starts_with("<?xml") && head.contains("<svg"))
+    let mut rest = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
+    loop {
+        rest = rest.trim_ascii_start();
+        rest = if rest.starts_with(b"<?") {
+            after(rest, 2, b"?>")
+        } else if rest.starts_with(b"<!--") {
+            after(rest, 4, b"-->")
+        } else if rest.starts_with(b"<!DOCTYPE") {
+            after_doctype(rest)
+        } else {
+            return rest.starts_with(b"<svg");
+        };
+    }
+}
+
+/// What follows the first `end` at or past `from`, or nothing when there is none.
+fn after<'a>(bytes: &'a [u8], from: usize, end: &[u8]) -> &'a [u8] {
+    bytes
+        .get(from..)
+        .and_then(|tail| tail.windows(end.len()).position(|window| window == end))
+        .map_or(&[], |at| &bytes[from + at + end.len()..])
+}
+
+/// What follows a doctype. Its internal subset may hold `>` in quotes, comments, and
+/// processing instructions, so the doctype ends at the first `>` outside all of them.
+fn after_doctype(bytes: &[u8]) -> &[u8] {
+    let mut depth = 0usize;
+    let mut rest = &bytes[b"<!DOCTYPE".len()..];
+    while let Some(&byte) = rest.first() {
+        rest = match byte {
+            b'"' | b'\'' => after(rest, 1, &[byte]),
+            b'<' if rest.starts_with(b"<!--") => after(rest, 4, b"-->"),
+            b'<' if rest.starts_with(b"<?") => after(rest, 2, b"?>"),
+            b'>' if depth == 0 => return &rest[1..],
+            _ => {
+                match byte {
+                    b'[' => depth += 1,
+                    b']' => depth = depth.saturating_sub(1),
+                    _ => {}
+                }
+                &rest[1..]
+            }
+        };
+    }
+    &[]
 }
 
 #[cfg(test)]
@@ -244,5 +288,38 @@ mod tests {
             Some("image/svg+xml")
         );
         assert_eq!(image_type(b"<html><script>"), None);
+    }
+
+    #[test]
+    fn knows_an_svg_after_its_comments_doctype_and_declaration() {
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"120\" height=\"60\"></svg>";
+        let doctype = "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \
+                       \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">";
+        let subset = "<!DOCTYPE svg [\n<!ENTITY a \"]>\">\n<!-- don't > -->\n<?pi ]> ?>\n]>";
+        let long = format!(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!--{}-->",
+            "x".repeat(1100)
+        );
+        for head in [
+            "<!-- Generator: Some Tool 1.0 -->",
+            doctype,
+            subset,
+            &long,
+            "\u{FEFF}<?xml version=\"1.0\"?>\n<!-- one -->\n<?pi?>\n",
+        ] {
+            let file = format!("{head}\n{svg}");
+            assert_eq!(image_type(file.as_bytes()), Some("image/svg+xml"), "{head}");
+        }
+        for file in [
+            "<!-- a comment --><html><script>",
+            "<!DOCTYPE html><html><script>",
+            "<?xml version=\"1.0\"?><html/>",
+            "<!-- never closed <svg>",
+            "<!DOCTYPE svg [ <svg>",
+            "plain text that mentions <svg>",
+            "",
+        ] {
+            assert_eq!(image_type(file.as_bytes()), None, "{file}");
+        }
     }
 }
