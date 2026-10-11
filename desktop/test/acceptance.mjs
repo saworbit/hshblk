@@ -119,7 +119,8 @@ const fenced = true;
 
 <div onclick="window.ran = 'click'">Raw <b>HTML</b> block</div>
 
-<p style="background: url(near.png)"><img src="near.png" alt="framed"> <img src="doc-asset://localhost/near.png" alt="asset"> <img src="https://example.com/remote.png" alt="remote"> <img src="../../outside.png" alt="outside"> <img srcset="near.png 1x" alt="srcset"> <link rel="stylesheet" href="near.css"> <iframe src="https://example.com/"></iframe></p>
+<p style="background: url(near.png)"><img src="near.png" alt="framed"> <img src="doc-asset://localhost/near.png" alt="asset"> <img src="https://example.com/remote.png" alt="remote"> <img src="../../outside.png" alt="outside"> <img srcset="near.png 1x" alt="srcset"> <link rel="stylesheet" href="near.css"> <iframe src="https://example.com/"></iframe> <svg width="8" height="8"><image href="doc-asset://localhost/svg.png"/><image xlink:href="doc-asset://localhost/xlink.png"/></svg> <input type="image" src="doc-asset://localhost/input.png" alt="input"> <video poster="doc-asset://localhost/poster.png"></video></p>
+<table background="doc-asset://localhost/table.png"><tr><td>Table</td></tr></table>
 <meta http-equiv="refresh" content="0; url=https://example.com/">
 
 Inline <img src="x" onerror="window.ran = 'inline'"> HTML.
@@ -481,8 +482,9 @@ describe("one open document", () => {
     });
     await page.click(at.x, at.y);
     await sleep(500);
-    // The frames asked the channel for nothing. The page's own requests name its document's
-    // handle, which no HTML in the file can know, so any other request came from a frame.
+    // The frames asked the channel for nothing, not for an SVG <image>, an image input, a poster,
+    // or a table's background either. The page's own requests name its document's handle, which
+    // no HTML in the file can know, so any other request came from a frame.
     const label = await page.run(() => window.__TAURI_INTERNALS__.metadata.currentWindow.label);
     const asked = askedBy(label);
     assert.ok(asked.length > 0, "the channel's log holds the page's own images");

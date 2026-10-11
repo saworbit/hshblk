@@ -41,3 +41,4 @@
 - Desktop: a raw HTML block shows images from inside the repository, so a README's centred logo shows. The page points each `<img src>` that names a file there at the resource channel before the frame is drawn, and the channel checks it as it checks a markdown image. A remote image, one outside the repository, a srcset, and CSS images still load nothing. (#75)
 - Docs: desktop.md says the page may call four commands, not three. `document_text` is the fourth.
 - Docs: desktop.md lists `npm run typecheck` and `npm run lint` with the tests, and `desktop/scripts/` in the file layout.
+- Desktop: a raw HTML block's frame asks for no image the page did not name. Besides a srcset, the page now drops an SVG `<image>`'s address, an image input's, a video's poster, and a table's background before the frame is drawn, so none of them reaches the resource channel. (#84)

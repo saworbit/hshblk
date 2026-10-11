@@ -254,6 +254,9 @@ export const summaryToggles = EditorView.domEventHandlers({
 /** Where a frame's images come from: the resource channel, as in the page's own policy. */
 const IMAGES = "doc-asset: http://doc-asset.localhost";
 
+/** The namespace of SVG's older `xlink:href`, which an SVG `<image>` may still name a file by. */
+const XLINK = "http://www.w3.org/1999/xlink";
+
 /**
  * The frame's document. Its policy loads the page's own fonts, and images from the resource
  * channel, and nothing else, and refuses the HTML's styles. Its faces are the page's: the fonts
@@ -283,13 +286,23 @@ img { max-width: 100%; }`;
 /**
  * docs/hld.md §7: the HTML with its images pointed at the resource channel before the frame reads
  * it. An `<img src>` that names a file in the repository asks for it as a markdown image does, and
- * the channel checks it the same way. Any other src goes, and every srcset, so the frame asks for
- * nothing the page did not name. The parser loads and runs none of the HTML.
+ * the channel checks it the same way. Any other src goes, and every other place an image can be
+ * named: a srcset, a poster, a background, and an href on anything but a link, such as an SVG
+ * `<image>`. So the frame asks for nothing the page did not name. The parser loads and runs none
+ * of the HTML.
  */
 function withImages(html: string, view: EditorView): string {
-  if (!/<img|srcset/i.test(html)) return html;
+  if (!/src|href|poster|background/i.test(html)) return html;
   const parsed = new DOMParser().parseFromString(html, "text/html");
-  for (const element of parsed.querySelectorAll("[srcset]")) element.removeAttribute("srcset");
+  for (const element of parsed.querySelectorAll("*")) {
+    for (const name of ["srcset", "poster", "background"]) element.removeAttribute(name);
+    const tag = element.localName;
+    if (tag !== "img") element.removeAttribute("src");
+    if (tag !== "a" && tag !== "area") {
+      element.removeAttribute("href");
+      element.removeAttributeNS(XLINK, "href");
+    }
+  }
   for (const image of parsed.querySelectorAll("img")) {
     const file = filePath(image.getAttribute("src")?.trim() ?? "");
     const url = isLocal(file) ? view.state.facet(assetUrl)(file) : null;
