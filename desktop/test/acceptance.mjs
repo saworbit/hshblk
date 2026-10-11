@@ -505,13 +505,16 @@ describe("one open document", () => {
   });
 
   test("keeps punctuation on the line of the code, emphasis, or link it follows, at any width", async () => {
-    // Find has left the page at the end of the file. The paragraph is near its top.
-    await page.run(() => (document.querySelector(".cm-scroller").scrollTop = 0));
-    await page.until(() =>
-      [...document.querySelectorAll(".cm-line")].some((el) =>
+    // Find has left the page at the end of the file. The paragraph is near its top. CodeMirror
+    // may put the page back where it was in the frame after the find box closes, so the scroll
+    // goes again until the paragraph shows.
+    await page.until(() => {
+      const shown = [...document.querySelectorAll(".cm-line")].some((el) =>
         el.textContent.startsWith("A paragraph with"),
-      ),
-    );
+      );
+      if (!shown) document.querySelector(".cm-scroller").scrollTop = 0;
+      return shown;
+    });
     // Narrower and narrower, a pixel at a time, so a line ends at every character in turn.
     const stranded = await page.run(() => {
       const content = document.querySelector(".cm-content");
