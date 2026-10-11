@@ -243,15 +243,9 @@ class Painter {
       case "Blockquote":
         this.#lines(node.from, node.to, "pg-quote");
         return;
-      case "QuoteMark": {
-        const line = this.doc.lineAt(node.from);
-        this.#hide(
-          { from: line.from, to: line.to },
-          node.from,
-          this.#spaceAfter(node.to, line.to, 1),
-        );
+      case "QuoteMark":
+        this.#quoteMark(node);
         return false;
-      }
       case "ListItem":
         this.#hang(node);
         return;
@@ -265,14 +259,17 @@ class Painter {
         if (node.lastChild?.name === "CodeMark" && node.lastChild.from > node.from) {
           this.#lines(node.lastChild.from, node.lastChild.from, "pg-fence");
         }
+        this.#quoteMarks(node);
         return false;
       case "CodeBlock":
         this.#lines(node.from, node.to, "pg-code-block");
+        this.#quoteMarks(node);
         return false;
       case "HTMLBlock":
       case "CommentBlock":
       case "ProcessingInstructionBlock":
         this.#lines(node.from, node.to, "pg-source-block");
+        this.#quoteMarks(node);
         return false;
       case "HorizontalRule":
         this.#foldLine(fold, node.from, "pg-rule");
@@ -280,8 +277,23 @@ class Painter {
         return false;
       case "Table":
       case "LinkReference":
-        // Drawn as blocks, from the state.
+        // Drawn as blocks, from the state. Their source shows when the selection opens them.
+        this.#quoteMarks(node);
         return false;
+    }
+  }
+
+  /** A quote's mark, and the space after it, hidden while the selection is off its line. */
+  #quoteMark(mark: SyntaxNode): void {
+    const line = this.doc.lineAt(mark.from);
+    this.#hide({ from: line.from, to: line.to }, mark.from, this.#spaceAfter(mark.to, line.to, 1));
+  }
+
+  /** The quote marks inside a construct whose children are not decorated one by one. */
+  #quoteMarks(node: SyntaxNode): void {
+    const cursor = node.cursor();
+    while (cursor.next() && cursor.from < node.to) {
+      if (cursor.name === "QuoteMark") this.#quoteMark(cursor.node);
     }
   }
 

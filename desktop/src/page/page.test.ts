@@ -47,7 +47,9 @@ function visible(state: EditorState): string {
   }
   let out = "";
   let pos = 0;
-  for (const { from, to, widget } of replaced.sort((a, b) => a.from - b.from)) {
+  for (const { from, to, widget } of replaced.sort((a, b) => a.from - b.from || b.to - a.to)) {
+    // One inside another, such as a quote's mark in a drawn block, is drawn by the outer one.
+    if (from < pos) continue;
     out += state.doc.sliceString(pos, from) + named(widget);
     pos = to;
   }
@@ -229,6 +231,13 @@ describe("the page", () => {
     const state = open("> one\n> two\n\n- a\n1. b");
     assert.equal(visible(state), "one\ntwo\n\n- a\n1. b");
     assert.deepEqual(lineClasses(state, styles).slice(0, 2), ["pg-quote", "pg-quote"]);
+  });
+
+  it("hides a quote's marks on every line of what it holds, code and raw HTML included", () => {
+    assert.equal(visible(open("> ```\n> code\n> ```")), "```\ncode\n```");
+    assert.equal(visible(open(">     indented\n>     code")), "    indented\n    code");
+    const html = "> <p>\n> quoted\n> </p>";
+    assert.equal(visible(select(open(html), html.indexOf("quoted"))), "<p>\n> quoted\n</p>");
   });
 
   it("hangs a list item's lines under its text, at every level", () => {
