@@ -930,6 +930,28 @@ After.
     assert.equal((await page.run(state)).body, false);
   });
 
+  test("opens and closes from Enter with the caret on its tags", async () => {
+    const title = await page.run(() => {
+      const box = document.querySelector(".pg-h1").getBoundingClientRect();
+      return { x: box.x + 20, y: box.y + box.height / 2 };
+    });
+    // A click on the title opens nothing. The keys bring the caret onto the tags: down to the
+    // blank line, and right onto the opening tag, which shows its source.
+    await page.click(title.x, title.y);
+    await page.press(Key.ArrowDown);
+    await page.press(Key.ArrowRight);
+    /** In the page: whether the tags show as source, with the body showing or not as asked. */
+    const tagsWithBody = (body) => {
+      const lines = [...document.querySelectorAll(".cm-line")].map((line) => line.textContent);
+      return lines.includes("<details>") && lines.some((line) => line.includes("needle")) === body;
+    };
+    await page.until(tagsWithBody, false);
+    await page.press(Key.Enter);
+    await page.until(tagsWithBody, true);
+    await page.press(Key.Enter);
+    await page.until(tagsWithBody, false);
+  });
+
   test("find in its body opens it", async () => {
     await page.press(Key.Control, "f");
     await page.keys("needle");

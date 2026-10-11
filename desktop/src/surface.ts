@@ -5,7 +5,7 @@ import { EditorView, keymap } from "@codemirror/view";
 import { assetUrl, type AssetUrl } from "./page/assets.ts";
 import { completeParse, finishParse } from "./page/complete.ts";
 import { markdown } from "./page/dialect.ts";
-import { foldAll, page, printing } from "./page/page.ts";
+import { foldAll, page, printing, toggleDetailsAtCaret } from "./page/page.ts";
 import { linkOpener, modClickOpens } from "./page/links.ts";
 import { clickPastLineEnd } from "./page/pointer.ts";
 import { pageTheme } from "./page/theme.ts";
@@ -49,7 +49,12 @@ export function createSurface(
         EditorView.contentAttributes.of({ "aria-label": "Document", spellcheck: "false" }),
         search({ top: true }),
         // Movement and selection. The state is read-only, so the editing commands here do nothing.
-        keymap.of([...searchKeymap, ...standardKeymap]),
+        // Enter on a <details>'s tags opens or closes it.
+        keymap.of([
+          { key: "Enter", run: toggleDetailsAtCaret },
+          ...searchKeymap,
+          ...standardKeymap,
+        ]),
         options.nonce ? EditorView.cspNonce.of(options.nonce) : [],
         options.extensions ?? [],
       ],

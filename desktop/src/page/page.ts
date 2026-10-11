@@ -3,6 +3,7 @@ import {
   type EditorSelection,
   type EditorState,
   type Range,
+  type StateCommand,
   StateEffect,
   StateField,
   type Text,
@@ -65,6 +66,20 @@ export const foldAll = StateEffect.define<null>();
 
 /** Opens every `<details>` while the page prints, and puts them back after. */
 export const printing = StateEffect.define<boolean>();
+
+/**
+ * Opens or closes the `<details>` whose opening tags hold the caret, as a click on its summary
+ * does, whether the summary shows or its source. The page is read-only, so Enter is free for it.
+ */
+export const toggleDetailsAtCaret: StateCommand = ({ state, dispatch }) => {
+  const caret = state.selection.main.head;
+  const details = state
+    .field(page)
+    .blocks.details.find(({ head }) => head.lines.from <= caret && caret <= head.lines.to);
+  if (!details) return false;
+  dispatch(state.update({ effects: toggleDetails.of(details.head.source.from) }));
+  return true;
+};
 
 /**
  * A large file holds more inline syntax than the window can decorate between two frames. So it

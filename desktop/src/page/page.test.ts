@@ -7,7 +7,7 @@ import { filePath, isLocal } from "./assets.ts";
 import { markdown } from "./dialect.ts";
 import { around } from "./links.ts";
 import { scan, scanNow } from "./blocks.ts";
-import { foldAll, page, paint, printing } from "./page.ts";
+import { foldAll, page, paint, printing, toggleDetailsAtCaret } from "./page.ts";
 import { headingAt, headings } from "./references.ts";
 import {
   HtmlWidget,
@@ -560,6 +560,26 @@ describe("a <details> around markdown", () => {
       /^<details>\n<summary>More <b>notes<\/b><\/summary>\n\n\n\nAfter$/,
     );
     assert.match(visible(select(open(doc), doc.indexOf("</details>") + 2)), /<\/details>/);
+  });
+
+  it("opens and closes from Enter on its tags, whether its summary shows or its source", () => {
+    const enter = (state: EditorState): EditorState | null => {
+      let next: EditorState | null = null;
+      toggleDetailsAtCaret({ state, dispatch: (tr) => (next = tr.state) });
+      return next;
+    };
+    // A click opens no syntax, so the summary shows over the caret.
+    const clicked = enter(click(open(doc), doc.indexOf("More")))!;
+    assert.match(visible(clicked), /^\[summary More <b>notes<\/b> open\]\n\nA folded body\./);
+    assert.doesNotMatch(visible(enter(clicked)!), /folded/);
+    // The keys open its source, and Enter still opens it.
+    const keyed = enter(select(open(doc), doc.indexOf("<summary>")))!;
+    assert.match(
+      visible(keyed),
+      /^<details>\n<summary>More <b>notes<\/b><\/summary>\n\nA folded body\./,
+    );
+    // Anywhere else, Enter is left to the keymap.
+    assert.equal(enter(select(open(doc), doc.indexOf("After"))), null);
   });
 
   it("opens every one for print, and puts them back after", () => {
