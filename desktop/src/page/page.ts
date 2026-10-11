@@ -16,7 +16,7 @@ import {
 import type { SyntaxNode, Tree } from "@lezer/common";
 import { decodeHTML } from "entities";
 import { pageTree } from "./complete.ts";
-import { inlinesOf, plainText, type Inline } from "./inlines.ts";
+import { inlinesOf, plainText, unescapePipes, type Inline } from "./inlines.ts";
 import { addressTooltip, type LinkSpan } from "./links.ts";
 import { definitionsIn, destination, type Definitions } from "./references.ts";
 import { ImageWidget, TableWidget, TextWidget, type Align, type TableModel } from "./widgets.ts";
@@ -273,7 +273,7 @@ class Painter {
     let cell: Inline[] | null = row.firstChild?.name === "TableDelimiter" ? null : [];
     for (let child = row.firstChild; child; child = child.nextSibling) {
       if (child.name === "TableCell") {
-        cell = inlinesOf(this.doc, this.definitions, child);
+        cell = unescapePipes(inlinesOf(this.doc, this.definitions, child));
       } else if (child.name === "TableDelimiter") {
         if (cell) cells.push(cell);
         cell = [];

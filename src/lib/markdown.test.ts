@@ -85,6 +85,18 @@ describe("links", () => {
     ]);
   });
 
+  it("reads escapes and entities in a destination, and keeps percent escapes", () => {
+    const href = "https://example.com/a_b?q=1&r=2";
+    assert.deepEqual(
+      line("[esc](https://example.com/a\\_b?q=1&amp;r=2) [ref][r]\n\n[r]: <c%20d &amp; e>"),
+      [
+        { kind: "link", href, children: [text("esc")] },
+        text(" "),
+        { kind: "link", href: "c%20d & e", children: [text("ref")] },
+      ],
+    );
+  });
+
   it("makes an autolink a link whose words are its address", () => {
     assert.deepEqual(line("<https://example.com> or <me@example.com>"), [
       { kind: "link", href: "https://example.com", children: [text("https://example.com")] },
@@ -212,6 +224,17 @@ describe("tables", () => {
         },
       ],
     );
+  });
+});
+
+describe("a table cell's code", () => {
+  it("takes the backslash off an escaped pipe, in a table and nowhere else", () => {
+    const [table, paragraph] = blocks("| a |\n|---|\n| `c \\| d` |\n\n`a \\| b`");
+    assert.deepEqual(table.kind === "table" && table.rows, [[[{ kind: "code", text: "c | d" }]]]);
+    assert.deepEqual(paragraph, {
+      kind: "paragraph",
+      children: [{ kind: "code", text: "a \\| b" }],
+    });
   });
 });
 
