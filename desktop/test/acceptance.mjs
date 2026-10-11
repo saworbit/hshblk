@@ -212,7 +212,8 @@ function settled(total) {
     images.length + missing.length === total &&
     images.every((image) => image.complete && image.naturalWidth > 0) && {
       images: images.map((image) => ({ alt: image.alt, width: image.naturalWidth })),
-      missing: missing.map((el) => el.textContent),
+      // A chip in a line says why on hover. A block says it in its words.
+      missing: missing.map((el) => el.title || el.textContent),
     }
   );
 }
@@ -464,7 +465,18 @@ describe("layout", () => {
 | Address |
 |---|
 | https://example.com/${"averylongaddress".repeat(8)} |
+
+[![CI](https://example.com/ci.svg)](https://example.com/ci) [![npm](https://example.com/npm.svg)](https://example.com/npm) [![License: MIT](https://example.com/mit.svg)](LICENSE) [![codecov](https://example.com/cov.svg)](https://example.com/cov) [![Downloads](https://example.com/dl.svg)](https://example.com/dl)
+
+![wide](wide.svg)
+
+A dot ![dot](dot.png) in a line, and one at the end ![end](dot.png).
 `,
+  );
+  writeFileSync(join(folder, "dot.png"), PNG);
+  writeFileSync(
+    join(folder, "wide.svg"),
+    '<svg xmlns="http://www.w3.org/2000/svg" width="3000" height="40"><rect width="3000" height="40" fill="gray"/></svg>',
   );
   let page;
 
@@ -561,5 +573,39 @@ describe("layout", () => {
     });
     assert.ok(widths.table[0] > widths.table[1], "the long address scrolls in its table");
     assert.ok(widths.page[0] <= widths.page[1], "the page does not scroll sideways");
+  });
+
+  test("an image in a line stays in it, and one alone is a block no wider than the page", async () => {
+    const seen = await page.until(() => {
+      const images = [...document.querySelectorAll("img.pg-image")];
+      if (images.length < 3 || !images.every((image) => image.complete)) return null;
+      const rows = (els) =>
+        new Set(els.map((el) => Math.round(el.getBoundingClientRect().top))).size;
+      const chips = [...document.querySelectorAll(".pg-image-chip")];
+      const wide = document.querySelector("img[alt='wide']");
+      const content = document.querySelector(".cm-content").getBoundingClientRect();
+      const dot = document.querySelector("img[alt='end']");
+      // The full stop after the last image: the line's last character.
+      const line = dot.closest(".cm-line");
+      const range = document.createRange();
+      range.setStart(line.lastChild, line.lastChild.length - 1);
+      range.setEnd(line.lastChild, line.lastChild.length);
+      const stop = range.getBoundingClientRect();
+      const image = dot.getBoundingClientRect();
+      return {
+        chips: chips.map((chip) => chip.textContent),
+        chipRows: rows(chips),
+        wide: wide.getBoundingClientRect().width <= content.width,
+        wideAlone: wide.closest(".pg-figure") !== null,
+        inLine: document.querySelector("img[alt='dot']").closest(".pg-figure-inline") !== null,
+        stop: [range.toString(), Math.abs(stop.bottom - image.bottom) < stop.height],
+      };
+    });
+    assert.deepEqual(seen.chips, ["CI", "npm", "License: MIT", "codecov", "Downloads"]);
+    assert.ok(seen.chipRows <= 2, `the badges take ${seen.chipRows} rows`);
+    assert.ok(seen.wide, "the lone image is no wider than the page");
+    assert.ok(seen.wideAlone, "the lone image is a block");
+    assert.ok(seen.inLine, "an image between words stays in the line");
+    assert.deepEqual(seen.stop, [".", true]);
   });
 });

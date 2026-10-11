@@ -26,34 +26,41 @@ export class TextWidget extends WidgetType {
   }
 }
 
-/** A sibling image, or the words meant to stand in for one that may not load. */
+/**
+ * A sibling image, or the words meant to stand in for one that may not load. An image in a
+ * line of text stays in the line. One alone in its paragraph is a block.
+ */
 export class ImageWidget extends WidgetType {
   readonly reference: string;
   readonly alt: string;
+  readonly inline: boolean;
 
-  constructor(reference: string, alt: string) {
+  constructor(reference: string, alt: string, inline: boolean) {
     super();
     this.reference = reference;
     this.alt = alt;
+    this.inline = inline;
   }
 
   eq(other: ImageWidget): boolean {
-    return other.reference === this.reference && other.alt === this.alt;
+    return (
+      other.reference === this.reference && other.alt === this.alt && other.inline === this.inline
+    );
   }
 
   toDOM(view: EditorView): HTMLElement {
     const file = filePath(this.reference);
     const url = isSibling(file) ? view.state.facet(assetUrl)(file) : null;
-    if (!url) return placeholder("Image not loaded", this.alt);
+    if (!url) return placeholder("Image not loaded", this.alt, this.inline);
     // CodeMirror puts back a widget's own element if it goes, but leaves what is inside it alone.
     // So a refused image gives way to its placeholder inside a frame that stays.
     const frame = document.createElement("span");
-    frame.className = "pg-figure";
+    frame.className = this.inline ? "pg-figure-inline" : "pg-figure";
     const image = frame.appendChild(document.createElement("img"));
     image.className = "pg-image";
     image.alt = this.alt;
     image.addEventListener("error", () =>
-      image.replaceWith(placeholder("Image not shown", this.alt)),
+      image.replaceWith(placeholder("Image not shown", this.alt, this.inline)),
     );
     image.src = url;
     return frame;
@@ -137,9 +144,12 @@ function element(tag: string, className: string, children: Node[]): HTMLElement 
   return el;
 }
 
-function placeholder(what: string, alt: string): HTMLElement {
+/** Why an image does not show, and its words. In a line, a chip of its words says why on hover. */
+function placeholder(what: string, alt: string, inline: boolean): HTMLElement {
   const span = document.createElement("span");
-  span.className = "pg-image-missing";
-  span.textContent = `${what} · ${alt || "untitled"}`;
+  const said = `${what} · ${alt || "untitled"}`;
+  span.className = inline ? "pg-image-missing pg-image-chip" : "pg-image-missing";
+  span.textContent = inline ? alt || "untitled" : said;
+  if (inline) span.title = said;
   return span;
 }

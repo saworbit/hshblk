@@ -164,7 +164,7 @@ class Painter {
         if (reference === null) return;
         const [open, close] = node.getChildren("LinkMark");
         const alt = plainText(inlinesOf(this.doc, this.definitions, node, open.to, close.from));
-        this.#hide(fold, node.from, node.to, new ImageWidget(reference, alt));
+        this.#hide(fold, node.from, node.to, new ImageWidget(reference, alt, !this.#alone(node)));
         return false;
       }
       case "Autolink": {
@@ -281,6 +281,23 @@ class Painter {
         }
       }
     }
+  }
+
+  /** Whether an image is all its paragraph holds, inside any links that hold only it. */
+  #alone(image: SyntaxNode): boolean {
+    let top = image;
+    for (let link = top.parent; link?.name === "Link"; link = top.parent) {
+      const [open, close] = link.getChildren("LinkMark");
+      if (open.to !== top.from || close.from !== top.to) return false;
+      if (destination(this.doc, link, this.definitions) === null) return false;
+      top = link;
+    }
+    const block = top.parent;
+    return (
+      block?.name === "Paragraph" &&
+      !this.doc.sliceString(block.from, top.from).trim() &&
+      !this.doc.sliceString(top.to, block.to).trim()
+    );
   }
 
   #linkWords(from: number, to: number, href: string, source: SyntaxNode): void {

@@ -85,6 +85,15 @@ export const pageTheme = EditorView.theme({
     color: "var(--muted)",
     fontSize: "0.85em",
   },
+  // An image in a line of text stays in the line, and its placeholder is a chip of its words.
+  ".pg-figure-inline .pg-image": { display: "inline-block", margin: "0", verticalAlign: "middle" },
+  ".pg-image-chip": {
+    display: "inline-block",
+    margin: "0",
+    padding: "0 0.4em",
+    borderRadius: "4px",
+    lineHeight: "1.5",
+  },
   ".pg-table": { overflowX: "auto", margin: "0.6em 0" },
   ".pg-table table": { borderCollapse: "collapse", width: "100%", fontSize: "0.95em" },
   ".pg-table th, .pg-table td": {

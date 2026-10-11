@@ -111,6 +111,28 @@ describe("the page", () => {
     );
   });
 
+  it("keeps an image in its line, unless it is all its paragraph holds", () => {
+    const state = open(
+      "![alone](a.png)\n\n[![linked](b.png)](https://x.y)\n\nText ![in](c.png) line.\n\n" +
+        "[![CI](d.svg)](https://x.y) [![npm](e.svg)](https://x.y)\n\n" +
+        "[![gone](f.png)][nowhere]\n\n# ![heading](g.png)",
+    );
+    const inline: Record<string, boolean> = {};
+    shown(state).between(0, state.doc.length, (_from, _to, decoration) => {
+      const widget = decoration.spec.widget;
+      if (widget instanceof ImageWidget) inline[widget.alt] = widget.inline;
+    });
+    assert.deepEqual(inline, {
+      alone: false,
+      linked: false,
+      in: true,
+      CI: true,
+      npm: true,
+      gone: true,
+      heading: true,
+    });
+  });
+
   it("reads escapes and entities in a destination, and keeps percent escapes", () => {
     assert.equal(
       visible(open("![a](screen\\_shot.png) ![b](<a &amp; b.png>) ![c](c%20d.png)")),
