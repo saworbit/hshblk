@@ -16,6 +16,16 @@ None is signed yet ([hld.md](hld.md) §12, question 1). The first time, macOS wi
 
 On Linux the app uses the system's WebKitGTK, which the package depends on. It is not bundled, so it gets the distribution's security updates ([hld.md](hld.md) §10).
 
+### If it takes 30 seconds to open, on Linux
+
+A session with no session manager on its bus, such as a bare window manager, makes GTK ask for the desktop portal as it starts. If the portal is installed but cannot start, GTK waits for it: 25 seconds for D-Bus to give up on starting it, and 5 more for a second call. Every GTK app waits the same way. The portal cannot start when D-Bus starts it without your display, so give D-Bus the display once, when the session starts:
+
+```bash
+dbus-update-activation-environment --systemd DISPLAY XAUTHORITY
+```
+
+A full desktop does this already. On a GitHub runner the launch went from 31.6 s to 1.1 s with it. Without a portal installed there is no wait at all.
+
 ## Making it what a double-click opens
 
 The package tells the system that Hash Block opens `.md` and `.markdown` files. Whether it is the default is your choice:
@@ -94,6 +104,6 @@ npx tauri build         # the packages, in src-tauri/target/release/bundle
 | `node test/timing.mjs <app> <file>...` | §8, item 3: first paint and whole parse, from the process's start. |
 | `npm run licences`, and `cargo deny check` in `src-tauri/` | Every licence that ships is on §10's list. |
 
-`<app>` is a built binary, such as `src-tauri/target/debug/hshblk` after `npx tauri build --debug --no-bundle`. The tests that drive the app run on Linux under X. They need `tauri-driver` (`cargo install tauri-driver --locked`) and WebKitWebDriver (`webkit2gtk-driver`). Print also needs `xdotool` and `pdftotext`, and the double-click needs `gio` and a D-Bus session. CI runs them all under Xvfb, each in a D-Bus session of its own: [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml).
+`<app>` is a built binary, such as `src-tauri/target/debug/hshblk` after `npx tauri build --debug --no-bundle`. The tests that drive the app run on Linux under X. They need `tauri-driver` (`cargo install tauri-driver --locked`) and WebKitWebDriver (`webkit2gtk-driver`). Print also needs `xdotool` and `pdftotext`, and the double-click needs `gio` and a D-Bus session. CI runs them all under Xvfb, each in a D-Bus session of its own: [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml). The runner's own bus has a portal that cannot start, so a launch on it takes 30 seconds (see above).
 
 The last run of each is recorded in [milestone-one.md](milestone-one.md) and [gates/](gates/).
