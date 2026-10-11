@@ -1,11 +1,6 @@
 AGENTS.md
 node_modules/
-.grok/
-.vercel/
-.tanstack/
 screenshots/
 artifacts/
 dist/
 *.log
-.node_modules.lock
-test-results/

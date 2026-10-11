@@ -23,7 +23,7 @@ What binds milestone one:
 | Section 4 and section 6, open side | Milestone one |
 | Section 4 and section 6, save side; section 5 | The editor milestone. Designed now so milestone one does not close them off. |
 
-The browser reader in this repository is not milestone one. It renders HTML, so it cannot meet section 8. It follows section 7, and its tests are the first display fixtures.
+The browser reader that came first rendered HTML, so it could not meet section 8. It is retired. Its display fixtures that apply to the desktop app moved to the page's tests.
 
 ## 2. Non-goals
 
@@ -254,7 +254,7 @@ Accepted deviation from CommonMark: Lezer parses link-shaped brackets as a link 
 - Print paints the decorated page. CodeMirror renders the whole document for print, not only the viewport. Section 8 times it.
 - Export, later, walks the Lezer tree. It does not add a second parser. If a second read-only interpreter is ever added, it cannot write, and display tests must show it agrees.
 
-The browser reader in this repository applies these rules. Its tests, `src/lib/markdown.test.ts`, are the first display fixtures. The surface must pass the same cases.
+The display fixtures are the page's tests, `desktop/src/page/page.test.ts`. Each rule here has a case, and a rendering bug gets one with its fix.
 
 ## 8. Milestone one acceptance
 

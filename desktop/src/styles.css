@@ -3,7 +3,7 @@
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 
-/* Paper by day, Ink by night: the browser reader's two themes. */
+/* Paper by day, Ink by night. */
 :root {
   color-scheme: light;
   --paper: #f3eee6;
