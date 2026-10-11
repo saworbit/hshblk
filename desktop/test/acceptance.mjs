@@ -408,6 +408,48 @@ describe("one open document", () => {
   test("2. leaves the file's bytes and modification time as they were", async () => {
     assert.deepEqual(fingerprint(file), original);
   });
+
+  test("keeps punctuation on the line of the code, emphasis, or link it follows, at any width", async () => {
+    // Find has left the page at the end of the file. The paragraph is near its top.
+    await page.run(() => (document.querySelector(".cm-scroller").scrollTop = 0));
+    await page.until(() =>
+      [...document.querySelectorAll(".cm-line")].some((el) =>
+        el.textContent.startsWith("A paragraph with"),
+      ),
+    );
+    // Narrower and narrower, a pixel at a time, so a line ends at every character in turn.
+    const stranded = await page.run(() => {
+      const content = document.querySelector(".cm-content");
+      const line = [...document.querySelectorAll(".cm-line")].find((el) =>
+        el.textContent.startsWith("A paragraph with"),
+      );
+      const chars = [];
+      const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode())
+        for (let i = 0; i < node.length; i += 1) if (node.data[i].trim()) chars.push([node, i]);
+      const middle = ([node, i]) => {
+        const range = document.createRange();
+        range.setStart(node, i);
+        range.setEnd(node, i + 1);
+        const box = range.getBoundingClientRect();
+        return (box.top + box.bottom) / 2;
+      };
+      const found = [];
+      for (let width = 160; width <= 720; width += 1) {
+        content.style.maxWidth = `${width}px`;
+        for (let k = 1; k < chars.length; k += 1) {
+          const [node, i] = chars[k];
+          if (/[.,]/.test(node.data[i]) && Math.abs(middle(chars[k]) - middle(chars[k - 1])) > 8)
+            found.push(
+              `${width}px: "${node.data[i]}" after "${chars[k - 1][0].data[chars[k - 1][1]]}"`,
+            );
+        }
+      }
+      content.style.maxWidth = "";
+      return found;
+    });
+    assert.deepEqual(stranded, []);
+  });
 });
 
 describe("print", () => {
