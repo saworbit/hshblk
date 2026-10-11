@@ -8,3 +8,4 @@
 - CI: the print test waits for the app's window to show before it focuses it, so a window still mapping no longer fails it.
 - Desktop: a find match inside a link's address shows in the link's popover, marked, since the address never shows on the page. (#24)
 - Docs: the design doc records how an image's destination names its file, and find in a link's address.
+- Desktop: a launch on a missing file or a folder leaves the welcome window open behind the error, so the app no longer runs on with no window. (#47)

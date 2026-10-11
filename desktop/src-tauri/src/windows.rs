@@ -22,14 +22,15 @@ pub fn handle_of(label: &str) -> Option<&str> {
     label.strip_prefix(DOCUMENT)
 }
 
-/// Opens each file named on a command line, or an empty window when it names none.
+/// Opens each file named on a command line, or an empty window when none opens.
 pub fn open_arguments(app: &AppHandle, argv: &[String], cwd: &Path) {
     let files = files_in(argv, cwd);
-    if files.is_empty() {
-        empty(app);
+    for file in &files {
+        open(app, file);
     }
-    for file in files {
-        open(app, &file);
+    // The app quits when its last window closes, so with none open it would run on unseen.
+    if files.is_empty() || app.webview_windows().is_empty() {
+        empty(app);
     }
 }
 
