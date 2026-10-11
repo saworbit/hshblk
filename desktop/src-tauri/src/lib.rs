@@ -51,13 +51,18 @@ fn pick_document(window: WebviewWindow) {
 /// A link goes to the system browser, after a click. The page itself never navigates.
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
-    if !["http://", "https://", "mailto:"]
-        .iter()
-        .any(|scheme| url.starts_with(scheme))
-    {
+    if !opens(&url) {
         return Err("Only web and mail links open.".into());
     }
-    open::that_detached(&url).map_err(|error| error.to_string())
+    open::that_detached(&url).map_err(|error| format!("The link could not open: {error}."))
+}
+
+/// Web and mail addresses. A scheme is case-insensitive, RFC 3986 §3.1, as the page's check is.
+fn opens(url: &str) -> bool {
+    ["http://", "https://", "mailto:"].iter().any(|scheme| {
+        url.get(..scheme.len())
+            .is_some_and(|head| head.eq_ignore_ascii_case(scheme))
+    })
 }
 
 pub fn run() {
@@ -99,3 +104,34 @@ fn on_run_event(app: &tauri::AppHandle, event: RunEvent) {
 
 #[cfg(not(target_os = "macos"))]
 fn on_run_event(_app: &tauri::AppHandle, _event: RunEvent) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn opens_web_and_mail_addresses_in_any_case() {
+        for url in [
+            "https://example.com",
+            "http://example.com",
+            "mailto:me@example.com",
+            "HTTPS://EXAMPLE.COM/UP",
+            "Mailto:me@example.com",
+            "MAILTO:me@example.com",
+        ] {
+            assert!(opens(url), "{url}");
+        }
+        for url in [
+            "javascript:alert(1)",
+            "JAVASCRIPT:alert(1)",
+            "file:///etc/hostname",
+            "notes.md",
+            "//example.com",
+            "https:/example.com",
+            "",
+            "é",
+        ] {
+            assert!(!opens(url), "{url}");
+        }
+    }
+}
