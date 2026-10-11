@@ -33,3 +33,4 @@
 - Desktop: a document's text crosses from Rust to the page as UTF-8 bytes, not inside a JSON string, so a large file arrives sooner: 60 ms sooner for a 9.6 MB file, by the median of twelve runs. (#19)
 - Docs: the design doc's table rule and render-policy box, and two code comments, say what a click and a raw HTML block do now.
 - CI: the click-target gate stops with a message naming CodeMirror's internal `cmTile` when an upgrade renames it, not with a TypeError. (#77)
+- CI: the no-fetch test counts what the resource channel was asked for. A debug build logs each request to the file `HSHBLK_ASSET_LOG` names, and the test fails if a frame asked for anything. (#78)

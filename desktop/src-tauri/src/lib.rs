@@ -90,7 +90,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Documents::default())
         .register_uri_scheme_protocol(assets::SCHEME, |ctx, request| {
-            assets::respond(&ctx.app_handle().state::<Documents>(), &request)
+            let response = assets::respond(&ctx.app_handle().state::<Documents>(), &request);
+            #[cfg(debug_assertions)]
+            assets::record(ctx.webview_label(), &request, &response);
+            response
         })
         .invoke_handler(tauri::generate_handler![
             open_document,
