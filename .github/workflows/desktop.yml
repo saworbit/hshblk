@@ -3,6 +3,8 @@ name: Desktop
 on:
   push:
     branches: [main]
+    # A tag such as v0.2.0 makes a draft release. Paths do not filter a tag.
+    tags: ["v*"]
     paths: ["desktop/**", ".nvmrc", ".github/workflows/desktop.yml"]
   pull_request:
     paths: ["desktop/**", ".nvmrc", ".github/workflows/desktop.yml"]
@@ -159,7 +161,24 @@ jobs:
           workspaces: desktop/src-tauri -> target
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: npm ci
-      - run: npx tauri build
+      - if: runner.os != 'macOS'
+        run: npx tauri build
+      # A release is signed and notarized when its secrets are set (docs/desktop.md, Releasing).
+      # tauri build signs whenever a variable is set, even to nothing, so each one without a
+      # value is unset, and none is kept for a build of main.
+      - name: Build the packages, signed for a release
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [[ "$GITHUB_REF" != refs/tags/v* || -z "${!name}" ]]; then unset "$name"; fi
+          done
+          npx tauri build
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: hash-block-${{ runner.os }}
@@ -171,3 +190,39 @@ jobs:
             desktop/src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: error
           retention-days: 14
+
+  release:
+    name: Draft release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [check, licences, acceptance, bundle]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The tag names the version the packages carry, so the three places it is written agree.
+      - name: Check the tag against the version
+        run: node scripts/release-version.mjs "$GITHUB_REF_NAME"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: hash-block-*
+          path: packages
+      # A draft, so nothing is public until it is published by hand. A second run on the same
+      # tag replaces the packages in the draft it made.
+      - name: Make the draft release, or refresh its packages
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mapfile -t files < <(find packages -type f | sort)
+          if (( ${#files[@]} == 0 )); then echo "No packages were built." >&2; exit 1; fi
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${files[@]}" --draft --verify-tag \
+              --title "Hash Block ${GITHUB_REF_NAME#v}" --generate-notes
+          fi
