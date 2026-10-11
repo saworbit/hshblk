@@ -7,7 +7,8 @@ import { filePath, isSibling } from "./assets.ts";
 import { markdown } from "./dialect.ts";
 import { around } from "./links.ts";
 import { foldAll, page } from "./page.ts";
-import { ImageWidget, TableWidget, TextWidget } from "./widgets.ts";
+import { headingAt, headings } from "./references.ts";
+import { ImageWidget, TableWidget, TextWidget, type TableModel } from "./widgets.ts";
 
 /** A page with its whole tree parsed, as the reader sees it once the parse is done. */
 function open(doc: string): EditorState {
@@ -96,8 +97,42 @@ describe("the page", () => {
     assert.deepEqual(titles, ["https://x.y", "/ridge"]);
   });
 
+  it("names each heading by the anchor GitHub gives it", () => {
+    const doc =
+      "# Tables\n\n## Tables\n\nSetext *Title*\n===\n\n# Café & *Co.* #\n\n#\n\n### Ends in **bold**";
+    const state = open(doc);
+    assert.deepEqual(Object.fromEntries(state.facet(headings)), {
+      tables: 0,
+      "tables-1": doc.indexOf("## Tables"),
+      "setext-title": doc.indexOf("Setext"),
+      "café--co": doc.indexOf("# Café"),
+      "ends-in-bold": doc.indexOf("### Ends"),
+    });
+    assert.equal(headingAt(state, "#tables-1"), doc.indexOf("## Tables"));
+    assert.equal(headingAt(state, "#caf%C3%A9--co"), doc.indexOf("# Café"));
+    assert.equal(headingAt(state, "#nothing-here"), undefined);
+    assert.equal(headingAt(state, "tables"), undefined);
+  });
+
   it("shows an autolink's address without its angle brackets", () => {
     assert.equal(visible(open("Mail <me@x.y> or <https://x.y>.")), "Mail me@x.y or https://x.y.");
+  });
+
+  it("points an email autolink at mailto:, on the page and in a table", () => {
+    const state = open("Mail <me@x.y> or <https://x.y>.\n\n| a |\n|---|\n| <cell@x.y> |");
+    const hrefs: string[] = [];
+    let model: TableModel | undefined;
+    for (const set of [styles(state), shown(state)]) {
+      set.between(0, state.doc.length, (_from, _to, decoration) => {
+        if (decoration.spec.attributes?.["data-href"])
+          hrefs.push(decoration.spec.attributes["data-href"]);
+        if (decoration.spec.widget instanceof TableWidget) model = decoration.spec.widget.table;
+      });
+    }
+    assert.deepEqual(hrefs, ["mailto:me@x.y", "https://x.y"]);
+    assert.deepEqual(model?.rows[0][0], [
+      { kind: "link", href: "mailto:cell@x.y", children: [{ kind: "text", text: "cell@x.y" }] },
+    ]);
   });
 
   it("paints escaped characters and decoded entities", () => {
@@ -109,6 +144,28 @@ describe("the page", () => {
       visible(open("![ridge at *dusk*](images/ridge.png)")),
       "[image images/ridge.png · ridge at dusk]",
     );
+  });
+
+  it("keeps an image in its line, unless it is all its paragraph holds", () => {
+    const state = open(
+      "![alone](a.png)\n\n[![linked](b.png)](https://x.y)\n\nText ![in](c.png) line.\n\n" +
+        "[![CI](d.svg)](https://x.y) [![npm](e.svg)](https://x.y)\n\n" +
+        "[![gone](f.png)][nowhere]\n\n# ![heading](g.png)",
+    );
+    const inline: Record<string, boolean> = {};
+    shown(state).between(0, state.doc.length, (_from, _to, decoration) => {
+      const widget = decoration.spec.widget;
+      if (widget instanceof ImageWidget) inline[widget.alt] = widget.inline;
+    });
+    assert.deepEqual(inline, {
+      alone: false,
+      linked: false,
+      in: true,
+      CI: true,
+      npm: true,
+      gone: true,
+      heading: true,
+    });
   });
 
   it("reads escapes and entities in a destination, and keeps percent escapes", () => {
@@ -141,10 +198,57 @@ describe("the page", () => {
     });
   });
 
+  it("takes the backslash off an escaped pipe in a table cell's code, and nowhere else", () => {
+    const state = open("| a |\n|---|\n| `c \\| d` |\n\n`a \\| b`");
+    let model: unknown;
+    shown(state).between(0, state.doc.length, (_from, _to, decoration) => {
+      if (decoration.spec.widget instanceof TableWidget) model = decoration.spec.widget.table;
+    });
+    assert.deepEqual(model, {
+      align: [null],
+      head: [[{ kind: "text", text: "a" }]],
+      rows: [[[{ kind: "code", text: "c | d" }]]],
+    });
+    assert.equal(visible(state), "[table 1 rows]\n\na \\| b");
+  });
+
   it("hides quote marks and keeps list markers as written", () => {
     const state = open("> one\n> two\n\n- a\n1. b");
     assert.equal(visible(state), "one\ntwo\n\n- a\n1. b");
     assert.deepEqual(lineClasses(state, styles).slice(0, 2), ["pg-quote", "pg-quote"]);
+  });
+
+  it("hangs a list item's lines under its text, at every level", () => {
+    const doc = "- one\n  more\n- two\n  1. nested\n     deeper\nlazy\n\n> - quoted";
+    const state = open(doc);
+    assert.equal(
+      visible(state),
+      "- one\n  more\n- two\n  1. nested\n     deeper\nlazy\n\n- quoted",
+    );
+    assert.deepEqual(lineClasses(state, styles), [
+      "pg-hang-2",
+      "pg-hang-2",
+      "pg-hang-2",
+      "pg-hang-5",
+      "pg-hang-5",
+      "pg-pad-5",
+      "",
+      "pg-quote",
+    ]);
+    const boxes: string[] = [];
+    styles(state).between(0, state.doc.length, (from, to, decoration) => {
+      if (/pg-box|pg-list-mark/.test(decoration.spec.class ?? ""))
+        boxes.push(`${JSON.stringify(state.sliceDoc(from, to))} ${decoration.spec.class}`);
+    });
+    assert.deepEqual(boxes, [
+      '"- " pg-list-mark pg-box-2',
+      '"  " pg-box-2',
+      '"- " pg-list-mark pg-box-2',
+      '"  " pg-box-2',
+      '"1. " pg-list-mark pg-box-3',
+      '"     " pg-box-5',
+      '"-" pg-list-mark',
+    ]);
   });
 
   it("leaves code, raw HTML, bare addresses, and task boxes as the source", () => {
@@ -243,6 +347,8 @@ describe("an image's file", () => {
   it("is the destination decoded once, less its query and fragment", () => {
     assert.equal(filePath("screen%20shot.png"), "screen shot.png");
     assert.equal(filePath("caf%C3%A9.png?v=2#top"), "café.png");
+    assert.equal(filePath("./near.png?v=2"), "./near.png");
+    assert.equal(filePath("c%23.png"), "c#.png");
     assert.equal(filePath("100%25.png"), "100%.png");
   });
 

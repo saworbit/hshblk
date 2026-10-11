@@ -19,10 +19,12 @@ if (handle) {
   // docs/hld.md §8, item 3, from here to the engine's first-contentful-paint: the page's share.
   performance.mark("document-opened");
   document.title = opened.name;
+  const status = statusLine(opened);
   const view = createSurface(root, opened.text, {
     assets: (file) => convertFileSrc(`${handle}/${file}`, "doc-asset"),
     nonce: nonce && !nonce.startsWith("__TAURI") ? nonce : undefined,
-    openLink: (url) => void invoke("open_url", { url }),
+    // A link that does not open says why, in the status line.
+    openLink: (url) => void invoke("open_url", { url }).catch((error) => say(status, `${error}`)),
   });
   // The window's keys work wherever focus is: the page, the find box, or nothing at all.
   // CodeMirror goes first, and a key it took is not taken again.
@@ -37,7 +39,7 @@ if (handle) {
     event.preventDefault();
     run();
   });
-  root.append(statusLine(opened));
+  root.append(status);
   view.focus();
 } else {
   root.append(welcome());
@@ -57,6 +59,14 @@ function statusLine(opened: Opened): HTMLElement {
   );
   if (opened.readOnlyReason) line.append(element("span", "status-reason", opened.readOnlyReason));
   return line;
+}
+
+/** Says in the status line what went wrong, until something else does. */
+function say(line: HTMLElement, message: string): void {
+  const said =
+    line.querySelector(".status-said") ??
+    line.appendChild(element("span", "status-reason status-said"));
+  said.textContent = message;
 }
 
 function welcome(): HTMLElement {

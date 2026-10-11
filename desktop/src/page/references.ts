@@ -1,4 +1,4 @@
-import type { Text } from "@codemirror/state";
+import { type EditorState, Facet, type Text } from "@codemirror/state";
 import type { SyntaxNode, Tree } from "@lezer/common";
 import { decodeHTML } from "entities";
 
@@ -40,6 +40,42 @@ export function destination(doc: Text, node: SyntaxNode, definitions: Definition
       ? doc.sliceString(reference.from + 1, reference.to - 1)
       : doc.sliceString(open.to, close.from);
   return definitions.get(normalize(label)) ?? null;
+}
+
+/** An autolink's address. An email autolink's is `mailto:` and the address, as CommonMark says. */
+export function autolinkHref(address: string): string {
+  return !address.includes(":") && address.includes("@") ? `mailto:${address}` : address;
+}
+
+/** The document's headings, by the anchor GitHub gives each, to where each starts. */
+export const headings = Facet.define<ReadonlyMap<string, number>, ReadonlyMap<string, number>>({
+  combine: (values) => values[0] ?? new Map(),
+});
+
+/**
+ * The anchor GitHub gives a heading, since READMEs link to it: lower case, punctuation dropped,
+ * and each space a `-`. A repeat takes `-1`, `-2`, and on, as `taken` says.
+ */
+export function anchorOf(words: string, taken: ReadonlySet<string>): string {
+  const base = words
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}\p{Pc} -]/gu, "")
+    .replace(/ /g, "-");
+  let anchor = base;
+  for (let n = 1; taken.has(anchor); n += 1) anchor = `${base}-${n}`;
+  return anchor;
+}
+
+/** Where the heading a `#fragment` names starts, if it names one in this document. */
+export function headingAt(state: EditorState, href: string): number | undefined {
+  if (!href.startsWith("#") || href.length < 2) return undefined;
+  let name = href.slice(1);
+  try {
+    name = decodeURIComponent(name);
+  } catch {
+    // A stray `%` escapes nothing. The fragment is the name as written.
+  }
+  return state.facet(headings).get(name);
 }
 
 /** CommonMark label matching: case-folded, with any run of whitespace as one space. */

@@ -1,4 +1,17 @@
 import { EditorView } from "@codemirror/view";
+import { HANG_LIMIT } from "./page.ts";
+
+/**
+ * A list item's lines hang under its text. The page names a width in columns, so a class a
+ * width: the CSP takes no inline style.
+ */
+const hangs = Object.fromEntries(
+  Array.from({ length: HANG_LIMIT }, (_, i) => i + 1).flatMap((n) => [
+    [`.pg-hang-${n}`, { paddingLeft: `${n}ch`, textIndent: `-${n}ch` }],
+    [`.pg-pad-${n}`, { paddingLeft: `${n}ch` }],
+    [`.pg-box-${n}`, { display: "inline-block", width: `${n}ch`, textIndent: "0" }],
+  ]),
+);
 
 /**
  * The page's faces, over CodeMirror's base theme. The colours are the variables in
@@ -31,6 +44,10 @@ export const pageTheme = EditorView.theme({
   ".pg-em": { fontStyle: "italic" },
   ".pg-strong": { fontWeight: "650" },
   ".pg-strike": { color: "var(--muted)", textDecoration: "line-through" },
+  // Hidden syntax draws as an empty span between two images, which CodeMirror adds for a caret
+  // beside a widget. A line may break at an image, so a full stop could wrap onto a line alone.
+  ".cm-widgetBuffer:has(+ [contenteditable=false]:empty)": { display: "none" },
+  "[contenteditable=false]:empty + .cm-widgetBuffer": { display: "none" },
   ".pg-code": {
     fontFamily: "var(--mono)",
     fontSize: "0.86em",
@@ -45,6 +62,7 @@ export const pageTheme = EditorView.theme({
     textUnderlineOffset: "0.25em",
   },
   ".pg-list-mark": { color: "var(--muted)" },
+  ...hangs,
   ".pg-quote": { color: "var(--muted)", borderLeft: "2px solid var(--rule)", paddingLeft: "1em" },
   ".pg-code-block, .pg-source-block": {
     fontFamily: "var(--mono)",
@@ -71,13 +89,28 @@ export const pageTheme = EditorView.theme({
     color: "var(--muted)",
     fontSize: "0.85em",
   },
-  ".pg-table": { overflowX: "auto", margin: "0.6em 0" },
+  // An image in a line of text stays in the line, and its placeholder is a chip of its words.
+  ".pg-figure-inline .pg-image": { display: "inline-block", margin: "0", verticalAlign: "middle" },
+  ".pg-image-chip": {
+    display: "inline-block",
+    margin: "0",
+    padding: "0 0.4em",
+    borderRadius: "4px",
+    lineHeight: "1.5",
+  },
+  // Padding, not margin: CodeMirror measures a block widget without its margins, and a click
+  // below one would land on the line above.
+  ".pg-table": { overflowX: "auto", padding: "0.6em 0" },
   ".pg-table table": { borderCollapse: "collapse", width: "100%", fontSize: "0.95em" },
   ".pg-table th, .pg-table td": {
     textAlign: "left",
     verticalAlign: "top",
     padding: "0.4em 1em 0.4em 0",
     borderBottom: "1px solid var(--rule)",
+    // Not CodeMirror's `anywhere`, which sizes a column by one letter. A word too long for its
+    // column still breaks, and the table scrolls when its words cannot fit.
+    overflowWrap: "break-word",
+    wordBreak: "normal",
   },
   ".pg-table th": { fontWeight: "560" },
 
@@ -99,6 +132,7 @@ export const pageTheme = EditorView.theme({
     fontSize: "0.75rem",
     color: "var(--muted)",
   },
+  ".pg-address-lines": { display: "flex", flexDirection: "column", minWidth: "0" },
   ".pg-address-url": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   ".pg-address-url mark": {
     color: "inherit",

@@ -1,7 +1,7 @@
 import type { Text } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
 import { decodeHTML } from "entities";
-import { destination, type Definitions } from "./references.ts";
+import { autolinkHref, destination, type Definitions } from "./references.ts";
 
 /**
  * Inline content as plain data, for the places the page draws instead of decorating the
@@ -30,6 +30,17 @@ export function inlinesOf(
   const last = out.at(-1);
   if (last?.kind === "text") out[out.length - 1] = text(last.text.trimEnd());
   return out.filter((inline) => inline.kind !== "text" || inline.text);
+}
+
+/** GFM: in a table cell, `\|` is a pipe, even in code. Lezer keeps the backslash in a code span. */
+export function unescapePipes(inlines: Inline[]): Inline[] {
+  return inlines.map((inline) =>
+    inline.kind === "code"
+      ? { ...inline, text: inline.text.replaceAll("\\|", "|") }
+      : "children" in inline
+        ? { ...inline, children: unescapePipes(inline.children) }
+        : inline,
+  );
 }
 
 export function plainText(inlines: Inline[]): string {
@@ -88,7 +99,7 @@ function inline(doc: Text, definitions: Definitions, node: SyntaxNode): Inline[]
     case "Autolink": {
       const url = node.getChild("URL");
       const address = url ? doc.sliceString(url.from, url.to) : source;
-      return [{ kind: "link", href: address, children: [text(address)] }];
+      return [{ kind: "link", href: autolinkHref(address), children: [text(address)] }];
     }
     case "Escape":
       return [text(source.slice(1))];
