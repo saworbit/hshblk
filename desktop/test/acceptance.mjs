@@ -99,7 +99,7 @@ const fenced = true;
 |:-----|------:|
 | a    | b     |
 
-![near](near.png) ![spaced](near%20by.png) ![far](../images/far.png) ![outside](../../outside.png) ![leaving](leave.png) ![remote](https://example.com/remote.png)
+![near](near.png) ![spaced](near%20by.png) ![far](../images/far.png) ![root](/images/far.png) ![outside](../../outside.png) ![leaving](leave.png) ![remote](https://example.com/remote.png)
 
 <script>window.ran = "block";</script>
 
@@ -344,7 +344,7 @@ describe("one open document", () => {
 
   before(async () => {
     page = await launch(app, [file]);
-    shown = await page.until(settled, 6);
+    shown = await page.until(settled, 7);
   });
   after(async () => {
     await page?.close();
@@ -381,6 +381,7 @@ describe("one open document", () => {
       { alt: "near", width: 1 },
       { alt: "spaced", width: 1 },
       { alt: "far", width: 1 },
+      { alt: "root", width: 1 },
     ]);
     assert.deepEqual(shown.missing, [
       "Image not shown · outside",
@@ -404,8 +405,11 @@ describe("one open document", () => {
       "/etc/hostname",
       "%2Fetc%2Fhostname",
       "../../../../../../etc/hostname",
+      "/images/far.png",
+      "//images/far.png",
     ]);
-    assert.deepEqual(loads, [true, false, false, false, false, false]);
+    // A leading slash is the repository's root, never the filesystem's. Two name a host.
+    assert.deepEqual(loads, [true, false, false, false, false, false, true, false]);
   });
 
   test("2. runs no script, and draws raw HTML blocks in frames that fetch nothing", async () => {

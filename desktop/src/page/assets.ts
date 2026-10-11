@@ -22,9 +22,10 @@ export function filePath(destination: string): string {
 }
 
 /**
- * Only a sibling of the document may load: a relative reference, with no scheme and no
- * leading slash. Whether it is inside the document's repository is the shell's to decide.
+ * Only a file in the document's repository may load: a reference relative to the document, or,
+ * with one leading slash, to the repository's root, as GitHub reads it. No scheme, no `//`, which
+ * names a host, and no backslash. Whether it is inside the repository is the shell's to decide.
  */
-export function isSibling(reference: string): boolean {
-  return reference !== "" && !/^([a-z][a-z0-9+.-]*:|\/|\\)/i.test(reference);
+export function isLocal(reference: string): boolean {
+  return reference !== "" && !/^([a-z][a-z0-9+.-]*:|\/\/|\\)/i.test(reference);
 }

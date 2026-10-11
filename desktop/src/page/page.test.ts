@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState, RangeSet } from "@codemirror/state";
 import { showTooltip, type DecorationSet } from "@codemirror/view";
-import { filePath, isSibling } from "./assets.ts";
+import { filePath, isLocal } from "./assets.ts";
 import { markdown } from "./dialect.ts";
 import { around } from "./links.ts";
 import { scan, scanNow } from "./blocks.ts";
@@ -479,9 +479,19 @@ describe("an image's file", () => {
     assert.equal(filePath("%FF.png"), "%FF.png");
   });
 
-  it("is checked once decoded, so an escaped slash cannot make it absolute", () => {
+  it("is checked once decoded, so an escaped slash or colon cannot name a host or a scheme", () => {
     assert.equal(filePath("..%2F..%2Fsecret.png"), "../../secret.png");
-    assert.equal(isSibling(filePath("%2Fetc%2Fhostname")), false);
-    assert.equal(isSibling(filePath("file%3Asecret.png")), false);
+    assert.equal(isLocal(filePath("%2F%2Fhost%2Fa.png")), false);
+    assert.equal(isLocal(filePath("file%3Asecret.png")), false);
+  });
+
+  it("is the repository's root after one leading slash, and a host after two", () => {
+    assert.equal(isLocal("near.png"), true);
+    assert.equal(isLocal("../images/far.png"), true);
+    assert.equal(isLocal("/images/far.png"), true);
+    assert.equal(isLocal("//host/far.png"), false);
+    assert.equal(isLocal("\\host\\far.png"), false);
+    assert.equal(isLocal("https://x.y/far.png"), false);
+    assert.equal(isLocal(""), false);
   });
 });

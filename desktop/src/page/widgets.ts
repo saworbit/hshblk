@@ -1,5 +1,5 @@
 import { EditorView, WidgetType } from "@codemirror/view";
-import { assetUrl, filePath, isSibling } from "./assets.ts";
+import { assetUrl, filePath, isLocal } from "./assets.ts";
 import type { Inline } from "./inlines.ts";
 
 export type Align = "left" | "center" | "right" | null;
@@ -27,8 +27,8 @@ export class TextWidget extends WidgetType {
 }
 
 /**
- * A sibling image, or the words meant to stand in for one that may not load. An image in a
- * line of text stays in the line. One alone in its paragraph is a block.
+ * An image in the repository, or the words meant to stand in for one that may not load. An image
+ * in a line of text stays in the line. One alone in its paragraph is a block.
  */
 export class ImageWidget extends WidgetType {
   readonly reference: string;
@@ -50,7 +50,7 @@ export class ImageWidget extends WidgetType {
 
   toDOM(view: EditorView): HTMLElement {
     const file = filePath(this.reference);
-    const url = isSibling(file) ? view.state.facet(assetUrl)(file) : null;
+    const url = isLocal(file) ? view.state.facet(assetUrl)(file) : null;
     if (!url) return placeholder("Image not loaded", this.alt, this.inline);
     // CodeMirror puts back a widget's own element if it goes, but leaves what is inside it alone.
     // So a refused image gives way to its placeholder inside a frame that stays.

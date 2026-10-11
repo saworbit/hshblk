@@ -196,7 +196,7 @@ No general filesystem command. No path argument from the webview. The capability
 Asset and link scope:
 
 - The scope root is the enclosing git repository, found by walking up from the document to a `.git` entry. With no repository, it is the document directory.
-- The target, with symlinks and junctions resolved, must sit under the scope root. `../` is allowed inside it.
+- The target, with symlinks and junctions resolved, must sit under the scope root. `../` is allowed inside it. A reference with one leading `/` starts at the scope root, as GitHub reads it in a repository. It never names the filesystem's root, and two leading slashes name a host, which is remote.
 - Assets are regular files of an image type by magic bytes (PNG, JPEG, GIF, WebP, AVIF; SVG by content), at most 20 MB. That excludes devices, FIFOs, and `/dev/zero`.
 - Reading outside the document's folder gives an attacker nothing under this threat model. No script runs and nothing leaves the machine, and a hostile image would ship inside the repository anyway.
 
@@ -241,7 +241,7 @@ Each construct has one rule:
 | List marker | As written: `-`, `*`, `1.`, `1)`. |
 | Raw HTML block | Drawn in a sandboxed frame (§6). A selection in it shows its source. |
 | Inline HTML | As written. |
-| Sibling image | The image, through the resource channel. Its destination, escapes and entities resolved, is a URL, so it is decoded once to name the file: `screen%20shot.png` is `screen shot.png`. |
+| Image in the repository | The image, through the resource channel. Its destination, escapes and entities resolved, is a URL, so it is decoded once to name the file: `screen%20shot.png` is `screen shot.png`. A leading `/` is the repository's root (§6). |
 | Remote image | Its alternative text, in milestone one. |
 
 Accepted deviation from CommonMark: Lezer parses link-shaped brackets as a link before any definition is known. Un-linking an unresolved reference brings back the brackets, but not emphasis CommonMark would find across them. `[foo *bar]* baz` with no definition is `[foo <em>bar]</em> baz` in CommonMark, and plain text here. Fixing it needs a reparse with the definitions known. Not in milestone one.
