@@ -18,7 +18,7 @@ import { decodeHTML } from "entities";
 import { pageTree } from "./complete.ts";
 import { inlinesOf, plainText, type Inline } from "./inlines.ts";
 import { addressTooltip, type LinkSpan } from "./links.ts";
-import { definitionsIn, destination, type Definitions } from "./references.ts";
+import { autolinkHref, definitionsIn, destination, type Definitions } from "./references.ts";
 import { ImageWidget, TableWidget, TextWidget, type Align, type TableModel } from "./widgets.ts";
 
 /** The source a piece of hidden syntax belongs to. A selection inside it shows the syntax. */
@@ -164,7 +164,7 @@ class Painter {
       case "Autolink": {
         const url = node.getChild("URL");
         if (!url) return false;
-        this.#linkWords(url.from, url.to, this.doc.sliceString(url.from, url.to), node);
+        this.#linkWords(url.from, url.to, autolinkHref(this.#slice(url)), node);
         this.#conceal(node.from, url.from);
         this.#conceal(url.to, node.to);
         return false;

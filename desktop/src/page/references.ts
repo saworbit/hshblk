@@ -42,6 +42,11 @@ export function destination(doc: Text, node: SyntaxNode, definitions: Definition
   return definitions.get(normalize(label)) ?? null;
 }
 
+/** An autolink's address. An email autolink's is `mailto:` and the address, as CommonMark says. */
+export function autolinkHref(address: string): string {
+  return !address.includes(":") && address.includes("@") ? `mailto:${address}` : address;
+}
+
 /** CommonMark label matching: case-folded, with any run of whitespace as one space. */
 export function normalize(label: string): string {
   return label.trim().replace(/\s+/g, " ").toLowerCase().toUpperCase();
