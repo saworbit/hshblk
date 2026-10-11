@@ -119,7 +119,7 @@ const fenced = true;
 
 <div onclick="window.ran = 'click'">Raw <b>HTML</b> block</div>
 
-<p style="background: url(near.png)"><img src="near.png" alt="framed"> <img src="doc-asset://localhost/near.png" alt="asset"> <link rel="stylesheet" href="near.css"> <iframe src="https://example.com/"></iframe></p>
+<p style="background: url(near.png)"><img src="near.png" alt="framed"> <img src="doc-asset://localhost/near.png" alt="asset"> <img src="https://example.com/remote.png" alt="remote"> <img src="../../outside.png" alt="outside"> <img srcset="near.png 1x" alt="srcset"> <link rel="stylesheet" href="near.css"> <iframe src="https://example.com/"></iframe></p>
 <meta http-equiv="refresh" content="0; url=https://example.com/">
 
 Inline <img src="x" onerror="window.ran = 'inline'"> HTML.
@@ -435,7 +435,7 @@ describe("one open document", () => {
     assert.deepEqual(loads, [true, false, false, false, false, false, true, false]);
   });
 
-  test("2. runs no script, and draws raw HTML blocks in frames that fetch nothing", async () => {
+  test("2. runs no script, and draws raw HTML blocks in frames that fetch only the repository's images", async () => {
     assert.equal(await page.run(() => window.ran ?? null), null);
     // CodeMirror draws only the lines near the window, and these are just below it.
     const inline = await page.until(() => {
@@ -449,8 +449,10 @@ describe("one open document", () => {
     const frames = () =>
       page.until(() => {
         const frames = [...document.querySelectorAll("iframe.pg-html")];
-        if (frames.length < 3 || frames.some((f) => f.contentDocument?.readyState !== "complete"))
-          return null;
+        const loaded = (f) =>
+          f.contentDocument?.readyState === "complete" &&
+          [...f.contentDocument.images].every((image) => image.complete);
+        if (frames.length < 3 || !frames.every(loaded)) return null;
         return frames.map((frame) => ({
           sandbox: frame.getAttribute("sandbox"),
           url: frame.contentDocument.URL,
@@ -461,7 +463,10 @@ describe("one open document", () => {
           height: frame.getBoundingClientRect().height,
           policy: frame.contentDocument.querySelector("meta[http-equiv=Content-Security-Policy]")
             ?.content,
-          images: [...frame.contentDocument.images].map((image) => image.naturalWidth),
+          images: [...frame.contentDocument.images].map((image) => [image.alt, image.naturalWidth]),
+          backgrounds: [...frame.contentDocument.body.querySelectorAll("*")]
+            .map((el) => frame.contentWindow.getComputedStyle(el).backgroundImage)
+            .filter((image) => image !== "none"),
           loads: frame.contentWindow.performance.getEntriesByType("resource").length,
         }));
       });
@@ -495,11 +500,23 @@ describe("one open document", () => {
       // The refresh and the frame in the HTML went nowhere.
       assert.equal(frame.url, "about:srcdoc");
       // Resource timing misses the app's own schemes, which the channel's log covers. The
-      // policy is checked as well.
-      assert.match(frame.policy, /^default-src 'none';/);
+      // policy is checked as well: images from the channel, and nothing else.
+      assert.match(
+        frame.policy,
+        /^default-src 'none'; img-src doc-asset: http:\/\/doc-asset\.localhost;/,
+      );
       assert.equal(frame.loads, 0);
+      assert.deepEqual(frame.backgrounds, []);
     }
-    assert.deepEqual(fetching.images, [0, 0]);
+    // The image beside the file shows. A remote one, one outside the repository, one named by a
+    // doc-asset address, a srcset, and the CSS background do not.
+    assert.deepEqual(fetching.images, [
+      ["framed", 1],
+      ["asset", 0],
+      ["remote", 0],
+      ["outside", 0],
+      ["srcset", 0],
+    ]);
     assert.equal(await page.run(() => window.ran ?? null), null);
     assert.equal(await page.run(() => document.querySelectorAll(".cm-content script").length), 0);
     const images = await page.run(

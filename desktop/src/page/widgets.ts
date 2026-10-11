@@ -160,7 +160,7 @@ const fitting = new WeakMap<HTMLElement, ResizeObserver>();
 /**
  * docs/hld.md §7: a raw HTML block, drawn in a sandboxed frame. The frame shares the page's
  * origin, so the page can size it to what it holds and read what is under the pointer, and it
- * never runs script. Its policy fetches nothing the HTML names.
+ * never runs script. Its policy fetches nothing the HTML names but images in the repository.
  */
 export class HtmlWidget extends WidgetType {
   readonly html: string;
@@ -251,14 +251,18 @@ export const summaryToggles = EditorView.domEventHandlers({
   },
 });
 
+/** Where a frame's images come from: the resource channel, as in the page's own policy. */
+const IMAGES = "doc-asset: http://doc-asset.localhost";
+
 /**
- * The frame's document. Its policy loads the page's own fonts and nothing else, and refuses the
- * HTML's styles. Its faces are the page's: the fonts and colours are copied from the page.
+ * The frame's document. Its policy loads the page's own fonts, and images from the resource
+ * channel, and nothing else, and refuses the HTML's styles. Its faces are the page's: the fonts
+ * and colours are copied from the page.
  */
 function framed(html: string, view: EditorView): string {
   const nonce = view.state.facet(EditorView.cspNonce);
   const styles = nonce ? `'nonce-${nonce}'` : "'none'";
-  const policy = `default-src 'none'; style-src ${styles}; font-src 'self'; base-uri 'none'; form-action 'none'`;
+  const policy = `default-src 'none'; img-src ${IMAGES}; style-src ${styles}; font-src 'self'; base-uri 'none'; form-action 'none'`;
   // The blank lines around the block space it, as they space the page's paragraphs.
   const faces = `html, body { margin: 0; background: transparent; }
 body > :first-child { margin-top: 0; }
@@ -272,8 +276,28 @@ img { max-width: 100%; }`;
     `<meta http-equiv="Content-Security-Policy" content="${policy}">` +
     '<meta http-equiv="x-dns-prefetch-control" content="off">' +
     `<style nonce="${nonce}">${pageRules()}${faces}</style>` +
-    `</head><body>${html}</body></html>`
+    `</head><body>${withImages(html, view)}</body></html>`
   );
+}
+
+/**
+ * docs/hld.md §7: the HTML with its images pointed at the resource channel before the frame reads
+ * it. An `<img src>` that names a file in the repository asks for it as a markdown image does, and
+ * the channel checks it the same way. Any other src goes, and every srcset, so the frame asks for
+ * nothing the page did not name. The parser loads and runs none of the HTML.
+ */
+function withImages(html: string, view: EditorView): string {
+  if (!/<img|srcset/i.test(html)) return html;
+  const parsed = new DOMParser().parseFromString(html, "text/html");
+  for (const element of parsed.querySelectorAll("[srcset]")) element.removeAttribute("srcset");
+  for (const image of parsed.querySelectorAll("img")) {
+    const file = filePath(image.getAttribute("src")?.trim() ?? "");
+    const url = isLocal(file) ? view.state.facet(assetUrl)(file) : null;
+    if (url) image.setAttribute("src", url);
+    else image.removeAttribute("src");
+  }
+  // The parser puts what may lead a document, such as a <meta>, in its head. The frame has it all.
+  return parsed.head.innerHTML + parsed.body.innerHTML;
 }
 
 /** The page's fonts, and its colour variables by day, by night, and in print. */
