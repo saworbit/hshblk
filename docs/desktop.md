@@ -75,7 +75,7 @@ npx tauri build         # the packages, in src-tauri/target/release/bundle
 
 1. Rust opens the file ([`documents.rs`](../desktop/src-tauri/src/documents.rs)). It reads the bytes, records their encoding, BOM, line endings, and any NUL, and finds the scope: the enclosing git repository, or the folder. It keeps all of that behind a handle of 128 random bits, and opens a window whose label names the handle.
 2. The page asks `open_document` and gets the text and the file's name. Never a path ([hld.md](hld.md) §6).
-3. CodeMirror holds the text, read-only. [`src/page/`](../desktop/src/page) draws section 7's dialect as decorations over the source. The rest of the document is parsed in the background after the first paint, so a definition at the end can name a link at the top.
+3. CodeMirror holds the text, read-only. [`src/page/`](../desktop/src/page) draws section 7's dialect as decorations over the source, inline syntax only near the viewport. The rest of the document is parsed in the background after the first paint, so a definition at the end can name a link at the top.
 4. An image asks the `doc-asset` scheme for the handle and the file its destination names, so `screen%20shot.png` asks for `screen shot.png`. Rust resolves it inside the scope, symlinks first, and serves it only if its bytes are an image ([`assets.rs`](../desktop/src-tauri/src/assets.rs)).
 5. A link leaves through `open_url`, which takes `http`, `https`, and `mailto` and nothing else.
 
