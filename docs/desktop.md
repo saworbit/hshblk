@@ -51,9 +51,11 @@ Each file opens in a window of its own. A second file opens a second window in t
 
 - Dropping a file on a window opens it in a new window.
 - Move the caret into a construct with the keys, or find in it, and its syntax shows, so `**bold**` reads as written. A click places the caret and opens nothing, so the text holds still under the pointer. A link never unfolds: its address shows in a popover under it, with **Open** for web and mail addresses. A find match in the address shows there, marked.
-- Copy and find work on the source, hidden syntax included. The status line says so.
-- Images load when they are inside the document's repository: the enclosing git repository, or the file's folder when there is none. A path that starts with `/` starts at that root, as on GitHub. Nothing loads from the network.
+- Copy and find work on the source, hidden syntax included. The status line says so, after the file's name and when it was last modified.
+- Images load when they are inside the document's repository: the enclosing git repository, or the file's folder when there is none. A repository at the home folder or above it does not count, so dotfiles kept in `~/.git` do not open the whole home. A path that starts with `/` starts at that root, as on GitHub. Nothing loads from the network.
 - A raw HTML block is drawn in a frame that runs no script. Its images load from inside the repository, as a markdown image does, and it fetches nothing else. A click on a link in it shows its address, and Ctrl or ⌘ and a click opens it, as on the page. A click on a summary opens its details. Its text cannot be selected: copy works on the source. Inline HTML shows as source. No script in a document runs.
+- YAML frontmatter at the top of a file shows as written, in a quiet monospace block, not as a rule and a heading.
+- A task list item shows its box, ticked as the file has it. A click ticks or unticks it on the page, never in the file.
 - A `<details>` written as its own blocks around markdown, as a README writes it, shows its summary. A click on it, or Enter with the caret on its tags, opens or closes it, find opens it while a match is inside, and print shows it open.
 
 ## Building it
@@ -100,10 +102,10 @@ Not done yet ([hld.md](hld.md) §12, question 1):
 
 ## How a file becomes a page
 
-1. Rust opens the file ([`documents.rs`](../desktop/src-tauri/src/documents.rs)). It reads the bytes, records their encoding, BOM, line endings, and any NUL, and finds the scope: the enclosing git repository, or the folder. It keeps all of that behind a handle of 128 random bits, and opens a window whose label names the handle.
-2. The page asks `open_document` for the file's name, and `document_text` for its text, as UTF-8 bytes. Never a path ([hld.md](hld.md) §6).
+1. Rust opens the file ([`documents.rs`](../desktop/src-tauri/src/documents.rs)). It reads the bytes, records their encoding, BOM, line endings, and any NUL, and finds the scope: the enclosing git repository, or the folder when there is none or the repository is at the home folder or above it. It keeps all of that behind a handle of 128 random bits, and opens a window whose label names the handle.
+2. The page asks `open_document` for the file's name and when it was last modified, and `document_text` for its text, as UTF-8 bytes. Never a path ([hld.md](hld.md) §6).
 3. CodeMirror holds the text, read-only. [`src/page/`](../desktop/src/page) draws section 7's dialect as decorations over the source, inline syntax only near the viewport. The rest of the document is parsed in the background after the first paint, so a definition at the end can name a link at the top.
-4. An image asks the `doc-asset` scheme for the handle and the file its destination names, so `screen%20shot.png` asks for `screen shot.png`. Rust resolves it inside the scope, symlinks first, and serves it only if its bytes are an image ([`assets.rs`](../desktop/src-tauri/src/assets.rs)).
+4. An image asks the `doc-asset` scheme for the handle and the file its destination names, so `screen%20shot.png` asks for `screen shot.png`. Rust checks that the handle is the window's own, resolves the file inside the scope, symlinks first, and serves it only if its bytes are an image ([`assets.rs`](../desktop/src-tauri/src/assets.rs)).
 5. A link leaves through `open_url`, which takes `http`, `https`, and `mailto` and nothing else.
 
 ## File layout
@@ -124,7 +126,7 @@ Not done yet ([hld.md](hld.md) §12, question 1):
 
 | Command, in `desktop/` | Checks |
 |---|---|
-| `npm test` | The page's decorations, in Node. |
+| `npm test` | The page's decorations and keys, in Node. |
 | `npm run typecheck`, `npm run lint` | The page's TypeScript, strict, and ESLint on the scripts and tests, which no type checker reads. |
 | `cargo test`, in `src-tauri/` | Files, scopes, handles, and the resource channel. |
 | `node test/acceptance.mjs <app>` | [hld.md](hld.md) §8, items 1, 2, 4, 5, and 6, through the built app. |

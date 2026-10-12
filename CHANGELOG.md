@@ -52,4 +52,14 @@
 - Docs: the design doc says a `<details>` inside one HTML block opens and closes from a click only. The keys show the block's source, body and all. (#91)
 - Desktop: a link's popover in an HTML block gets a place above the window when its frame is not drawn, so CodeMirror hides it by its own rule. It got null cast as a place, which a CodeMirror update could throw on. (#92)
 - Docs: the key tables in the README and desktop.md list Enter for a `<details>`. (#96)
+- Desktop: on macOS, Ctrl+N and Ctrl+P stop on a table, an HTML block, and a `<details>`' summary, as Down and Up do. CodeMirror binds them to line motion there, and they went past those blocks. (#102)
+- Desktop: a `<details>` inside one HTML block stays open or closed as the reader left it when its frame is drawn again, after a scroll away or the keys showing its source. It went back to as written. (#103)
+- Desktop: the resource channel serves a window only its own document's images. A request naming another open document's handle is refused as unknown, as each command already refuses. (#99)
+- Desktop: a `.git` at the home directory or above it no longer makes the asset scope. With dotfiles kept in `~/.git`, a loose file such as a README in Downloads could show any image in the home. Its scope is now its own folder. (#100)
+- Desktop: a file whose name starts with a dash, such as `-notes.md`, opens from the command line, and from a second launch. Only macOS's `-psn_` argument is passed over, and every argument after `--` is a file. Any leading dash was taken as a flag, and the app has none. (#101)
+- Docs: desktop.md says a repository at the home folder does not set the scope, that the resource channel serves only the window's own document, and that `npm test` checks the keys. hld.md §7 lists Ctrl+N and Ctrl+P on macOS with Up and Down.
+- Desktop: on macOS, Open, Print, and Find take ⌘ alone. Ctrl and those letters stay CodeMirror's Emacs keys, so Ctrl+P at the start of the document no longer prints, and Ctrl+F at its end no longer finds. Elsewhere they take Ctrl, as the key tables say. (#109)
+- Desktop: task lists show their boxes, ticked as the file has them. A click ticks or unticks a box on the page only, and the file keeps its `[ ]` or `[x]`. A task item's lines hang under its text as other items' do. (#114)
+- Desktop: YAML frontmatter at the top of a file shows as written, in a quiet monospace block. It drew as a rule and a heading, and the heading had an anchor. A `---` that never closes, or is not on the first line, reads as before. (#119)
+- Desktop: the status line shows when the file was last modified, after its name. Rust reads the time with the file and passes it with the name: a time, not a path. (#115)
 - Docs: the design doc's rule for a `<details>` around markdown names Enter beside the click, and the click-target gate's record says where Up and Down through a block are tested.

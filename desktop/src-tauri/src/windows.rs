@@ -35,10 +35,17 @@ pub fn open_arguments(app: &AppHandle, argv: &[String], cwd: &Path) {
 }
 
 fn files_in(argv: &[String], cwd: &Path) -> Vec<PathBuf> {
-    // The first argument is the program. A leading dash is a flag, such as macOS's -psn_.
-    argv.iter()
-        .skip(1)
-        .filter(|arg| !arg.starts_with('-'))
+    // The first argument is the program. The app takes no flags, but macOS may add -psn_ to a
+    // launch from the Finder, so that one is passed over. After a `--`, every argument is a file.
+    let args = argv.get(1..).unwrap_or_default();
+    let (before, after) = match args.iter().position(|arg| arg == "--") {
+        Some(end) => (&args[..end], &args[end + 1..]),
+        None => (args, &[][..]),
+    };
+    before
+        .iter()
+        .filter(|arg| !arg.starts_with("-psn_"))
+        .chain(after)
         .map(|arg| cwd.join(arg))
         .collect()
 }
@@ -127,6 +134,21 @@ mod tests {
                 PathBuf::from("/abs/other.md")
             ]
         );
+    }
+
+    #[test]
+    fn takes_a_file_whose_name_starts_with_a_dash() {
+        let argv = ["hshblk", "-notes.md", "--", "-psn_1.md", "--"].map(String::from);
+        assert_eq!(
+            files_in(&argv, Path::new("/work")),
+            [
+                PathBuf::from("/work/-notes.md"),
+                PathBuf::from("/work/-psn_1.md"),
+                PathBuf::from("/work/--")
+            ]
+        );
+        assert!(files_in(&["hshblk".into(), "--".into()], Path::new("/work")).is_empty());
+        assert!(files_in(&[], Path::new("/work")).is_empty());
     }
 
     #[test]

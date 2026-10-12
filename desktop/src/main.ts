@@ -4,7 +4,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createSurface, printPage } from "./surface.ts";
 
-type Opened = { name: string; readOnlyReason: string | null };
+type Opened = { name: string; modified: number | null; readOnlyReason: string | null };
 
 const root = document.querySelector<HTMLElement>("#page")!;
 const nonce = document.querySelector<HTMLMetaElement>('meta[name="style-nonce"]')?.content;
@@ -13,6 +13,11 @@ const nonce = document.querySelector<HTMLMetaElement>('meta[name="style-nonce"]'
 const handle = getCurrentWindow().label.match(/^doc-([0-9a-f]+)$/)?.[1];
 
 const pick = () => void invoke("pick_document");
+
+// The window's keys take ⌘ on macOS and Ctrl elsewhere, as the README's key table has them. On
+// macOS, Ctrl and those letters are CodeMirror's Emacs keys, even where they have nothing to move.
+const mac = /Mac/.test(navigator.platform);
+const command = (event: KeyboardEvent) => (mac ? event.metaKey : event.ctrlKey);
 
 if (handle) {
   // The text comes as bytes, which cross faster than a long string as JSON. As Rust holds it:
@@ -42,7 +47,7 @@ if (handle) {
   };
   document.addEventListener("keydown", (event) => {
     const run = keys[event.key];
-    if (!run || event.defaultPrevented || !(event.metaKey || event.ctrlKey) || event.altKey) return;
+    if (!run || event.defaultPrevented || !command(event) || event.altKey) return;
     event.preventDefault();
     run();
   });
@@ -51,7 +56,7 @@ if (handle) {
 } else {
   root.append(welcome());
   document.addEventListener("keydown", (event) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === "o") {
+    if (command(event) && event.key === "o") {
       event.preventDefault();
       pick();
     }
@@ -60,10 +65,15 @@ if (handle) {
 
 function statusLine(opened: Opened): HTMLElement {
   const line = element("footer", "status");
-  line.append(
-    element("span", "status-name", opened.name),
-    element("span", "", "Read only. Copy and find work on the source."),
-  );
+  line.append(element("span", "status-name", opened.name));
+  if (opened.modified !== null) {
+    const when = new Date(opened.modified).toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    line.append(element("span", "", `Modified ${when}`));
+  }
+  line.append(element("span", "", "Read only. Copy and find work on the source."));
   if (opened.readOnlyReason) line.append(element("span", "status-reason", opened.readOnlyReason));
   return line;
 }

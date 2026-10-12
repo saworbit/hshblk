@@ -19,6 +19,8 @@ use documents::{Document, Documents};
 #[serde(rename_all = "camelCase")]
 struct Opened {
     name: String,
+    /// When the file was last modified, in milliseconds since 1970. A time, not a path.
+    modified: Option<u64>,
     read_only_reason: Option<&'static str>,
 }
 
@@ -28,12 +30,13 @@ fn own_document(window: &WebviewWindow, documents: &Documents) -> Result<Arc<Doc
     Ok(documents.get(handle).ok_or("That document is closed.")?)
 }
 
-/// What the window's document is called, and why it is read only, if it is.
+/// What the window's document is called, when it was last modified, and why it is read only.
 #[tauri::command]
 fn open_document(window: WebviewWindow, documents: State<'_, Documents>) -> Result<Opened, String> {
     let document = own_document(&window, &documents)?;
     Ok(Opened {
         name: document.name.clone(),
+        modified: document.modified,
         read_only_reason: document.facts.read_only_reason(),
     })
 }
@@ -90,9 +93,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Documents::default())
         .register_uri_scheme_protocol(assets::SCHEME, |ctx, request| {
-            let response = assets::respond(&ctx.app_handle().state::<Documents>(), &request);
+            let window = ctx.webview_label();
+            let documents = ctx.app_handle().state::<Documents>();
+            let response = assets::respond(&documents, window, &request);
             #[cfg(debug_assertions)]
-            assets::record(ctx.webview_label(), &request, &response);
+            assets::record(window, &request, &response);
             response
         })
         .invoke_handler(tauri::generate_handler![

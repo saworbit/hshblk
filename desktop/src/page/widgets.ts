@@ -1,4 +1,4 @@
-import { StateEffect } from "@codemirror/state";
+import { type Extension, StateEffect, StateField } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { assetUrl, filePath, isLocal } from "./assets.ts";
 import type { Inline } from "./inlines.ts";
@@ -152,6 +152,40 @@ export class SummaryWidget extends WidgetType {
   }
 }
 
+/** Ticks or unticks, on the page only, the task box whose marker starts here. */
+export const toggleTask = StateEffect.define<number>();
+
+/**
+ * docs/hld.md §7: a task list item's box, ticked as the file has it. A click ticks or unticks it
+ * on the page. The file keeps what it says.
+ */
+export class TaskWidget extends WidgetType {
+  /** Where the box's `[ ]` starts, which names it. */
+  readonly from: number;
+  readonly checked: boolean;
+
+  constructor(from: number, checked: boolean) {
+    super();
+    this.from = from;
+    this.checked = checked;
+  }
+
+  eq(other: TaskWidget): boolean {
+    return other.from === this.from && other.checked === this.checked;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const box = document.createElement("span");
+    box.className = this.checked ? "pg-task pg-task-ticked" : "pg-task";
+    box.setAttribute("role", "checkbox");
+    box.setAttribute("aria-checked", String(this.checked));
+    // The press would move the caret first. Ticking the box leaves it where it was.
+    box.addEventListener("mousedown", (event) => event.preventDefault());
+    box.addEventListener("click", () => view.dispatch({ effects: toggleTask.of(this.from) }));
+    return box;
+  }
+}
+
 /** The height each HTML block last took, so its frame, drawn again, starts there. */
 const htmlHeights = new Map<string, number>();
 
@@ -188,7 +222,10 @@ export class HtmlWidget extends WidgetType {
     const height = htmlHeights.get(this.html);
     if (height !== undefined) frame.style.height = `${height}px`;
     frame.srcdoc = framed(this.html, view);
-    frame.addEventListener("load", () => this.#fit(frame, view));
+    frame.addEventListener("load", () => {
+      this.#fit(frame, view);
+      retoggle(frame, view);
+    });
     return frame;
   }
 
@@ -234,23 +271,72 @@ export function htmlAt(view: EditorView, x: number, y: number): Element | null {
   return null;
 }
 
+/** A `<details>` in an HTML block: where the block starts, and which of its details it is. */
+type FrameDetails = { pos: number; index: number };
+
+/** Opens or closes a `<details>` in an HTML block's frame. */
+const toggleFrameDetails = StateEffect.define<FrameDetails>();
+
 /**
- * A click on a summary in an HTML block opens or closes its details, as the frame would if it
- * had the pointer.
+ * The details in HTML blocks the reader opened or closed, by where each block starts, as the page
+ * keeps `toggled` for a details around markdown. A frame drawn again starts as written, so it
+ * takes these back when it loads.
  */
-export const summaryToggles = EditorView.domEventHandlers({
-  click(event, view) {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
-      return false;
-    const summary = htmlAt(view, event.clientX, event.clientY)?.closest("summary");
-    const details = summary?.parentElement;
-    // The frame's elements are of its own window, so they are known by name, not by class.
-    if (details?.localName !== "details" || details.querySelector(":scope > summary") !== summary)
-      return false;
-    (details as HTMLDetailsElement).open = !(details as HTMLDetailsElement).open;
-    return true;
+const frameToggled = StateField.define<ReadonlyMap<number, ReadonlySet<number>>>({
+  create: () => new Map(),
+  update(toggled, tr) {
+    let next = tr.docChanged
+      ? new Map([...toggled].map(([pos, indexes]) => [tr.changes.mapPos(pos), indexes]))
+      : toggled;
+    for (const effect of tr.effects) {
+      if (!effect.is(toggleFrameDetails)) continue;
+      const { pos, index } = effect.value;
+      const indexes = new Set(next.get(pos));
+      if (!indexes.delete(index)) indexes.add(index);
+      next = new Map(next).set(pos, indexes);
+    }
+    return next;
   },
 });
+
+/** Opens or closes again the details in a frame that the reader toggled before it was drawn. */
+function retoggle(frame: HTMLIFrameElement, view: EditorView): void {
+  const toggled = view.state.field(frameToggled, false);
+  if (!toggled?.size) return;
+  const indexes = toggled.get(view.posAtDOM(frame)) ?? [];
+  const details = frame.contentDocument?.querySelectorAll("details");
+  for (const index of indexes) {
+    const one = details?.[index];
+    if (one) one.open = !one.open;
+  }
+}
+
+/**
+ * A click on a summary in an HTML block opens or closes its details, as the frame would if it
+ * had the pointer. The page keeps which, so the frame drawn again shows it as the reader left it.
+ */
+export const summaryToggles: Extension = [
+  frameToggled,
+  EditorView.domEventHandlers({
+    click(event, view) {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
+        return false;
+      const summary = htmlAt(view, event.clientX, event.clientY)?.closest("summary");
+      const details = summary?.parentElement;
+      // The frame's elements are of its own window, so they are known by name, not by class.
+      if (details?.localName !== "details" || details.querySelector(":scope > summary") !== summary)
+        return false;
+      (details as HTMLDetailsElement).open = !(details as HTMLDetailsElement).open;
+      const frame = details.ownerDocument.defaultView?.frameElement;
+      if (frame) {
+        const all = details.ownerDocument.querySelectorAll<HTMLElement>("details");
+        const index = [...all].indexOf(details);
+        view.dispatch({ effects: toggleFrameDetails.of({ pos: view.posAtDOM(frame), index }) });
+      }
+      return true;
+    },
+  }),
+];
 
 /** Where a frame's images come from: the resource channel, as in the page's own policy. */
 const IMAGES = "doc-asset: http://doc-asset.localhost";

@@ -14,6 +14,7 @@ import {
   readFileSync,
   statSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -139,6 +140,9 @@ A folded body.
 The **end**.
 `;
 
+/** When the fixture's file was last modified. */
+const MODIFIED = new Date("2020-01-02T12:00:00Z");
+
 /**
  * root/repo/.git, root/repo/docs/notes.md beside near.png, "near by.png", and a symlink that
  * leaves the repository, root/repo/images/far.png, and root/outside.png.
@@ -154,6 +158,8 @@ function fixture() {
   symlinkSync(join(root, "outside.png"), join(repo, "docs", "leave.png"));
   const file = join(repo, "docs", "notes.md");
   writeFileSync(file, NOTES);
+  // A year the status line cannot get from today, to show it reads the file's own time.
+  utimesSync(file, MODIFIED, MODIFIED);
   return { root, file };
 }
 
@@ -559,7 +565,7 @@ describe("one open document", () => {
     assert.ok(refused);
   });
 
-  test("5. copies the source, and says so", async () => {
+  test("5. copies the source, and says so, beside the file's name and when it was modified", async () => {
     await page.run(() => {
       window.copied = null;
       addEventListener(
@@ -573,6 +579,8 @@ describe("one open document", () => {
     assert.equal(await page.run(() => window.copied), NOTES);
     const status = (await page.run(texts, ".status")).join(" ");
     assert.match(status, /Read only\. Copy and find work on the source\./);
+    const [name, modified] = await page.run(texts, ".status > span");
+    assert.deepEqual([name, /^Modified .*2020/.test(modified)], ["notes.md", true]);
   });
 
   test("5. finds the source, hidden syntax included, to the end of the file", async () => {
@@ -900,6 +908,47 @@ ${FILLER}
     assert.equal((await page.run(details)).open, false);
   });
 
+  test("a details in an HTML block stays as the reader left it when its frame is drawn again", async () => {
+    /** In the page: whether the frame's details is open, or null while its frame is not drawn. */
+    const open = () =>
+      [...document.querySelectorAll("iframe.pg-html")]
+        .map((frame) => frame.contentDocument?.querySelector("details"))
+        .find((details) => details)?.open ?? null;
+    let at = await inFrame("html summary");
+    await page.click(at.x, at.y);
+    assert.equal(await page.until(open), true);
+    // The caret leaves the frame, which CodeMirror keeps drawn while the caret is on it. The line
+    // below moves down as the frame grows, so it is clicked once it holds still.
+    const below = await page.until(() => {
+      const line = [...document.querySelectorAll(".cm-line")].find(
+        (line) => line.textContent === "Filler paragraph 0.",
+      );
+      const box = line?.getBoundingClientRect();
+      if (!box) return null;
+      if (box.top < 0 || box.bottom > innerHeight) {
+        line.scrollIntoView({ block: "center" });
+        return null;
+      }
+      const at = { x: box.x + 20, y: box.y + box.height / 2 };
+      const still = window.lastBelowAt?.x === at.x && window.lastBelowAt?.y === at.y;
+      window.lastBelowAt = at;
+      return still && at;
+    });
+    await page.click(below.x, below.y);
+    // At the end of the file, where CodeMirror lets the frame go.
+    await page.until(() => {
+      const scroller = document.querySelector(".cm-scroller");
+      scroller.scrollTop = scroller.scrollHeight;
+      return ![...document.querySelectorAll("iframe.pg-html")].some((frame) =>
+        frame.contentDocument?.body?.textContent.includes("html summary"),
+      );
+    });
+    at = await inFrame("html summary");
+    assert.equal(await page.until(open), true);
+    await page.click(at.x, at.y);
+    assert.equal(await page.run(open), false);
+  });
+
   test("a link to no heading shows its address, and nothing to follow", async () => {
     const words = await linkAt("nowhere");
     await page.click(words.x, words.y);
@@ -926,6 +975,49 @@ ${FILLER}
     });
     assert.deepEqual(popover, ["A title", "https://example.com/docs"]);
     await page.press(Key.Escape);
+  });
+});
+
+describe("a task list", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-tasks-"));
+  const file = join(folder, "tasks.md");
+  writeFileSync(file, "# Tasks\n\n- [ ] still to do\n- [x] done\n");
+  const bytes = fingerprint(file);
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelectorAll(".pg-task").length === 2);
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  /** In the page: each box's state, and the middle of the first. */
+  const boxes = () => {
+    const all = [...document.querySelectorAll(".pg-task")];
+    const box = all[0].getBoundingClientRect();
+    return {
+      checked: all.map((task) => task.getAttribute("aria-checked")),
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2,
+    };
+  };
+
+  test("draws each box as the file has it, and a click ticks it on the page only", async () => {
+    const before = await page.run(boxes);
+    assert.deepEqual(before.checked, ["false", "true"]);
+    /** In the page: whether the first box shows ticked, as wanted. */
+    const first = (ticked) =>
+      document.querySelector(".pg-task")?.getAttribute("aria-checked") === String(ticked);
+    await page.click(before.x, before.y);
+    await page.until(first, true);
+    // Both boxes still show, not their source, so the click opened nothing.
+    assert.deepEqual((await page.run(boxes)).checked, ["true", "true"]);
+    await page.click(before.x, before.y);
+    await page.until(first, false);
+    assert.deepEqual(fingerprint(file), bytes);
   });
 });
 

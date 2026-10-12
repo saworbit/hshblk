@@ -181,7 +181,7 @@ A second file, by double-click or by `app file.md`, goes to the app that is alre
 IPC, milestone one:
 
 - `open(handle) -> { name, read_only_reason }` after the resolver accepts the path, and `document_text(handle) -> bytes`, the string as UTF-8. A long text crosses faster as bytes than as a JSON string (§8, item 3).
-- `read_asset`, served as a custom scheme: `doc-asset://<handle>/<relative>`. Not Tauri's asset protocol, which is addressed by path (`convertFileSrc(filePath)`).
+- `read_asset`, served as a custom scheme: `doc-asset://<handle>/<relative>`. Not Tauri's asset protocol, which is addressed by path (`convertFileSrc(filePath)`). A window is served only its own document's images: the handle must be the one its label names.
 - `open_url(url)`. `http`, `https`, and `mailto` only, opened in the system browser. A click on a link never navigates the webview.
 
 IPC, editor milestone:
@@ -195,7 +195,7 @@ No general filesystem command. No path argument from the webview. The capability
 
 Asset and link scope:
 
-- The scope root is the enclosing git repository, found by walking up from the document to a `.git` entry. With no repository, it is the document directory.
+- The scope root is the enclosing git repository, found by walking up from the document to a `.git` entry. With no repository, it is the document directory. A `.git` at the user's home directory or above it does not count, so with dotfiles kept in `~/.git`, a loose file's scope is still its own folder.
 - The target, with symlinks and junctions resolved, must sit under the scope root. `../` is allowed inside it. A reference with one leading `/` starts at the scope root, as GitHub reads it in a repository. It never names the filesystem's root, and two leading slashes name a host, which is remote.
 - Assets are regular files of an image type by magic bytes (PNG, JPEG, GIF, WebP, AVIF; SVG by content), at most 20 MB. That excludes devices, FIFOs, and `/dev/zero`.
 - Reading outside the document's folder gives an attacker nothing under this threat model. No script runs and nothing leaves the machine, and a hostile image would ship inside the repository anyway.
@@ -225,7 +225,7 @@ Threat model, bounded: a local file from a clone, download, or paste must not ex
 
 Lezer emits syntax. It does not emit HTML, and it does not resolve reference definitions. The application owns interpretation.
 
-Dialect: CommonMark, plus GFM tables and `~~` strikethrough. Lezer does not take GitHub's single `~`. Anything else is source until added here, task lists and bare-address links included.
+Dialect: CommonMark, plus GFM tables, `~~` strikethrough, and task lists, and YAML frontmatter at the top of a file. Lezer does not take GitHub's single `~`. Anything else is source until added here, bare-address links included.
 
 Each construct has one rule:
 
@@ -237,15 +237,17 @@ Each construct has one rule:
 | Setext heading | A heading. The underline does not paint. |
 | Link | Its words. The title is not part of them. Its syntax never unfolds inline: the address shows in a popover at the caret, where the editor will edit it. Unfolding put `[` before the clicked word and wrapped it to the next line (§9). |
 | Link reference definition | Nothing. The links that use it carry its address. |
+| Frontmatter | As written, in a quiet monospace block: `---` alone on the first line, through the next `---` or `...`. CommonMark would read it as a rule and a heading, so the page finds it, and draws, anchors, and defines nothing in it. |
 | Reference with no definition | Its brackets, as written. |
 | List marker | As written: `-`, `*`, `1.`, `1)`. |
-| Raw HTML block | Drawn in a sandboxed frame (§6). A selection in it shows its source. A `<details>` inside one block opens and closes from a click on its summary only. The keys show the block's source instead, body and all. |
+| Task list item | Its box, in place of its `[ ]`, ticked as the file has it. A click ticks or unticks it on the page only: the file keeps what it says, and opening it again shows it as written. |
+| Raw HTML block | Drawn in a sandboxed frame (§6). A selection in it shows its source. A `<details>` inside one block opens and closes from a click on its summary only, and stays as the reader left it when its frame is drawn again. The keys show the block's source instead, body and all. |
 | `<details>` around markdown | Its summary, which a click, or Enter with the caret on its tags, opens or closes. Its body folds while it is closed. A selection in a tag shows that tag's source. |
 | Inline HTML | As written. |
 | Image in the repository | The image, through the resource channel. Its destination, escapes and entities resolved, is a URL, so it is decoded once to name the file: `screen%20shot.png` is `screen shot.png`. A leading `/` is the repository's root (§6). |
 | Remote image | Its alternative text, in milestone one. |
 
-A construct's syntax opens when the keyboard or find puts the selection in it, and folds again when the selection leaves. Up and Down stop on a table, an HTML block, or a summary, as Left and Right do, rather than pass it. A click or a drag places the caret and opens nothing, so the text never moves under the pointer: opened marks wrapped a word at a line's end onto the next line (§9, row 5). A link's syntax never opens. Its address shows in a popover, for a click too.
+A construct's syntax opens when the keyboard or find puts the selection in it, and folds again when the selection leaves. Up and Down stop on a table, an HTML block, or a summary, as Left and Right do, rather than pass it. So do Ctrl+N and Ctrl+P, which CodeMirror binds to line motion on macOS. A click or a drag places the caret and opens nothing, so the text never moves under the pointer: opened marks wrapped a word at a line's end onto the next line (§9, row 5). A link's syntax never opens. Its address shows in a popover, for a click too.
 
 Accepted deviation from CommonMark: Lezer parses link-shaped brackets as a link before any definition is known. Un-linking an unresolved reference brings back the brackets, but not emphasis CommonMark would find across them. `[foo *bar]* baz` with no definition is `[foo <em>bar]</em> baz` in CommonMark, and plain text here. Fixing it needs a reparse with the definitions known. Not in milestone one.
 
