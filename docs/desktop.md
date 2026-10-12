@@ -54,6 +54,8 @@ Each file opens in a window of its own. A second file opens a second window in t
 - Copy and find work on the source, hidden syntax included. The status line says so.
 - Images load when they are inside the document's repository: the enclosing git repository, or the file's folder when there is none. A repository at the home folder or above it does not count, so dotfiles kept in `~/.git` do not open the whole home. A path that starts with `/` starts at that root, as on GitHub. Nothing loads from the network.
 - A raw HTML block is drawn in a frame that runs no script. Its images load from inside the repository, as a markdown image does, and it fetches nothing else. A click on a link in it shows its address, and Ctrl or ⌘ and a click opens it, as on the page. A click on a summary opens its details. Its text cannot be selected: copy works on the source. Inline HTML shows as source. No script in a document runs.
+- YAML frontmatter at the top of a file shows as written, in a quiet monospace block, not as a rule and a heading.
+- A task list item shows its box, ticked as the file has it. A click ticks or unticks it on the page, never in the file.
 - A `<details>` written as its own blocks around markdown, as a README writes it, shows its summary. A click on it, or Enter with the caret on its tags, opens or closes it, find opens it while a match is inside, and print shows it open.
 
 ## Building it

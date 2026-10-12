@@ -72,6 +72,8 @@ export const pageTheme = EditorView.theme({
     padding: "0 1em",
   },
   ".pg-fence": { color: "var(--muted)" },
+  // YAML frontmatter is data about the file, so it shows as written, and stays quiet.
+  ".pg-frontmatter": { color: "var(--muted)" },
   ".pg-source-block": { boxShadow: "inset 2px 0 0 var(--rule)" },
   ".pg-rule": {
     background: "linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat",
@@ -108,6 +110,28 @@ export const pageTheme = EditorView.theme({
     height: "0",
     border: "0",
     pointerEvents: "none",
+  },
+  // A task box, drawn in place of its `[ ]`. Ticked, it takes the accent and a check.
+  ".pg-task": {
+    display: "inline-block",
+    position: "relative",
+    boxSizing: "border-box",
+    width: "0.9em",
+    height: "0.9em",
+    border: "1.5px solid var(--muted)",
+    borderRadius: "3px",
+    verticalAlign: "-0.1em",
+    cursor: "pointer",
+  },
+  ".pg-task-ticked": { borderColor: "var(--accent)", backgroundColor: "var(--accent)" },
+  ".pg-task-ticked::after": {
+    content: '"✓"',
+    position: "absolute",
+    inset: "0",
+    color: "var(--paper)",
+    fontSize: "0.75em",
+    lineHeight: "1",
+    textAlign: "center",
   },
   ".pg-summary": { cursor: "pointer", padding: "0.3em 0" },
   ".pg-summary::before": { content: '"▸"', display: "inline-block", width: "1.2em" },
