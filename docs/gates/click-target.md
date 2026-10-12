@@ -36,6 +36,7 @@ Later the same day, row 3 failed in some runs with "no caret" on its second link
 
 - IME composition inside emphasis. WebDriver cannot commit a composition. It is the manual part of the host spot-check.
 - macOS and Windows. tauri-driver does not run on macOS, and this run was on Linux only.
+- Arrow movement through a block widget, which §9 also asks of the prototype. This gate drives the pointer. Up and Down went past a table, an HTML block, and a summary until #90. The acceptance suite now walks all three: `desktop/test/acceptance.mjs`, under `a <details> around markdown`.
 - A real session. Xvfb has no compositor or input method. The spot-check in §9 is on a real Ubuntu session.
 ## Row 5: bold, italic, and code
 

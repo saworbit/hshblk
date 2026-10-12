@@ -63,3 +63,4 @@
 - Desktop: YAML frontmatter at the top of a file shows as written, in a quiet monospace block. It drew as a rule and a heading, and the heading had an anchor. A `---` that never closes, or is not on the first line, reads as before. (#119)
 - Desktop: the status line shows when the file was last modified, after its name. Rust reads the time with the file and passes it with the name: a time, not a path. (#115)
 - Docs: the README says what a click on a task box does, and how frontmatter shows.
+- Docs: the design doc's rule for a `<details>` around markdown names Enter beside the click, and the click-target gate's record says where Up and Down through a block are tested.
