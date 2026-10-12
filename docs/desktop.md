@@ -47,7 +47,7 @@ Each file opens in a window of its own. A second file opens a second window in t
 | `Ctrl+P` (`⌘P`) | Print the whole page |
 | `Ctrl+A`, `Ctrl+C` | Select and copy, as source |
 | `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading it names |
-| `Enter` | Open or close a `<details>`, with the caret on its tags |
+| `Enter` | Open or close a `<details>`, with the caret on its tags. Tick or untick a task box, with the caret in its text |
 
 - Dropping a file on a window opens it in a new window.
 - Move the caret into a construct with the keys, or find in it, and its syntax shows, so `**bold**` reads as written. A click places the caret and opens nothing, so the text holds still under the pointer. A link never unfolds: its address shows in a popover under it, with **Open** for web and mail addresses. A find match in the address shows there, marked.
@@ -55,7 +55,7 @@ Each file opens in a window of its own. A second file opens a second window in t
 - Images load when they are inside the document's repository: the enclosing git repository, or the file's folder when there is none. A repository at the home folder or above it does not count, so dotfiles kept in `~/.git` do not open the whole home. A path that starts with `/` starts at that root, as on GitHub. Nothing loads from the network.
 - A raw HTML block is drawn in a frame that runs no script. Its images load from inside the repository, as a markdown image does, and it fetches nothing else. A click on a link in it shows its address, and Ctrl or ⌘ and a click opens it, as on the page. A click on a summary opens its details. Its text cannot be selected: copy works on the source. Inline HTML shows as source. No script in a document runs.
 - YAML frontmatter at the top of a file shows as written, in a quiet monospace block, not as a rule and a heading.
-- A task list item shows its box, ticked as the file has it. A click ticks or unticks it on the page, never in the file.
+- A task list item shows its box, ticked as the file has it. A click on it, or Enter with the caret in its text, ticks or unticks it on the page, never in the file.
 - A `<details>` written as its own blocks around markdown, as a README writes it, shows its summary. A click on it, or Enter with the caret on its tags, opens or closes it, find opens it while a match is inside, and print shows it open.
 
 ## Building it

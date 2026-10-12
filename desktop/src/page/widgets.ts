@@ -156,8 +156,8 @@ export class SummaryWidget extends WidgetType {
 export const toggleTask = StateEffect.define<number>();
 
 /**
- * docs/hld.md §7: a task list item's box, ticked as the file has it. A click ticks or unticks it
- * on the page. The file keeps what it says.
+ * docs/hld.md §7: a task list item's box, ticked as the file has it. A click, or Enter in its
+ * text, ticks or unticks it on the page. The file keeps what it says.
  */
 export class TaskWidget extends WidgetType {
   /** Where the box's `[ ]` starts, which names it. */

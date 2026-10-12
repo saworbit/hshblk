@@ -64,3 +64,4 @@
 - Desktop: the status line shows when the file was last modified, after its name. Rust reads the time with the file and passes it with the name: a time, not a path. (#115)
 - Docs: the README says what a click on a task box does, and how frontmatter shows.
 - Docs: the design doc's rule for a `<details>` around markdown names Enter beside the click, and the click-target gate's record says where Up and Down through a block are tested.
+- Desktop: Enter with the caret in a task item's text ticks or unticks its box, as a click on it does. The box stays drawn while the caret is in the text, so the change shows, and the file keeps what it says. (#124)
