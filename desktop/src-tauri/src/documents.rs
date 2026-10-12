@@ -214,7 +214,7 @@ fn read(path: &Path) -> Result<Document, OpenError> {
         .map(Path::to_path_buf)
         .unwrap_or_else(|| path.clone());
     Ok(Document {
-        scope: repository(&folder).unwrap_or_else(|| folder.clone()),
+        scope: repository(&folder, home().as_deref()).unwrap_or_else(|| folder.clone()),
         name: path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -225,12 +225,20 @@ fn read(path: &Path) -> Result<Document, OpenError> {
     })
 }
 
-/// docs/hld.md §6: the enclosing git repository, found by walking up to a `.git` entry.
-fn repository(folder: &Path) -> Option<PathBuf> {
+/// docs/hld.md §6: the enclosing git repository, found by walking up to a `.git` entry. One at
+/// the home directory or above it does not count. Dotfiles kept in `~/.git` would make the whole
+/// home the scope of every loose file in it, a README unzipped into Downloads included.
+fn repository(folder: &Path, home: Option<&Path>) -> Option<PathBuf> {
     folder
         .ancestors()
         .find(|dir| dir.join(".git").exists())
+        .filter(|root| home.is_none_or(|home| !home.starts_with(root)))
         .map(Path::to_path_buf)
+}
+
+/// The user's home directory, with symlinks resolved as a document's path is.
+fn home() -> Option<PathBuf> {
+    std::env::home_dir().and_then(|home| fs::canonicalize(home).ok())
 }
 
 #[cfg(test)]
@@ -314,6 +322,38 @@ mod tests {
         // A tempdir can sit inside a repository on a developer's machine, so check both cases.
         let folder = fs::canonicalize(root.path()).unwrap();
         assert!(document.scope == folder || folder.starts_with(&document.scope));
+    }
+
+    #[test]
+    fn counts_no_repository_at_the_home_directory_or_above_it() {
+        // tmp/.git and tmp/home/.git, as dotfiles kept in a repository. tmp/home/code/.git is
+        // a project, and tmp/work/.git one outside the home.
+        let root = tempfile::tempdir().unwrap();
+        let tmp = fs::canonicalize(root.path()).unwrap();
+        for dir in [
+            ".git",
+            "home/.git",
+            "home/Downloads",
+            "home/code/.git",
+            "home/code/docs",
+        ] {
+            fs::create_dir_all(tmp.join(dir)).unwrap();
+        }
+        fs::create_dir_all(tmp.join("work/.git")).unwrap();
+        fs::create_dir_all(tmp.join("elsewhere")).unwrap();
+        let home = tmp.join("home");
+        let scope = |folder: &str| repository(&tmp.join(folder), Some(&home));
+        assert_eq!(scope("home/Downloads"), None);
+        assert_eq!(scope("home"), None);
+        assert_eq!(scope("home/code/docs"), Some(tmp.join("home/code")));
+        assert_eq!(scope("work"), Some(tmp.join("work")));
+        // tmp holds the home, so it is no repository for a file outside the home either.
+        assert_eq!(scope("elsewhere"), None);
+        // With no home known, the walk takes the first `.git`, as it always did.
+        assert_eq!(
+            repository(&home.join("Downloads"), None),
+            Some(home.clone())
+        );
     }
 
     #[test]

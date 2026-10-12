@@ -1,9 +1,10 @@
 //! docs/hld.md §6: the resource channel. A document may show images that sit beside it,
 //! inside its repository, and nothing else.
 //!
-//! The page asks for `doc-asset://localhost/<handle>%2F<file>`. The handle names the document.
-//! The file is what the image's destination names, which the page has percent-decoded once.
-//! No path comes from the webview.
+//! The page asks for `doc-asset://localhost/<handle>%2F<file>`. The handle names the document,
+//! and a window is served only its own, as each command reads only its own. The file is what the
+//! image's destination names, which the page has percent-decoded once. No path comes from the
+//! webview.
 
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -12,6 +13,7 @@ use percent_encoding::percent_decode_str;
 use tauri::http::{header, Request, Response, StatusCode};
 
 use crate::documents::{Document, Documents};
+use crate::windows;
 
 pub const SCHEME: &str = "doc-asset";
 
@@ -29,8 +31,13 @@ pub enum Refusal {
     NotAnImage,
 }
 
-pub fn respond(documents: &Documents, request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
-    match serve(documents, request.uri().path()) {
+/// Answers a request from the window labelled `window`.
+pub fn respond(
+    documents: &Documents,
+    window: &str,
+    request: &Request<Vec<u8>>,
+) -> Response<Vec<u8>> {
+    match serve(documents, window, request.uri().path()) {
         Ok((bytes, kind)) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, kind)
@@ -80,9 +87,17 @@ fn append(
         .write_all(line.as_bytes())
 }
 
-fn serve(documents: &Documents, path: &str) -> Result<(Vec<u8>, &'static str), Refusal> {
+fn serve(
+    documents: &Documents,
+    window: &str,
+    path: &str,
+) -> Result<(Vec<u8>, &'static str), Refusal> {
     let request = percent_decode_str(path.trim_start_matches('/')).decode_utf8_lossy();
     let (handle, reference) = request.split_once('/').ok_or(Refusal::UnknownDocument)?;
+    // Another window's handle is refused as if it named nothing, so a leaked one reads nothing.
+    if windows::handle_of(window) != Some(handle) {
+        return Err(Refusal::UnknownDocument);
+    }
     let document = documents.get(handle).ok_or(Refusal::UnknownDocument)?;
     let file = resolve(&document, reference)?;
     let bytes = fs::read(&file).map_err(|_| Refusal::Missing)?;
@@ -207,6 +222,8 @@ mod tests {
         _root: tempfile::TempDir,
         documents: Documents,
         handle: String,
+        /// The label of the document's window.
+        window: String,
         outside: PathBuf,
     }
 
@@ -231,6 +248,7 @@ mod tests {
         let (handle, _) = documents.open(&repo.join("docs/notes.md")).unwrap();
         Fixture {
             handle: handle.to_string(),
+            window: format!("doc-{handle}"),
             _root: root,
             documents,
             outside,
@@ -239,9 +257,19 @@ mod tests {
 
     /// Asks as the page does: `convertFileSrc` encodes the handle and the file path as one component.
     fn ask(fixture: &Fixture, file: &str) -> Result<&'static str, Refusal> {
-        let request = format!("{}/{}", fixture.handle, file);
+        ask_as(fixture, &fixture.window, &fixture.handle, file)
+    }
+
+    /// Asks from the window labelled `window`, for a file of the document `handle` names.
+    fn ask_as(
+        fixture: &Fixture,
+        window: &str,
+        handle: &str,
+        file: &str,
+    ) -> Result<&'static str, Refusal> {
+        let request = format!("{handle}/{file}");
         let path = format!("/{}", utf8_percent_encode(&request, NON_ALPHANUMERIC));
-        serve(&fixture.documents, &path).map(|(_, kind)| kind)
+        serve(&fixture.documents, window, &path).map(|(_, kind)| kind)
     }
 
     #[test]
@@ -318,10 +346,37 @@ mod tests {
     }
 
     #[test]
+    fn serves_a_window_only_its_own_documents_images() {
+        let fixture = fixture();
+        let document = fixture.documents.get(&fixture.handle).unwrap();
+        let (other, _) = fixture.documents.open(&document.path).unwrap();
+        let other_window = format!("doc-{other}");
+        let mine = fixture.handle.as_str();
+        assert_eq!(
+            ask_as(&fixture, &other_window, &other.to_string(), "near.png"),
+            Ok("image/png")
+        );
+        // Both documents may show near.png, but neither window may ask through the other's handle.
+        assert_eq!(
+            ask_as(&fixture, &other_window, mine, "near.png"),
+            Err(Refusal::UnknownDocument)
+        );
+        assert_eq!(
+            ask_as(&fixture, &fixture.window, &other.to_string(), "near.png"),
+            Err(Refusal::UnknownDocument)
+        );
+        // A window that shows no document is served nothing.
+        assert_eq!(
+            ask_as(&fixture, "empty-0", mine, "near.png"),
+            Err(Refusal::UnknownDocument)
+        );
+    }
+
+    #[test]
     fn refuses_unknown_documents_folders_and_files_that_are_not_images() {
         let fixture = fixture();
         assert_eq!(
-            serve(&fixture.documents, "/0000%2Fnear.png").map(|_| ()),
+            serve(&fixture.documents, "doc-0000", "/0000%2Fnear.png").map(|_| ()),
             Err(Refusal::UnknownDocument)
         );
         assert_eq!(ask(&fixture, "."), Err(Refusal::NotAFile));
@@ -391,12 +446,13 @@ mod tests {
                 .uri(format!("doc-asset://localhost{path}"))
                 .body(Vec::new())
                 .unwrap();
-            let response = respond(&fixture.documents, &request);
-            append(&log, "doc-window", &request, &response).unwrap();
+            let response = respond(&fixture.documents, &fixture.window, &request);
+            append(&log, &fixture.window, &request, &response).unwrap();
         }
+        let window = &fixture.window;
         assert_eq!(
             fs::read_to_string(&log).unwrap(),
-            format!("doc-window 200 {near}\ndoc-window 404 /near.png\n")
+            format!("{window} 200 {near}\n{window} 404 /near.png\n")
         );
     }
 }
