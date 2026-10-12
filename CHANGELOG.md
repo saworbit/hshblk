@@ -53,3 +53,4 @@
 - Desktop: a link's popover in an HTML block gets a place above the window when its frame is not drawn, so CodeMirror hides it by its own rule. It got null cast as a place, which a CodeMirror update could throw on. (#92)
 - Docs: the key tables in the README and desktop.md list Enter for a `<details>`. (#96)
 - Desktop: the resource channel serves a window only its own document's images. A request naming another open document's handle is refused as unknown, as each command already refuses. (#99)
+- Desktop: a `.git` at the home directory or above it no longer makes the asset scope. With dotfiles kept in `~/.git`, a loose file such as a README in Downloads could show any image in the home. Its scope is now its own folder. (#100)
