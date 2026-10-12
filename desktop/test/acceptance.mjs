@@ -922,6 +922,14 @@ A folded body with a needle in it.
 </details>
 
 After.
+
+| a | b |
+|---|---|
+| c | d |
+
+<p>A frame.</p>
+
+End.
 `,
   );
   let page;
@@ -986,6 +994,61 @@ After.
     await page.until(tagsWithBody, true);
     await page.press(Key.Enter);
     await page.until(tagsWithBody, false);
+  });
+
+  test("Up and Down stop on it, a table, and an HTML block, and open their source", async () => {
+    /** In the page: the line holding the caret, as it reads. */
+    const caretLine = () => {
+      const node = getSelection().focusNode;
+      const line = (node?.nodeType === Node.TEXT_NODE ? node.parentElement : node)?.closest(
+        ".cm-line",
+      );
+      return line && { text: line.textContent };
+    };
+    const title = await page.run(() => {
+      const box = document.querySelector(".pg-h1").getBoundingClientRect();
+      return { x: box.x + 20, y: box.y + box.height / 2 };
+    });
+    await page.click(title.x, title.y);
+    const walk = async (key, times) => {
+      const lines = [];
+      for (let i = 0; i < times; i += 1) {
+        await page.press(key);
+        lines.push((await page.until(caretLine)).text);
+      }
+      return lines;
+    };
+    // The folded body and the closing tag are hidden, so the keys pass them.
+    assert.deepEqual(await walk(Key.ArrowDown, 13), [
+      "",
+      "<details>",
+      "<summary>More <b>notes</b></summary>",
+      "",
+      "After.",
+      "",
+      "| a | b |",
+      "|---|---|",
+      "| c | d |",
+      "",
+      "<p>A frame.</p>",
+      "",
+      "End.",
+    ]);
+    assert.deepEqual(await walk(Key.ArrowUp, 13), [
+      "",
+      "<p>A frame.</p>",
+      "",
+      "| c | d |",
+      "|---|---|",
+      "| a | b |",
+      "",
+      "After.",
+      "",
+      "<summary>More <b>notes</b></summary>",
+      "<details>",
+      "",
+      "# Details",
+    ]);
   });
 
   test("find in its body opens it", async () => {

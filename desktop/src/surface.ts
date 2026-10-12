@@ -5,7 +5,7 @@ import { EditorView, keymap } from "@codemirror/view";
 import { assetUrl, type AssetUrl } from "./page/assets.ts";
 import { completeParse, finishParse } from "./page/complete.ts";
 import { markdown } from "./page/dialect.ts";
-import { foldAll, page, printing, toggleDetailsAtCaret } from "./page/page.ts";
+import { cursorLineOnto, foldAll, page, printing, toggleDetailsAtCaret } from "./page/page.ts";
 import { linkOpener, modClickOpens, showFrameLink } from "./page/links.ts";
 import { clickPastLineEnd } from "./page/pointer.ts";
 import { pageTheme } from "./page/theme.ts";
@@ -49,9 +49,11 @@ export function createSurface(
         EditorView.contentAttributes.of({ "aria-label": "Document", spellcheck: "false" }),
         search({ top: true }),
         // Movement and selection. The state is read-only, so the editing commands here do nothing.
-        // Enter on a <details>'s tags opens or closes it.
+        // Enter on a <details>'s tags opens or closes it. Up and Down stop on a drawn block.
         keymap.of([
           { key: "Enter", run: toggleDetailsAtCaret },
+          { key: "ArrowDown", run: cursorLineOnto(true) },
+          { key: "ArrowUp", run: cursorLineOnto(false) },
           ...searchKeymap,
           ...standardKeymap,
         ]),

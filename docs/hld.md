@@ -245,7 +245,7 @@ Each construct has one rule:
 | Image in the repository | The image, through the resource channel. Its destination, escapes and entities resolved, is a URL, so it is decoded once to name the file: `screen%20shot.png` is `screen shot.png`. A leading `/` is the repository's root (§6). |
 | Remote image | Its alternative text, in milestone one. |
 
-A construct's syntax opens when the keyboard or find puts the selection in it, and folds again when the selection leaves. A click or a drag places the caret and opens nothing, so the text never moves under the pointer: opened marks wrapped a word at a line's end onto the next line (§9, row 5). A link's syntax never opens. Its address shows in a popover, for a click too.
+A construct's syntax opens when the keyboard or find puts the selection in it, and folds again when the selection leaves. Up and Down stop on a table, an HTML block, or a summary, as Left and Right do, rather than pass it. A click or a drag places the caret and opens nothing, so the text never moves under the pointer: opened marks wrapped a word at a line's end onto the next line (§9, row 5). A link's syntax never opens. Its address shows in a popover, for a click too.
 
 Accepted deviation from CommonMark: Lezer parses link-shaped brackets as a link before any definition is known. Un-linking an unresolved reference brings back the brackets, but not emphasis CommonMark would find across them. `[foo *bar]* baz` with no definition is `[foo <em>bar]</em> baz` in CommonMark, and plain text here. Fixing it needs a reparse with the definitions known. Not in milestone one.
 
