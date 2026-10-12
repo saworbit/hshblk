@@ -900,6 +900,47 @@ ${FILLER}
     assert.equal((await page.run(details)).open, false);
   });
 
+  test("a details in an HTML block stays as the reader left it when its frame is drawn again", async () => {
+    /** In the page: whether the frame's details is open, or null while its frame is not drawn. */
+    const open = () =>
+      [...document.querySelectorAll("iframe.pg-html")]
+        .map((frame) => frame.contentDocument?.querySelector("details"))
+        .find((details) => details)?.open ?? null;
+    let at = await inFrame("html summary");
+    await page.click(at.x, at.y);
+    assert.equal(await page.until(open), true);
+    // The caret leaves the frame, which CodeMirror keeps drawn while the caret is on it. The line
+    // below moves down as the frame grows, so it is clicked once it holds still.
+    const below = await page.until(() => {
+      const line = [...document.querySelectorAll(".cm-line")].find(
+        (line) => line.textContent === "Filler paragraph 0.",
+      );
+      const box = line?.getBoundingClientRect();
+      if (!box) return null;
+      if (box.top < 0 || box.bottom > innerHeight) {
+        line.scrollIntoView({ block: "center" });
+        return null;
+      }
+      const at = { x: box.x + 20, y: box.y + box.height / 2 };
+      const still = window.lastBelowAt?.x === at.x && window.lastBelowAt?.y === at.y;
+      window.lastBelowAt = at;
+      return still && at;
+    });
+    await page.click(below.x, below.y);
+    // At the end of the file, where CodeMirror lets the frame go.
+    await page.until(() => {
+      const scroller = document.querySelector(".cm-scroller");
+      scroller.scrollTop = scroller.scrollHeight;
+      return ![...document.querySelectorAll("iframe.pg-html")].some((frame) =>
+        frame.contentDocument?.body?.textContent.includes("html summary"),
+      );
+    });
+    at = await inFrame("html summary");
+    assert.equal(await page.until(open), true);
+    await page.click(at.x, at.y);
+    assert.equal(await page.run(open), false);
+  });
+
   test("a link to no heading shows its address, and nothing to follow", async () => {
     const words = await linkAt("nowhere");
     await page.click(words.x, words.y);
