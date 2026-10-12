@@ -59,3 +59,4 @@
 - Desktop: a file whose name starts with a dash, such as `-notes.md`, opens from the command line, and from a second launch. Only macOS's `-psn_` argument is passed over, and every argument after `--` is a file. Any leading dash was taken as a flag, and the app has none. (#101)
 - Docs: desktop.md says a repository at the home folder does not set the scope, that the resource channel serves only the window's own document, and that `npm test` checks the keys. hld.md §7 lists Ctrl+N and Ctrl+P on macOS with Up and Down.
 - Desktop: on macOS, Open, Print, and Find take ⌘ alone. Ctrl and those letters stay CodeMirror's Emacs keys, so Ctrl+P at the start of the document no longer prints, and Ctrl+F at its end no longer finds. Elsewhere they take Ctrl, as the key tables say. (#109)
+- Desktop: the status line shows when the file was last modified, after its name. Rust reads the time with the file and passes it with the name: a time, not a path. (#115)
