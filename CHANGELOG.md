@@ -49,3 +49,4 @@
 - Desktop: Up and Down stop on a table, an HTML block, and a `<details>`' summary, and open its source, as Left and Right do. They went past the whole block, so the keys never reached it. (#90)
 - Docs: the design doc says a `<details>` inside one HTML block opens and closes from a click only. The keys show the block's source, body and all. (#91)
 - Desktop: a link's popover in an HTML block gets a place above the window when its frame is not drawn, so CodeMirror hides it by its own rule. It got null cast as a place, which a CodeMirror update could throw on. (#92)
+- Docs: the key tables in the README and desktop.md list Enter for a `<details>`. (#96)
