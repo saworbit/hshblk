@@ -225,7 +225,7 @@ Threat model, bounded: a local file from a clone, download, or paste must not ex
 
 Lezer emits syntax. It does not emit HTML, and it does not resolve reference definitions. The application owns interpretation.
 
-Dialect: CommonMark, plus GFM tables and `~~` strikethrough. Lezer does not take GitHub's single `~`. Anything else is source until added here, task lists and bare-address links included.
+Dialect: CommonMark, plus GFM tables, `~~` strikethrough, and task lists, and YAML frontmatter at the top of a file. Lezer does not take GitHub's single `~`. Anything else is source until added here, bare-address links included.
 
 Each construct has one rule:
 
@@ -237,8 +237,10 @@ Each construct has one rule:
 | Setext heading | A heading. The underline does not paint. |
 | Link | Its words. The title is not part of them. Its syntax never unfolds inline: the address shows in a popover at the caret, where the editor will edit it. Unfolding put `[` before the clicked word and wrapped it to the next line (§9). |
 | Link reference definition | Nothing. The links that use it carry its address. |
+| Frontmatter | As written, in a quiet monospace block: `---` alone on the first line, through the next `---` or `...`. CommonMark would read it as a rule and a heading, so the page finds it, and draws, anchors, and defines nothing in it. |
 | Reference with no definition | Its brackets, as written. |
 | List marker | As written: `-`, `*`, `1.`, `1)`. |
+| Task list item | Its box, in place of its `[ ]`, ticked as the file has it. A click ticks or unticks it on the page only: the file keeps what it says, and opening it again shows it as written. |
 | Raw HTML block | Drawn in a sandboxed frame (§6). A selection in it shows its source. A `<details>` inside one block opens and closes from a click on its summary only, and stays as the reader left it when its frame is drawn again. The keys show the block's source instead, body and all. |
 | `<details>` around markdown | Its summary, which a click opens or closes. Its body folds while it is closed. A selection in a tag shows that tag's source. |
 | Inline HTML | As written. |

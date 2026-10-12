@@ -18,6 +18,8 @@ export type Blocks = {
   folds: DecorationSet;
   /** Each `<details>` written as its own blocks around a markdown body. The page draws these. */
   details: Details[];
+  /** The file's frontmatter, which shows as written, or null when it has none. */
+  frontmatter: Span | null;
 };
 
 type Span = { from: number; to: number };
@@ -43,6 +45,9 @@ const CONTAINERS = new Set(["Document", "Blockquote", "BulletList", "OrderedList
 /** Raw HTML, drawn in a frame. A comment or an instruction draws nothing there. */
 const HTML = new Set(["HTMLBlock", "CommentBlock", "ProcessingInstructionBlock"]);
 
+/** How far down the file a frontmatter's closing line may be. */
+const FRONTMATTER_LINES = 1000;
+
 /** How many blocks the scan reads between pauses. */
 const STRIDE = 1000;
 
@@ -60,15 +65,18 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
   const definitions: Definitions = new Map();
   const headings: SyntaxNode[] = [];
   const drawn: SyntaxNode[] = [];
+  const front = frontmatter(doc);
   const cursor = tree.cursor();
   walk: for (let read = 1; ; read += 1) {
     const name = cursor.name;
-    if (name === "LinkReference") {
+    // Lezer reads frontmatter as a rule and a heading. The page notes nothing in it.
+    const noted = !front || cursor.to > front.to;
+    if (noted && name === "LinkReference") {
       define(definitions, doc, cursor.node);
       drawn.push(cursor.node);
-    } else if (name === "Table" || HTML.has(name)) {
+    } else if (noted && (name === "Table" || HTML.has(name))) {
       drawn.push(cursor.node);
-    } else if (name.startsWith("ATXHeading") || name.startsWith("SetextHeading")) {
+    } else if (noted && (name.startsWith("ATXHeading") || name.startsWith("SetextHeading"))) {
       headings.push(cursor.node);
     }
     if (read % STRIDE === 0) yield;
@@ -104,7 +112,21 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
     folds.push(Decoration.replace({ fold, widget, block: true }).range(lines.from, lines.to));
     yield;
   }
-  return { definitions, anchors, folds: Decoration.set(folds, true), details };
+  return { definitions, anchors, folds: Decoration.set(folds, true), details, frontmatter: front };
+}
+
+/**
+ * YAML frontmatter, as Obsidian and static site generators write it: `---` alone on the first
+ * line, through the next line that is `---` or `...`. CommonMark reads it as a rule and a heading.
+ * Lezer can look only one line ahead, so the page finds it here, where the whole text is.
+ */
+function frontmatter(doc: Text): Span | null {
+  if (!/^---[ \t]*$/.test(doc.line(1).text)) return null;
+  for (let n = 2; n <= Math.min(doc.lines, FRONTMATTER_LINES); n += 1) {
+    const line = doc.line(n);
+    if (/^(---|\.\.\.)[ \t]*$/.test(line.text)) return { from: 0, to: line.to };
+  }
+  return null;
 }
 
 /** The scan without pauses, for a tree small enough to read at once. */
