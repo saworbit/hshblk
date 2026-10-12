@@ -113,8 +113,9 @@ export class TableWidget extends WidgetType {
 export const toggleDetails = StateEffect.define<number>();
 
 /**
- * docs/hld.md §7: a `<details>` whose body is markdown, drawn as its summary. A click opens or
- * closes it. The page folds the body's lines while it is closed.
+ * docs/hld.md §7: a `<details>` whose body is markdown, drawn as its summary. A click, or Enter
+ * with the caret on its tags, opens or closes it. The page folds the body's lines while it is
+ * closed.
  */
 export class SummaryWidget extends WidgetType {
   /** The summary's HTML, as written. */

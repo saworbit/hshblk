@@ -849,6 +849,28 @@ ${FILLER}
     assert.match(await page.until(atHeading), /^(## )?Tables$/);
   });
 
+  test("a frame link's address hides while its frame is scrolled away", async () => {
+    let web = await inFrame("html link");
+    await page.click(web.x, web.y);
+    /** In the page: the popover's top, once it shows the frame link's address in the window. */
+    const popover = () => {
+      const box = document.querySelector(".pg-address");
+      const top = box?.getBoundingClientRect().top;
+      return box?.textContent.includes("https://html.example.com/") && top >= 0 && { top };
+    };
+    const shown = await page.until(popover);
+    assert.ok(shown.top > web.y, JSON.stringify({ shown, web }));
+    // At the end of the file. The popover stays, out of the window.
+    await page.until(() => {
+      const scroller = document.querySelector(".cm-scroller");
+      scroller.scrollTop = scroller.scrollHeight;
+      return document.querySelector(".pg-address")?.getBoundingClientRect().bottom < 0;
+    });
+    web = await inFrame("html link");
+    const back = await page.until(popover);
+    assert.ok(back.top > web.y, JSON.stringify({ back, web }));
+  });
+
   test("a summary in an HTML block opens and closes its details from a click", async () => {
     const details = () =>
       [...document.querySelectorAll("iframe.pg-html")]
@@ -922,6 +944,14 @@ A folded body with a needle in it.
 </details>
 
 After.
+
+| a | b |
+|---|---|
+| c | d |
+
+<p>A frame.</p>
+
+End.
 `,
   );
   let page;
@@ -986,6 +1016,61 @@ After.
     await page.until(tagsWithBody, true);
     await page.press(Key.Enter);
     await page.until(tagsWithBody, false);
+  });
+
+  test("Up and Down stop on it, a table, and an HTML block, and open their source", async () => {
+    /** In the page: the line holding the caret, as it reads. */
+    const caretLine = () => {
+      const node = getSelection().focusNode;
+      const line = (node?.nodeType === Node.TEXT_NODE ? node.parentElement : node)?.closest(
+        ".cm-line",
+      );
+      return line && { text: line.textContent };
+    };
+    const title = await page.run(() => {
+      const box = document.querySelector(".pg-h1").getBoundingClientRect();
+      return { x: box.x + 20, y: box.y + box.height / 2 };
+    });
+    await page.click(title.x, title.y);
+    const walk = async (key, times) => {
+      const lines = [];
+      for (let i = 0; i < times; i += 1) {
+        await page.press(key);
+        lines.push((await page.until(caretLine)).text);
+      }
+      return lines;
+    };
+    // The folded body and the closing tag are hidden, so the keys pass them.
+    assert.deepEqual(await walk(Key.ArrowDown, 13), [
+      "",
+      "<details>",
+      "<summary>More <b>notes</b></summary>",
+      "",
+      "After.",
+      "",
+      "| a | b |",
+      "|---|---|",
+      "| c | d |",
+      "",
+      "<p>A frame.</p>",
+      "",
+      "End.",
+    ]);
+    assert.deepEqual(await walk(Key.ArrowUp, 13), [
+      "",
+      "<p>A frame.</p>",
+      "",
+      "| c | d |",
+      "|---|---|",
+      "| a | b |",
+      "",
+      "After.",
+      "",
+      "<summary>More <b>notes</b></summary>",
+      "<details>",
+      "",
+      "# Details",
+    ]);
   });
 
   test("find in its body opens it", async () => {

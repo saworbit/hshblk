@@ -9,6 +9,7 @@ import {
   type Text,
 } from "@codemirror/state";
 import {
+  type Command,
   Decoration,
   type DecorationSet,
   EditorView,
@@ -80,6 +81,36 @@ export const toggleDetailsAtCaret: StateCommand = ({ state, dispatch }) => {
   dispatch(state.update({ effects: toggleDetails.of(details.head.source.from) }));
   return true;
 };
+
+/**
+ * Up or Down, stopping on a table, an HTML block, or a `<details>`' summary, so the keys open its
+ * source as Left and Right do. CodeMirror's own motion goes past a block drawn in place of its
+ * source. Lines hidden with nothing drawn, such as a definition or a closed body, are still passed.
+ */
+export function cursorLineOnto(forward: boolean): Command {
+  return (view) => {
+    const { state } = view;
+    const caret = state.selection.main;
+    if (!caret.empty) return false;
+    const line = state.doc.lineAt(caret.head);
+    const target = view.moveVertically(caret, forward).head;
+    // Between the caret's line and where CodeMirror would put it. The nearest block wins.
+    const low = forward ? line.to + 1 : target;
+    const high = forward ? target : line.from - 1;
+    let stop: number | undefined;
+    for (const at = state.field(page).shown.iter(low); at.value && at.from <= high; at.next()) {
+      const { widget, block } = at.value.spec;
+      const fold: Fold = at.value.spec.fold;
+      const edge = forward ? at.from : at.to;
+      if (!widget || !block || edge < low || edge > high) continue;
+      stop = forward ? fold.from : fold.to;
+      if (forward) break;
+    }
+    if (stop === undefined) return false;
+    view.dispatch({ selection: { anchor: stop }, scrollIntoView: true, userEvent: "select" });
+    return true;
+  };
+}
 
 /**
  * A large file holds more inline syntax than the window can decorate between two frames. So it
@@ -197,7 +228,10 @@ function draw(
     const shown = printing || open !== toggled.has(from) || (body !== null && reached(body));
     if (!reached(head.source)) {
       const widget = new SummaryWidget(summary, from, shown);
-      add.push(Decoration.replace({ widget, block: true }).range(head.lines.from, head.lines.to));
+      const fold = head.source;
+      add.push(
+        Decoration.replace({ widget, block: true, fold }).range(head.lines.from, head.lines.to),
+      );
     }
     if (body && !shown) add.push(Decoration.replace({ block: true }).range(body.from, body.to));
     if (!reached(tail.source)) {

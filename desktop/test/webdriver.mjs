@@ -11,6 +11,7 @@ export const Key = {
   Control: "\uE009",
   Enter: "\uE007",
   Escape: "\uE00C",
+  ArrowUp: "\uE013",
   ArrowRight: "\uE014",
   ArrowDown: "\uE015",
 };

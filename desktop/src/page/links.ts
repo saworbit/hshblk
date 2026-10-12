@@ -170,20 +170,23 @@ const frameLink = StateField.define<FrameLink | null>({
         above: false,
         create: (view) => ({
           dom: address(view, { ...span, href: link.href }),
-          // CodeMirror hides a tooltip it gets no place for, as when the frame is not drawn.
-          getCoords: () => frameLinkBox(view, link) as Rect,
+          // CodeMirror hides a tooltip placed outside the editor, as when the frame is not drawn.
+          getCoords: () => frameLinkBox(view, link),
         }),
       };
     }),
 });
 
-/** Where a link in an HTML block's frame starts on the screen, or null when it is not drawn. */
-function frameLinkBox(view: EditorView, { pos, index }: FrameLink): Rect | null {
+/** A place above the window, outside the editor. */
+const NOWHERE: Rect = { left: 0, right: 0, top: -10000, bottom: -10000 };
+
+/** Where a link in an HTML block's frame starts on the screen, or nowhere when it is not drawn. */
+function frameLinkBox(view: EditorView, { pos, index }: FrameLink): Rect {
   for (const frame of view.contentDOM.querySelectorAll<HTMLIFrameElement>("iframe.pg-html")) {
     if (view.posAtDOM(frame) !== pos) continue;
     const link = frame.contentDocument?.querySelectorAll("a[href]")[index];
     const words = link?.getClientRects()[0];
-    if (!words) return null;
+    if (!words) return NOWHERE;
     const box = frame.getBoundingClientRect();
     const left = box.left + frame.clientLeft;
     const top = box.top + frame.clientTop;
@@ -194,7 +197,7 @@ function frameLinkBox(view: EditorView, { pos, index }: FrameLink): Rect | null 
       bottom: top + words.bottom,
     };
   }
-  return null;
+  return NOWHERE;
 }
 
 /**
