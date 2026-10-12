@@ -181,7 +181,7 @@ A second file, by double-click or by `app file.md`, goes to the app that is alre
 IPC, milestone one:
 
 - `open(handle) -> { name, read_only_reason }` after the resolver accepts the path, and `document_text(handle) -> bytes`, the string as UTF-8. A long text crosses faster as bytes than as a JSON string (§8, item 3).
-- `read_asset`, served as a custom scheme: `doc-asset://<handle>/<relative>`. Not Tauri's asset protocol, which is addressed by path (`convertFileSrc(filePath)`).
+- `read_asset`, served as a custom scheme: `doc-asset://<handle>/<relative>`. Not Tauri's asset protocol, which is addressed by path (`convertFileSrc(filePath)`). A window is served only its own document's images: the handle must be the one its label names.
 - `open_url(url)`. `http`, `https`, and `mailto` only, opened in the system browser. A click on a link never navigates the webview.
 
 IPC, editor milestone:
@@ -195,7 +195,7 @@ No general filesystem command. No path argument from the webview. The capability
 
 Asset and link scope:
 
-- The scope root is the enclosing git repository, found by walking up from the document to a `.git` entry. With no repository, it is the document directory.
+- The scope root is the enclosing git repository, found by walking up from the document to a `.git` entry. With no repository, it is the document directory. A `.git` at the user's home directory or above it does not count, so with dotfiles kept in `~/.git`, a loose file's scope is still its own folder.
 - The target, with symlinks and junctions resolved, must sit under the scope root. `../` is allowed inside it. A reference with one leading `/` starts at the scope root, as GitHub reads it in a repository. It never names the filesystem's root, and two leading slashes name a host, which is remote.
 - Assets are regular files of an image type by magic bytes (PNG, JPEG, GIF, WebP, AVIF; SVG by content), at most 20 MB. That excludes devices, FIFOs, and `/dev/zero`.
 - Reading outside the document's folder gives an attacker nothing under this threat model. No script runs and nothing leaves the machine, and a hostile image would ship inside the repository anyway.

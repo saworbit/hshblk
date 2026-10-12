@@ -54,3 +54,5 @@
 - Docs: the key tables in the README and desktop.md list Enter for a `<details>`. (#96)
 - Desktop: on macOS, Ctrl+N and Ctrl+P stop on a table, an HTML block, and a `<details>`' summary, as Down and Up do. CodeMirror binds them to line motion there, and they went past those blocks. (#102)
 - Desktop: a `<details>` inside one HTML block stays open or closed as the reader left it when its frame is drawn again, after a scroll away or the keys showing its source. It went back to as written. (#103)
+- Desktop: the resource channel serves a window only its own document's images. A request naming another open document's handle is refused as unknown, as each command already refuses. (#99)
+- Desktop: a `.git` at the home directory or above it no longer makes the asset scope. With dotfiles kept in `~/.git`, a loose file such as a README in Downloads could show any image in the home. Its scope is now its own folder. (#100)
