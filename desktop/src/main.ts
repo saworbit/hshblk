@@ -14,6 +14,11 @@ const handle = getCurrentWindow().label.match(/^doc-([0-9a-f]+)$/)?.[1];
 
 const pick = () => void invoke("pick_document");
 
+// The window's keys take ⌘ on macOS and Ctrl elsewhere, as the README's key table has them. On
+// macOS, Ctrl and those letters are CodeMirror's Emacs keys, even where they have nothing to move.
+const mac = /Mac/.test(navigator.platform);
+const command = (event: KeyboardEvent) => (mac ? event.metaKey : event.ctrlKey);
+
 if (handle) {
   // The text comes as bytes, which cross faster than a long string as JSON. As Rust holds it:
   // a byte order mark at its start, if one is there, is part of the text.
@@ -42,7 +47,7 @@ if (handle) {
   };
   document.addEventListener("keydown", (event) => {
     const run = keys[event.key];
-    if (!run || event.defaultPrevented || !(event.metaKey || event.ctrlKey) || event.altKey) return;
+    if (!run || event.defaultPrevented || !command(event) || event.altKey) return;
     event.preventDefault();
     run();
   });
@@ -51,7 +56,7 @@ if (handle) {
 } else {
   root.append(welcome());
   document.addEventListener("keydown", (event) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === "o") {
+    if (command(event) && event.key === "o") {
       event.preventDefault();
       pick();
     }
