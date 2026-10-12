@@ -8,6 +8,7 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::UNIX_EPOCH;
 
 /// Larger files are refused rather than read whole into memory.
 pub const MAX_DOCUMENT_BYTES: u64 = 64 * 1024 * 1024;
@@ -39,6 +40,8 @@ pub struct Document {
     pub scope: PathBuf,
     /// The file's own name, which is all of its path the page is told.
     pub name: String,
+    /// When the file was last modified, as it was read, in milliseconds since 1970.
+    pub modified: Option<u64>,
     pub text: String,
     pub facts: Facts,
 }
@@ -219,6 +222,11 @@ fn read(path: &Path) -> Result<Document, OpenError> {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_default(),
+        modified: metadata
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+            .and_then(|since| u64::try_from(since.as_millis()).ok()),
         text,
         facts,
         path,
@@ -310,6 +318,22 @@ mod tests {
 
         let (again, _) = documents.open(&document.path).unwrap();
         assert_ne!(again, handle);
+    }
+
+    #[test]
+    fn records_when_the_file_was_last_modified() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("dated.md");
+        fs::write(&path, "x").unwrap();
+        let when = UNIX_EPOCH + std::time::Duration::from_millis(1_577_966_400_000);
+        fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(when)
+            .unwrap();
+        let (_, document) = Documents::default().open(&path).unwrap();
+        assert_eq!(document.modified, Some(1_577_966_400_000));
     }
 
     #[test]

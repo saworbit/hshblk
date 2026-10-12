@@ -4,7 +4,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createSurface, printPage } from "./surface.ts";
 
-type Opened = { name: string; readOnlyReason: string | null };
+type Opened = { name: string; modified: number | null; readOnlyReason: string | null };
 
 const root = document.querySelector<HTMLElement>("#page")!;
 const nonce = document.querySelector<HTMLMetaElement>('meta[name="style-nonce"]')?.content;
@@ -65,10 +65,15 @@ if (handle) {
 
 function statusLine(opened: Opened): HTMLElement {
   const line = element("footer", "status");
-  line.append(
-    element("span", "status-name", opened.name),
-    element("span", "", "Read only. Copy and find work on the source."),
-  );
+  line.append(element("span", "status-name", opened.name));
+  if (opened.modified !== null) {
+    const when = new Date(opened.modified).toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    line.append(element("span", "", `Modified ${when}`));
+  }
+  line.append(element("span", "", "Read only. Copy and find work on the source."));
   if (opened.readOnlyReason) line.append(element("span", "status-reason", opened.readOnlyReason));
   return line;
 }

@@ -14,6 +14,7 @@ import {
   readFileSync,
   statSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -139,6 +140,9 @@ A folded body.
 The **end**.
 `;
 
+/** When the fixture's file was last modified. */
+const MODIFIED = new Date("2020-01-02T12:00:00Z");
+
 /**
  * root/repo/.git, root/repo/docs/notes.md beside near.png, "near by.png", and a symlink that
  * leaves the repository, root/repo/images/far.png, and root/outside.png.
@@ -154,6 +158,8 @@ function fixture() {
   symlinkSync(join(root, "outside.png"), join(repo, "docs", "leave.png"));
   const file = join(repo, "docs", "notes.md");
   writeFileSync(file, NOTES);
+  // A year the status line cannot get from today, to show it reads the file's own time.
+  utimesSync(file, MODIFIED, MODIFIED);
   return { root, file };
 }
 
@@ -559,7 +565,7 @@ describe("one open document", () => {
     assert.ok(refused);
   });
 
-  test("5. copies the source, and says so", async () => {
+  test("5. copies the source, and says so, beside the file's name and when it was modified", async () => {
     await page.run(() => {
       window.copied = null;
       addEventListener(
@@ -573,6 +579,8 @@ describe("one open document", () => {
     assert.equal(await page.run(() => window.copied), NOTES);
     const status = (await page.run(texts, ".status")).join(" ");
     assert.match(status, /Read only\. Copy and find work on the source\./);
+    const [name, modified] = await page.run(texts, ".status > span");
+    assert.deepEqual([name, /^Modified .*2020/.test(modified)], ["notes.md", true]);
   });
 
   test("5. finds the source, hidden syntax included, to the end of the file", async () => {
