@@ -47,3 +47,4 @@
 - Desktop: `npm test` runs the tests on Windows too. npm runs a script through cmd.exe there, which kept the glob's single quotes, so no test file matched and the run passed with none.
 - Docs: desktop.md lists what a Windows build needs, and `npx tauri build --no-bundle` for the app alone.
 - Desktop: Up and Down stop on a table, an HTML block, and a `<details>`' summary, and open its source, as Left and Right do. They went past the whole block, so the keys never reached it. (#90)
+- Docs: the design doc says a `<details>` inside one HTML block opens and closes from a click only. The keys show the block's source, body and all. (#91)
