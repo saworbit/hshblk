@@ -63,13 +63,16 @@ You need Node 24 and Rust 1.85 or later. On Linux, also Tauri's build packages:
 sudo apt install libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev librsvg2-dev
 ```
 
+On Windows, also the MSVC build tools (Visual Studio's **Desktop development with C++**) and the WebView2 runtime, which Windows 11 has.
+
 Then:
 
 ```bash
 cd desktop
 npm ci
-npm run tauri dev       # a window on Vite's dev server
-npx tauri build         # the packages, in src-tauri/target/release/bundle
+npm run tauri dev                # a window on Vite's dev server
+npx tauri build                  # the packages, in src-tauri/target/release/bundle
+npx tauri build --no-bundle      # the app alone: src-tauri/target/release/hshblk, .exe on Windows
 ```
 
 ## Releasing
