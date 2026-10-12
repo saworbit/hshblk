@@ -72,6 +72,8 @@ export const pageTheme = EditorView.theme({
     padding: "0 1em",
   },
   ".pg-fence": { color: "var(--muted)" },
+  // YAML frontmatter is data about the file, so it shows as written, and stays quiet.
+  ".pg-frontmatter": { color: "var(--muted)" },
   ".pg-source-block": { boxShadow: "inset 2px 0 0 var(--rule)" },
   ".pg-rule": {
     background: "linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat",

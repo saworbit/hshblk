@@ -560,6 +560,41 @@ describe("a task list", () => {
   });
 });
 
+describe("frontmatter", () => {
+  const front = "---\ntitle: Notes\ntags: [a, b]\n[x]: /y\n---";
+  const quiet = "pg-code-block pg-frontmatter";
+
+  it("shows as a quiet block of its source, and anchors and defines nothing", () => {
+    const doc = `${front}\n\n# Heading\n\n[x]`;
+    const state = open(doc);
+    assert.equal(visible(state), `${front}\n\nHeading\n\n[x]`);
+    assert.deepEqual(lineClasses(state, styles).slice(0, 7), [
+      quiet,
+      quiet,
+      quiet,
+      quiet,
+      quiet,
+      "",
+      "pg-heading pg-h1",
+    ]);
+    assert.deepEqual([...state.field(page).blocks.anchors.keys()], ["heading"]);
+  });
+
+  it("holds a blank line, and closes at ... too", () => {
+    const doc = "---\ntitle: x\n\ntags: y\n...\n\nAfter";
+    const state = open(doc);
+    assert.equal(visible(state), doc);
+    assert.deepEqual(lineClasses(state, styles), [quiet, quiet, quiet, quiet, quiet, "", ""]);
+  });
+
+  it("is only a --- on the first line that a later line closes", () => {
+    // Not on the first line, it is a rule and a setext heading, as CommonMark reads it.
+    assert.equal(visible(open("Text\n\n---\ntitle: x\n---")), "Text\n\n\ntitle: x\n");
+    assert.equal(visible(open("---\ntitle: never closed")), "\ntitle: never closed");
+    assert.equal(open("---\ntitle: never closed").field(page).blocks.frontmatter, null);
+  });
+});
+
 describe("a <details> around markdown", () => {
   const doc =
     "<details>\n<summary>More <b>notes</b></summary>\n\nA **folded** body.\n\n</details>\n\nAfter";

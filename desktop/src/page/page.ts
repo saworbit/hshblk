@@ -261,7 +261,8 @@ function draw(
 /** The inline syntax from `from` to `to`, whole lines, drawn from the page's tree. */
 export function paint(state: EditorState, { from, to }: { from: number; to: number }): Painted {
   const { tree, blocks, opening, ticked } = state.field(page);
-  const painter = new Painter(state.doc, blocks.definitions, ticked, from, to);
+  const skip = blocks.frontmatter?.to ?? -1;
+  const painter = new Painter(state.doc, blocks.definitions, ticked, skip, from, to);
   const { styles, folds } = painter.paint(tree);
   return { styles, folds, shown: unfold(folds, opening) };
 }
@@ -285,6 +286,8 @@ class Painter {
   readonly definitions: Definitions;
   /** The task boxes the reader ticked or unticked. */
   readonly ticked: ReadonlySet<number>;
+  /** Where the frontmatter ends. It shows as written, and nothing in it is markdown. */
+  readonly skip: number;
   /** The start of the first line drawn. */
   readonly from: number;
   /** The end of the last line drawn. */
@@ -298,18 +301,25 @@ class Painter {
     doc: Text,
     definitions: Definitions,
     ticked: ReadonlySet<number>,
+    skip: number,
     from: number,
     to: number,
   ) {
     this.doc = doc;
     this.definitions = definitions;
     this.ticked = ticked;
+    this.skip = skip;
     this.from = doc.lineAt(from).from;
     this.to = doc.lineAt(to).to;
   }
 
   paint(tree: Tree) {
-    tree.iterate({ from: this.from, to: this.to, enter: (ref) => this.#visit(ref.node) });
+    if (this.skip >= 0) this.#lines(0, this.skip, "pg-code-block pg-frontmatter");
+    tree.iterate({
+      from: this.from,
+      to: this.to,
+      enter: (ref) => (ref.to <= this.skip ? false : this.#visit(ref.node)),
+    });
     return { styles: Decoration.set(this.#styles, true), folds: Decoration.set(this.#folds, true) };
   }
 
