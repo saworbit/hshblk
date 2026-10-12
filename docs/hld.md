@@ -240,7 +240,7 @@ Each construct has one rule:
 | Frontmatter | As written, in a quiet monospace block: `---` alone on the first line, through the next `---` or `...`. CommonMark would read it as a rule and a heading, so the page finds it, and draws, anchors, and defines nothing in it. |
 | Reference with no definition | Its brackets, as written. |
 | List marker | As written: `-`, `*`, `1.`, `1)`. |
-| Task list item | Its box, in place of its `[ ]`, ticked as the file has it. A click ticks or unticks it on the page only: the file keeps what it says, and opening it again shows it as written. |
+| Task list item | Its box, in place of its `[ ]`, ticked as the file has it. A click, or Enter with the caret in its text, ticks or unticks it on the page only: the file keeps what it says, and opening it again shows it as written. |
 | Raw HTML block | Drawn in a sandboxed frame (§6). A selection in it shows its source. A `<details>` inside one block opens and closes from a click on its summary only, and stays as the reader left it when its frame is drawn again. The keys show the block's source instead, body and all. |
 | `<details>` around markdown | Its summary, which a click, or Enter with the caret on its tags, opens or closes. Its body folds while it is closed. A selection in a tag shows that tag's source. |
 | Inline HTML | As written. |

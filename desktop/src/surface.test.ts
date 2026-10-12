@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { cursorLineDown, cursorLineUp, standardKeymap } from "@codemirror/commands";
 import type { Command, KeyBinding } from "@codemirror/view";
+import { toggleDetailsAtCaret, toggleTaskAtCaret } from "./page/page.ts";
 import { pageKeys } from "./surface.ts";
 
 const PLATFORMS = ["mac", "win", "linux"] as const;
@@ -30,6 +31,17 @@ describe("the page's keys", () => {
         if (binding.run === cursorLineDown) assert.equal(first(platform, key), down, key);
         if (binding.run === cursorLineUp) assert.equal(first(platform, key), up, key);
       }
+    }
+  });
+
+  it("try a details' tags, then a task's text, on Enter, before CodeMirror's own Enter", () => {
+    for (const platform of PLATFORMS) {
+      const enter = pageKeys.filter((binding) => keyOn(binding, platform) === "Enter");
+      assert.deepEqual(
+        enter.slice(0, 2).map((binding) => binding.run),
+        [toggleDetailsAtCaret, toggleTaskAtCaret],
+        platform,
+      );
     }
   });
 });

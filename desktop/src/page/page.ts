@@ -92,6 +92,25 @@ export const toggleDetailsAtCaret: StateCommand = ({ state, dispatch }) => {
 };
 
 /**
+ * Ticks or unticks the box of the task item whose text holds the selection, as a click on the
+ * box does. The box stays drawn while the selection is in the text, so the change shows. On the
+ * box's `[ ]` its source shows, and Enter is left to the keymap.
+ */
+export const toggleTaskAtCaret: StateCommand = ({ state, dispatch }) => {
+  const { tree, blocks } = state.field(page);
+  const { from, to } = state.selection.main;
+  for (let node: SyntaxNode | null = tree.resolveInner(to, -1); node; node = node.parent) {
+    if (node.name !== "Task") continue;
+    const marker = node.getChild("TaskMarker");
+    // Frontmatter is not markdown, so a `[ ]` in it is no box.
+    if (!marker || from <= marker.to || node.to <= (blocks.frontmatter?.to ?? -1)) return false;
+    dispatch(state.update({ effects: toggleTask.of(marker.from) }));
+    return true;
+  }
+  return false;
+};
+
+/**
  * Up or Down, stopping on a table, an HTML block, or a `<details>`' summary, so the keys open its
  * source as Left and Right do. CodeMirror's own motion goes past a block drawn in place of its
  * source. Lines hidden with nothing drawn, such as a definition or a closed body, are still passed.

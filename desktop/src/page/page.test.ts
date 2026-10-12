@@ -7,7 +7,7 @@ import { filePath, isLocal } from "./assets.ts";
 import { markdown } from "./dialect.ts";
 import { around, modClickOpens, showFrameLink } from "./links.ts";
 import { scan, scanNow } from "./blocks.ts";
-import { foldAll, page, paint, printing, toggleDetailsAtCaret } from "./page.ts";
+import { foldAll, page, paint, printing, toggleDetailsAtCaret, toggleTaskAtCaret } from "./page.ts";
 import { headingAt, headings } from "./references.ts";
 import {
   HtmlWidget,
@@ -557,6 +557,36 @@ describe("a task list", () => {
     assert.equal(visible(select(state, 3)), "- [ ] a task\n  that wraps\n- plain");
     assert.equal(visible(click(state, 3)), "- [box] a task\n  that wraps\n- plain");
     assert.deepEqual(lineClasses(state, styles), ["pg-hang-2", "pg-hang-2", "pg-hang-2"]);
+  });
+
+  const enter = (state: EditorState): EditorState | null => {
+    let next: EditorState | null = null;
+    toggleTaskAtCaret({ state, dispatch: (tr) => (next = tr.state) });
+    return next;
+  };
+
+  it("ticks or unticks from Enter with the caret in its text, and the file keeps what it says", () => {
+    const doc = "- [ ] open\n  wraps\n- [x] done\n  - [ ] inner";
+    const ticked = enter(select(open(doc), doc.indexOf("open")))!;
+    assert.equal(visible(ticked), "- [ticked] open\n  wraps\n- [ticked] done\n  - [box] inner");
+    // Its wrapped lines are its text too, and the box stays drawn, so the change shows.
+    assert.equal(visible(enter(select(ticked, doc.indexOf("wraps")))!), visible(open(doc)));
+    assert.equal(
+      visible(enter(select(open(doc), doc.indexOf("done")))!),
+      "- [box] open\n  wraps\n- [box] done\n  - [box] inner",
+    );
+    assert.equal(
+      visible(enter(click(open(doc), doc.indexOf("inner")))!),
+      "- [box] open\n  wraps\n- [ticked] done\n  - [ticked] inner",
+    );
+    assert.equal(ticked.doc.toString(), doc);
+  });
+
+  it("leaves Enter to the keymap on the box's source, outside a task, and in frontmatter", () => {
+    const doc = "- [ ] open\n- plain";
+    assert.equal(enter(select(open(doc), 3)), null);
+    assert.equal(enter(select(open(doc), doc.indexOf("plain"))), null);
+    assert.equal(enter(select(open("---\n- [ ] yaml\n---\n"), 10)), null);
   });
 });
 

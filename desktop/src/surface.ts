@@ -5,7 +5,14 @@ import { EditorView, type KeyBinding, keymap } from "@codemirror/view";
 import { assetUrl, type AssetUrl } from "./page/assets.ts";
 import { completeParse, finishParse } from "./page/complete.ts";
 import { markdown } from "./page/dialect.ts";
-import { cursorLineOnto, foldAll, page, printing, toggleDetailsAtCaret } from "./page/page.ts";
+import {
+  cursorLineOnto,
+  foldAll,
+  page,
+  printing,
+  toggleDetailsAtCaret,
+  toggleTaskAtCaret,
+} from "./page/page.ts";
 import { linkOpener, modClickOpens, showFrameLink } from "./page/links.ts";
 import { clickPastLineEnd } from "./page/pointer.ts";
 import { pageTheme } from "./page/theme.ts";
@@ -26,11 +33,13 @@ const lineUp = cursorLineOnto(false);
 
 /**
  * Movement and selection. The state is read-only, so the editing commands here do nothing.
- * Enter on a <details>'s tags opens or closes it. Up and Down stop on a drawn block, and so do
- * Ctrl+N and Ctrl+P, which CodeMirror binds to them on macOS.
+ * Enter on a <details>'s tags opens or closes it, and in a task item's text ticks or unticks its
+ * box. Up and Down stop on a drawn block, and so do Ctrl+N and Ctrl+P, which CodeMirror binds to
+ * them on macOS.
  */
 export const pageKeys: readonly KeyBinding[] = [
   { key: "Enter", run: toggleDetailsAtCaret },
+  { key: "Enter", run: toggleTaskAtCaret },
   { key: "ArrowDown", run: lineDown },
   { key: "ArrowUp", run: lineUp },
   { mac: "Ctrl-n", run: lineDown },
