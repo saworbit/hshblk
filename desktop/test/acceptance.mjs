@@ -849,6 +849,28 @@ ${FILLER}
     assert.match(await page.until(atHeading), /^(## )?Tables$/);
   });
 
+  test("a frame link's address hides while its frame is scrolled away", async () => {
+    let web = await inFrame("html link");
+    await page.click(web.x, web.y);
+    /** In the page: the popover's top, once it shows the frame link's address in the window. */
+    const popover = () => {
+      const box = document.querySelector(".pg-address");
+      const top = box?.getBoundingClientRect().top;
+      return box?.textContent.includes("https://html.example.com/") && top >= 0 && { top };
+    };
+    const shown = await page.until(popover);
+    assert.ok(shown.top > web.y, JSON.stringify({ shown, web }));
+    // At the end of the file. The popover stays, out of the window.
+    await page.until(() => {
+      const scroller = document.querySelector(".cm-scroller");
+      scroller.scrollTop = scroller.scrollHeight;
+      return document.querySelector(".pg-address")?.getBoundingClientRect().bottom < 0;
+    });
+    web = await inFrame("html link");
+    const back = await page.until(popover);
+    assert.ok(back.top > web.y, JSON.stringify({ back, web }));
+  });
+
   test("a summary in an HTML block opens and closes its details from a click", async () => {
     const details = () =>
       [...document.querySelectorAll("iframe.pg-html")]
