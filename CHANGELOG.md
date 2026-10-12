@@ -45,4 +45,5 @@
 - Desktop: Enter opens or closes a `<details>` around markdown while the caret is on its tags, whether its summary shows or its source. (#86)
 - Desktop: a click on a link in a raw HTML block shows its address in a popover under it, with **Open** or **Go to**, as a link on the page does. (#85)
 - Desktop: `npm test` runs the tests on Windows too. npm runs a script through cmd.exe there, which kept the glob's single quotes, so no test file matched and the run passed with none.
+- CI: `npm test` fails when no test file matches, where node --test passed a run of none. `scripts/test.mjs` checks the glob, and hands it to node as an argument, so no shell's quoting reaches it. (#94)
 - Docs: desktop.md lists what a Windows build needs, and `npx tauri build --no-bundle` for the app alone.
