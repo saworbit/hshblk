@@ -52,3 +52,4 @@
 - Docs: the design doc says a `<details>` inside one HTML block opens and closes from a click only. The keys show the block's source, body and all. (#91)
 - Desktop: a link's popover in an HTML block gets a place above the window when its frame is not drawn, so CodeMirror hides it by its own rule. It got null cast as a place, which a CodeMirror update could throw on. (#92)
 - Docs: the key tables in the README and desktop.md list Enter for a `<details>`. (#96)
+- Desktop: a file whose name starts with a dash, such as `-notes.md`, opens from the command line, and from a second launch. Only macOS's `-psn_` argument is passed over, and every argument after `--` is a file. Any leading dash was taken as a flag, and the app has none. (#101)
