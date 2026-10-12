@@ -1,0 +1,3 @@
+# LF on every system, as .editorconfig says. Git for Windows checks text out with CRLF by
+# default, and tauri-build writes its permission files back with LF, which left them modified.
+* text=auto eol=lf

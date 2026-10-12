@@ -118,7 +118,7 @@ Not done yet ([hld.md](hld.md) §12, question 1):
 | `desktop/src/main.ts` | The window: open, print, the status line, and the welcome. |
 | `desktop/src/surface.ts` | The CodeMirror surface, with editing turned off. |
 | `desktop/src/page/` | The page: the dialect, its decorations, links, images, tables, the whole-document parse, and the theme. |
-| `desktop/scripts/` | What CI runs beside the tests: the licence check, and the check that a release tag names the version. |
+| `desktop/scripts/` | What CI runs: the unit tests' runner, which fails when no test file matches, the licence check, and the check that a release tag names the version. |
 
 ## Tests
 
