@@ -1,7 +1,7 @@
 import { standardKeymap } from "@codemirror/commands";
 import { search, searchKeymap } from "@codemirror/search";
 import { EditorState, type Extension } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import { EditorView, type KeyBinding, keymap } from "@codemirror/view";
 import { assetUrl, type AssetUrl } from "./page/assets.ts";
 import { completeParse, finishParse } from "./page/complete.ts";
 import { markdown } from "./page/dialect.ts";
@@ -20,6 +20,24 @@ export type SurfaceOptions = {
   /** Anything the shell adds: its own keys, its own handlers. */
   extensions?: Extension;
 };
+
+const lineDown = cursorLineOnto(true);
+const lineUp = cursorLineOnto(false);
+
+/**
+ * Movement and selection. The state is read-only, so the editing commands here do nothing.
+ * Enter on a <details>'s tags opens or closes it. Up and Down stop on a drawn block, and so do
+ * Ctrl+N and Ctrl+P, which CodeMirror binds to them on macOS.
+ */
+export const pageKeys: readonly KeyBinding[] = [
+  { key: "Enter", run: toggleDetailsAtCaret },
+  { key: "ArrowDown", run: lineDown },
+  { key: "ArrowUp", run: lineUp },
+  { mac: "Ctrl-n", run: lineDown },
+  { mac: "Ctrl-p", run: lineUp },
+  ...searchKeymap,
+  ...standardKeymap,
+];
 
 /**
  * docs/hld.md milestone one: the editor surface, with editing commands disabled. The caret
@@ -48,15 +66,7 @@ export function createSurface(
         EditorView.lineWrapping,
         EditorView.contentAttributes.of({ "aria-label": "Document", spellcheck: "false" }),
         search({ top: true }),
-        // Movement and selection. The state is read-only, so the editing commands here do nothing.
-        // Enter on a <details>'s tags opens or closes it. Up and Down stop on a drawn block.
-        keymap.of([
-          { key: "Enter", run: toggleDetailsAtCaret },
-          { key: "ArrowDown", run: cursorLineOnto(true) },
-          { key: "ArrowUp", run: cursorLineOnto(false) },
-          ...searchKeymap,
-          ...standardKeymap,
-        ]),
+        keymap.of(pageKeys),
         options.nonce ? EditorView.cspNonce.of(options.nonce) : [],
         options.extensions ?? [],
       ],

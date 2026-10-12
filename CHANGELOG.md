@@ -52,3 +52,4 @@
 - Docs: the design doc says a `<details>` inside one HTML block opens and closes from a click only. The keys show the block's source, body and all. (#91)
 - Desktop: a link's popover in an HTML block gets a place above the window when its frame is not drawn, so CodeMirror hides it by its own rule. It got null cast as a place, which a CodeMirror update could throw on. (#92)
 - Docs: the key tables in the README and desktop.md list Enter for a `<details>`. (#96)
+- Desktop: on macOS, Ctrl+N and Ctrl+P stop on a table, an HTML block, and a `<details>`' summary, as Down and Up do. CodeMirror binds them to line motion there, and they went past those blocks. (#102)
