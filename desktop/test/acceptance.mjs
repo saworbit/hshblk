@@ -970,6 +970,49 @@ ${FILLER}
   });
 });
 
+describe("a task list", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-tasks-"));
+  const file = join(folder, "tasks.md");
+  writeFileSync(file, "# Tasks\n\n- [ ] still to do\n- [x] done\n");
+  const bytes = fingerprint(file);
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelectorAll(".pg-task").length === 2);
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  /** In the page: each box's state, and the middle of the first. */
+  const boxes = () => {
+    const all = [...document.querySelectorAll(".pg-task")];
+    const box = all[0].getBoundingClientRect();
+    return {
+      checked: all.map((task) => task.getAttribute("aria-checked")),
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2,
+    };
+  };
+
+  test("draws each box as the file has it, and a click ticks it on the page only", async () => {
+    const before = await page.run(boxes);
+    assert.deepEqual(before.checked, ["false", "true"]);
+    /** In the page: whether the first box shows ticked, as wanted. */
+    const first = (ticked) =>
+      document.querySelector(".pg-task")?.getAttribute("aria-checked") === String(ticked);
+    await page.click(before.x, before.y);
+    await page.until(first, true);
+    // Both boxes still show, not their source, so the click opened nothing.
+    assert.deepEqual((await page.run(boxes)).checked, ["true", "true"]);
+    await page.click(before.x, before.y);
+    await page.until(first, false);
+    assert.deepEqual(fingerprint(file), bytes);
+  });
+});
+
 describe("a <details> around markdown", () => {
   const folder = mkdtempSync(join(tmpdir(), "hshblk-details-"));
   const file = join(folder, "details.md");

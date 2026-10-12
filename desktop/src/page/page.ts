@@ -25,7 +25,14 @@ import { pageTree, wholeBlocks } from "./complete.ts";
 import { inlinesOf, plainText } from "./inlines.ts";
 import { addressTooltip, linkAt, linkSpan } from "./links.ts";
 import { destination, headings, type Definitions } from "./references.ts";
-import { ImageWidget, SummaryWidget, TextWidget, toggleDetails } from "./widgets.ts";
+import {
+  ImageWidget,
+  SummaryWidget,
+  TaskWidget,
+  TextWidget,
+  toggleDetails,
+  toggleTask,
+} from "./widgets.ts";
 
 /** The source a piece of hidden syntax belongs to. A selection inside it shows the syntax. */
 type Fold = { from: number; to: number };
@@ -43,6 +50,8 @@ type Page = {
   opening: EditorSelection | null;
   /** The `<details>` the reader opened or closed, by where each starts. */
   toggled: ReadonlySet<number>;
+  /** The task boxes the reader ticked or unticked, by where each marker starts. */
+  ticked: ReadonlySet<number>;
   /** Whether the page is printing, which opens every `<details>`. */
   printing: boolean;
   /** The blocks' folds, less the ones the opening selection is in, and the details. */
@@ -127,7 +136,8 @@ const painter = ViewPlugin.fromClass(
     update(update: ViewUpdate) {
       const before = update.startState.field(page);
       const now = update.state.field(page);
-      if (update.viewportChanged || now.tree !== before.tree || now.blocks !== before.blocks) {
+      const repaint = now.tree !== before.tree || now.blocks !== before.blocks;
+      if (update.viewportChanged || repaint || now.ticked !== before.ticked) {
         this.painted = paint(update.state, update.view.viewport);
       } else if (now.opening !== before.opening) {
         this.painted = { ...this.painted, shown: unfold(this.painted.folds, now.opening) };
@@ -141,7 +151,7 @@ const painter = ViewPlugin.fromClass(
  * needs every line, and `painter` draws the rest near the viewport.
  */
 export const page = StateField.define<Page>({
-  create: (state) => build(state, null, null, new Set(), false),
+  create: (state) => build(state, null, null, new Set(), new Set(), false),
   update(current, tr) {
     const folded = tr.effects.some((effect) => effect.is(foldAll));
     const selected = tr.selection && tr.isUserEvent("select");
@@ -149,28 +159,34 @@ export const page = StateField.define<Page>({
     const pointer = tr.isUserEvent("select.pointer");
     const opening = folded ? null : selected ? (pointer ? null : active) : current.opening;
     let toggled = current.toggled;
+    let ticked = current.ticked;
     let printed = current.printing;
+    const flip = (set: ReadonlySet<number>, from: number) => {
+      const next = new Set(set);
+      if (!next.delete(from)) next.add(from);
+      return next;
+    };
     for (const effect of tr.effects) {
-      if (effect.is(toggleDetails)) {
-        const next = new Set(toggled);
-        if (!next.delete(effect.value)) next.add(effect.value);
-        toggled = next;
-      } else if (effect.is(printing)) {
-        printed = effect.value;
-      }
+      if (effect.is(toggleDetails)) toggled = flip(toggled, effect.value);
+      else if (effect.is(toggleTask)) ticked = flip(ticked, effect.value);
+      else if (effect.is(printing)) printed = effect.value;
     }
-    if (tr.docChanged) toggled = new Set([...toggled].map((from) => tr.changes.mapPos(from)));
+    if (tr.docChanged) {
+      toggled = new Set([...toggled].map((from) => tr.changes.mapPos(from)));
+      ticked = new Set([...ticked].map((from) => tr.changes.mapPos(from)));
+    }
     if (tr.docChanged || pageTree(tr.state) !== current.tree) {
-      return build(tr.state, active, opening, toggled, printed);
+      return build(tr.state, active, opening, toggled, ticked, printed);
     }
     const same =
       active === current.active &&
       opening === current.opening &&
       toggled === current.toggled &&
+      ticked === current.ticked &&
       printed === current.printing;
     if (same) return current;
     const shown = draw(current.blocks, opening, toggled, printed);
-    return { ...current, active, opening, toggled, printing: printed, shown };
+    return { ...current, active, opening, toggled, ticked, printing: printed, shown };
   },
   provide: (field) => [
     EditorView.decorations.of((view) => view.plugin(painter)?.painted.styles ?? Decoration.none),
@@ -198,13 +214,14 @@ function build(
   active: EditorSelection | null,
   opening: EditorSelection | null,
   toggled: ReadonlySet<number>,
+  ticked: ReadonlySet<number>,
   printing: boolean,
 ): Page {
   const tree = pageTree(state);
   // Until the whole document is parsed, the tree is only as long as CodeMirror has read.
   const blocks = wholeBlocks(state) ?? scanNow(state.doc, tree);
   const shown = draw(blocks, opening, toggled, printing);
-  return { tree, blocks, active, opening, toggled, printing, shown };
+  return { tree, blocks, active, opening, toggled, ticked, printing, shown };
 }
 
 /**
@@ -243,8 +260,9 @@ function draw(
 
 /** The inline syntax from `from` to `to`, whole lines, drawn from the page's tree. */
 export function paint(state: EditorState, { from, to }: { from: number; to: number }): Painted {
-  const { tree, blocks, opening } = state.field(page);
-  const { styles, folds } = new Painter(state.doc, blocks.definitions, from, to).paint(tree);
+  const { tree, blocks, opening, ticked } = state.field(page);
+  const painter = new Painter(state.doc, blocks.definitions, ticked, from, to);
+  const { styles, folds } = painter.paint(tree);
   return { styles, folds, shown: unfold(folds, opening) };
 }
 
@@ -265,6 +283,8 @@ function unfold(folds: DecorationSet, opening: EditorSelection | null): Decorati
 class Painter {
   readonly doc: Text;
   readonly definitions: Definitions;
+  /** The task boxes the reader ticked or unticked. */
+  readonly ticked: ReadonlySet<number>;
   /** The start of the first line drawn. */
   readonly from: number;
   /** The end of the last line drawn. */
@@ -274,9 +294,16 @@ class Painter {
   /** The markers drawn in a hanging item's box, which styles them. */
   readonly #hung = new Set<number>();
 
-  constructor(doc: Text, definitions: Definitions, from: number, to: number) {
+  constructor(
+    doc: Text,
+    definitions: Definitions,
+    ticked: ReadonlySet<number>,
+    from: number,
+    to: number,
+  ) {
     this.doc = doc;
     this.definitions = definitions;
+    this.ticked = ticked;
     this.from = doc.lineAt(from).from;
     this.to = doc.lineAt(to).to;
   }
@@ -357,6 +384,13 @@ class Painter {
       case "ListItem":
         this.#hang(node);
         return;
+      case "TaskMarker": {
+        // `[x]` and `[X]` are ticked, as GFM reads them.
+        const written = this.#slice(node) !== "[ ]";
+        const box = new TaskWidget(node.from, written !== this.ticked.has(node.from));
+        this.#hide(fold, node.from, node.to, box);
+        return false;
+      }
       case "ListMark":
         if (!this.#hung.has(node.from))
           this.#style(Decoration.mark({ class: "pg-list-mark" }), node.from, node.to);
@@ -429,7 +463,8 @@ class Painter {
    */
   #hang(item: SyntaxNode): void {
     const mark = item.getChild("ListMark");
-    const first = item.getChild("Paragraph");
+    // A task item's first paragraph is a Task, which holds its box.
+    const first = item.getChild("Task") ?? item.getChild("Paragraph");
     // A quote's marks are hidden, so they take no columns. Its items stay as they were.
     for (let up = item.parent; up; up = up.parent) if (up.name === "Blockquote") return;
     if (!mark || !first) return;
@@ -438,7 +473,7 @@ class Painter {
     if (text < 1 || text > HANG_LIMIT) return;
     const box = (from: number, to: number, width: number, className = "") =>
       this.#style(Decoration.mark({ class: `${className} pg-box-${width}`.trim() }), from, to);
-    for (const paragraph of item.getChildren("Paragraph")) {
+    for (const paragraph of [...item.getChildren("Task"), ...item.getChildren("Paragraph")]) {
       for (let pos = Math.max(paragraph.from, this.from); pos <= Math.min(paragraph.to, this.to);) {
         const line = this.doc.lineAt(pos);
         pos = line.to + 1;

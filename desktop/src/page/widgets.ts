@@ -152,6 +152,40 @@ export class SummaryWidget extends WidgetType {
   }
 }
 
+/** Ticks or unticks, on the page only, the task box whose marker starts here. */
+export const toggleTask = StateEffect.define<number>();
+
+/**
+ * docs/hld.md §7: a task list item's box, ticked as the file has it. A click ticks or unticks it
+ * on the page. The file keeps what it says.
+ */
+export class TaskWidget extends WidgetType {
+  /** Where the box's `[ ]` starts, which names it. */
+  readonly from: number;
+  readonly checked: boolean;
+
+  constructor(from: number, checked: boolean) {
+    super();
+    this.from = from;
+    this.checked = checked;
+  }
+
+  eq(other: TaskWidget): boolean {
+    return other.from === this.from && other.checked === this.checked;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const box = document.createElement("span");
+    box.className = this.checked ? "pg-task pg-task-ticked" : "pg-task";
+    box.setAttribute("role", "checkbox");
+    box.setAttribute("aria-checked", String(this.checked));
+    // The press would move the caret first. Ticking the box leaves it where it was.
+    box.addEventListener("mousedown", (event) => event.preventDefault());
+    box.addEventListener("click", () => view.dispatch({ effects: toggleTask.of(this.from) }));
+    return box;
+  }
+}
+
 /** The height each HTML block last took, so its frame, drawn again, starts there. */
 const htmlHeights = new Map<string, number>();
 

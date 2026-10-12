@@ -14,8 +14,10 @@ import {
   ImageWidget,
   SummaryWidget,
   TableWidget,
+  TaskWidget,
   TextWidget,
   toggleDetails,
+  toggleTask,
   type TableModel,
 } from "./widgets.ts";
 
@@ -71,6 +73,7 @@ function named(widget: unknown): string {
   if (widget instanceof HtmlWidget) return `[html ${widget.html}]`;
   if (widget instanceof SummaryWidget)
     return `[summary ${widget.summary}${widget.open ? " open" : ""}]`;
+  if (widget instanceof TaskWidget) return widget.checked ? "[ticked]" : "[box]";
   return "";
 }
 
@@ -303,8 +306,8 @@ describe("the page", () => {
     ]);
   });
 
-  it("leaves code, inline HTML, bare addresses, and task boxes as the source", () => {
-    const doc = "```js\n**not bold**\n```\n\nA <b>tag</b>, https://x.y, and - [x] a box.";
+  it("leaves code, inline HTML, and bare addresses as the source", () => {
+    const doc = "```js\n**not bold**\n```\n\nA <b>tag</b>, https://x.y, and - [x] no box.";
     const state = open(doc);
     assert.equal(visible(state), doc);
     assert.deepEqual(lineClasses(state, styles).slice(0, 3), [
@@ -527,6 +530,33 @@ describe("unfolding", () => {
     const folded = inBold.update({ effects: foldAll.of(null) }).state;
     assert.equal(visible(folded), "Title\n\nSome bold words.");
     assert.equal(visible(select(folded, doc.indexOf("bold"))), "Title\n\nSome **bold** words.");
+  });
+});
+
+describe("a task list", () => {
+  it("draws each item's box, ticked as written, and leaves a box outside an item as source", () => {
+    const doc = "- [ ] open\n- [x] done\n1. [X] numbered\n- not a [ ] task\n\n> - [ ] quoted";
+    assert.equal(
+      visible(open(doc)),
+      "- [box] open\n- [ticked] done\n1. [ticked] numbered\n- not a [ ] task\n\n- [box] quoted",
+    );
+  });
+
+  it("ticks or unticks a box on the page only, and the file keeps what it says", () => {
+    const doc = "- [ ] open\n- [x] done";
+    let state = open(doc);
+    state = state.update({ effects: [toggleTask.of(2), toggleTask.of(13)] }).state;
+    assert.equal(visible(state), "- [ticked] open\n- [box] done");
+    state = state.update({ effects: toggleTask.of(2) }).state;
+    assert.equal(visible(state), "- [box] open\n- [box] done");
+    assert.equal(state.doc.toString(), doc);
+  });
+
+  it("shows a box's source while the keys are in it, and hangs its item's lines", () => {
+    const state = open("- [ ] a task\n  that wraps\n- plain");
+    assert.equal(visible(select(state, 3)), "- [ ] a task\n  that wraps\n- plain");
+    assert.equal(visible(click(state, 3)), "- [box] a task\n  that wraps\n- plain");
+    assert.deepEqual(lineClasses(state, styles), ["pg-hang-2", "pg-hang-2", "pg-hang-2"]);
   });
 });
 
