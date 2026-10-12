@@ -57,3 +57,4 @@
 - Desktop: the resource channel serves a window only its own document's images. A request naming another open document's handle is refused as unknown, as each command already refuses. (#99)
 - Desktop: a `.git` at the home directory or above it no longer makes the asset scope. With dotfiles kept in `~/.git`, a loose file such as a README in Downloads could show any image in the home. Its scope is now its own folder. (#100)
 - Desktop: a file whose name starts with a dash, such as `-notes.md`, opens from the command line, and from a second launch. Only macOS's `-psn_` argument is passed over, and every argument after `--` is a file. Any leading dash was taken as a flag, and the app has none. (#101)
+- Docs: desktop.md says a repository at the home folder does not set the scope, that the resource channel serves only the window's own document, and that `npm test` checks the keys. hld.md §7 lists Ctrl+N and Ctrl+P on macOS with Up and Down.
