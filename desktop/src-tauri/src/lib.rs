@@ -8,7 +8,8 @@ use std::path::Path;
 
 use serde::Serialize;
 use tauri::ipc::Response;
-use tauri::{Manager, RunEvent, State, WebviewWindow};
+use tauri::menu::{Menu, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu};
+use tauri::{AppHandle, Manager, RunEvent, State, WebviewWindow, Wry};
 use tauri_plugin_dialog::DialogExt;
 
 use std::sync::Arc;
@@ -54,17 +55,59 @@ fn document_text(
 /// Rust runs the dialog, so the path it returns never reaches the page.
 #[tauri::command]
 fn pick_document(window: WebviewWindow) {
-    let app = window.app_handle().clone();
-    window
+    pick(window.app_handle(), Some(&window));
+}
+
+/// The Open dialog, over `parent` when there is one. A picked file opens in a window of its own.
+fn pick(app: &AppHandle, parent: Option<&WebviewWindow>) {
+    let mut dialog = app
         .dialog()
         .file()
-        .set_parent(&window)
-        .add_filter("Markdown", windows::EXTENSIONS)
-        .pick_file(move |picked| {
-            if let Some(path) = picked.and_then(|file| file.into_path().ok()) {
-                windows::open(&app, &path);
+        .add_filter("Markdown", windows::EXTENSIONS);
+    if let Some(parent) = parent {
+        dialog = dialog.set_parent(parent);
+    }
+    let app = app.clone();
+    dialog.pick_file(move |picked| {
+        if let Some(path) = picked.and_then(|file| file.into_path().ok()) {
+            windows::open(&app, &path);
+        }
+    });
+}
+
+/// The File menu's Open item.
+const OPEN: &str = "open";
+
+/// macOS's menu bar: Tauri's own, which holds Edit's Copy and Select All, with Open at the top of
+/// File. Its ⌘O is the menu's there, so the page stands down for it. Linux and Windows get no
+/// menu bar, which would sit above the page in every window. They keep Ctrl+O and the welcome
+/// window's button.
+fn file_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
+    let menu = Menu::default(app)?;
+    let open = MenuItem::with_id(app, OPEN, "Open…", true, Some("CmdOrCtrl+O"))?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    for item in menu.items()? {
+        if let MenuItemKind::Submenu(file) = item {
+            if file.text()? == "File" {
+                file.insert_items(&[&open, &separator], 0)?;
+                return Ok(menu);
             }
-        });
+        }
+    }
+    // Tauri's menu has a File menu on macOS. Should it lose it, Open still has one, after the app's.
+    menu.insert(&Submenu::with_items(app, "File", true, &[&open])?, 1)?;
+    Ok(menu)
+}
+
+/// File > Open, over the window in front, if there is one.
+fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
+    if event.id() == OPEN {
+        let front = app
+            .webview_windows()
+            .into_values()
+            .find(|window| window.is_focused().unwrap_or(false));
+        pick(app, front.as_ref());
+    }
 }
 
 /// A link goes to the system browser, after a click. The page itself never navigates.
@@ -107,7 +150,14 @@ pub fn run() {
             open_url
         ])
         .on_window_event(windows::on_event)
+        .on_menu_event(on_menu_event)
         .setup(|app| {
+            if cfg!(target_os = "macos") {
+                // Without it, Tauri's menu stays, and the welcome window's button still opens a file.
+                if let Err(error) = file_menu(app.handle()).and_then(|menu| app.set_menu(menu)) {
+                    eprintln!("The File menu could not be made: {error}");
+                }
+            }
             let argv: Vec<String> = std::env::args().collect();
             windows::open_arguments(app.handle(), &argv, &std::env::current_dir()?);
             Ok(())

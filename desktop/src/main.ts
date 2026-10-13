@@ -50,7 +50,8 @@ if (handle) {
   // The window's keys work wherever focus is: the page, the find box, or nothing at all.
   // CodeMirror goes first, and a key it took is not taken again.
   const keys: Record<string, () => void> = {
-    o: pick,
+    // On macOS, ⌘O is the File menu's (lib.rs), so the page leaves it be.
+    ...(mac ? {} : { o: pick }),
     p: () => void printPage(view),
     f: () => openSearchPanel(view),
     "/": () => toggleSource(view),
@@ -68,7 +69,7 @@ if (handle) {
 } else {
   root.append(welcome());
   document.addEventListener("keydown", (event) => {
-    if (command(event) && event.key === "o") {
+    if (!mac && command(event) && event.key === "o") {
       event.preventDefault();
       pick();
     }
