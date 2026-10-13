@@ -86,4 +86,4 @@
 - Docs: the README and docs/ point at `brand/`, and desktop.md's file layout lists the icons and where they come from. (#142)
 - Docs: the README shows the mark above its title, by day and by night: the stack, which the guide keeps for where both the tile and the name are needed. (#145)
 - Desktop: on Windows a file double-clicked while the app runs opens its window in front of File Explorer, not behind it. A new window now takes the focus. (#148)
-- Docs: milestone-one.md records the double-click on Windows, run by hand on the named machine. The drop, and all of macOS, are still to run. (#20)
+- Docs: milestone-one.md records the double-click and the drop on Windows, run by hand on the named machine. All of macOS is still to run. (#20)
