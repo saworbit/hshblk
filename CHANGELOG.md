@@ -65,3 +65,4 @@
 - Docs: the README says what a click on a task box does, and how frontmatter shows.
 - Docs: the design doc's rule for a `<details>` around markdown names Enter beside the click, and the click-target gate's record says where Up and Down through a block are tested.
 - Desktop: Enter with the caret in a task item's text ticks or unticks its box, as a click on it does. The box stays drawn while the caret is in the text, so the change shows, and the file keeps what it says. (#124)
+- CI: the Desktop workflow runs on every pull request, docs included, since main now requires its three checks. A docs-only pull request would wait on them forever. (#56)
