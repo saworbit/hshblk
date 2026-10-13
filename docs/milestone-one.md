@@ -14,7 +14,7 @@ Run: 2026-10-10. Ubuntu 24.04 LTS in a cloud container: four cores of a 2.1 GHz 
 | 4. Quit and reopen | `test/acceptance.mjs` | Pass. Each launch goes straight to the page. Nothing is written beside the file. |
 | 5. Copy, find, print | `test/acceptance.mjs` | Pass. Copy gives the source. Find matches hidden syntax and reaches the end of the file. Print, through GTK's dialog to a PDF, has every line, drawn, with no syntax showing. |
 | 6. No path reaches the page | `test/acceptance.mjs` | Pass. No path in the DOM, the URL, the window's metadata, resource requests, or the replies of `open_document` and `document_text`, the only replies that carry data. Errors name no path either. `open_url` refuses `file:`. |
-| 7. Double-click | `test/double-click.sh` | Linux: pass. Through the installed package and `gio`, the way a file manager opens a file, and a second file opens a second window in the same process. macOS and Windows: not run. |
+| 7. Double-click | `test/double-click.sh` | Linux: pass. Through the installed package and `gio`, the way a file manager opens a file, and a second file opens a second window in the same process. Windows: pass, by hand in File Explorer, once #148 was fixed. See below. macOS: not run. |
 
 ## Item 3
 
@@ -45,15 +45,25 @@ Run: 2026-10-13, on the named machine (§12 question 2): Windows 11 build 26300,
 - On a note this short, the whole parse lands before first paint.
 - On Windows the script starts the app with the file on its command line, as a double-click does, and reads the page over WebView2's DevTools port. msedgedriver passes a WebView2 app's arguments as switches, so through WebDriver the app never saw its file.
 
+## Item 7 on Windows
+
+Run: 2026-10-14, on the named machine: Windows 11 Home 26H2, build 26300.9550, WebView2 155.0.4283.45. The NSIS installer built there from 51e2d0b, installed for the user. The installer makes Hash Block the handler for `.md`, and no other default had been chosen, so Windows opened the files with no prompt.
+
+- A double-click on `first.md` in File Explorer opened it in its own window, as a page, in front.
+- With File Explorer in front again, a double-click on `second note.md` opened a second window in the same process, and the second launch exited. The name's space reached the app whole.
+- At 51e2d0b that second window opened behind File Explorer, which kept the focus, two tries out of two (#148). With the fix, each new window came to the front, two tries out of two.
+- Not run: a drop. It needs a person to drag a file from File Explorer onto a window.
+
 ## Found and fixed on the way
 
 - On Linux a double-click opened an empty window. Tauri's desktop entry ran the app without the file. The entry is ours now.
 - An image refused by the resource channel showed as broken, not as its placeholder. CodeMirror put the image back when it swapped itself out.
 - Print gave one page: the window's worth. In print the page now flows. Print also folds syntax opened by the selection, and prints dark themes in the light palette.
 - On a long file, a link whose definition sat past CodeMirror's parse-ahead stayed plain text. The page now parses the whole file in the background.
+- On Windows a file double-clicked while the app ran opened its window behind File Explorer. A new window now takes the focus. (#148)
 
 ## Not covered
 
-- macOS and Windows: double-click, drop, and the rest. `tauri-driver` does not run on macOS, and this run was on Linux only. On Windows, msedgedriver passes a WebView2 app's arguments as switches, so a WebDriver session cannot open a file there.
+- macOS: double-click, drop, and the rest. Windows: the drop and the rest, since only the double-click ran by hand. `tauri-driver` does not run on macOS, and this run was on Linux only. On Windows, msedgedriver passes a WebView2 app's arguments as switches, so a WebDriver session cannot open a file there.
 - A drop from a file manager. Only the operating system can start one, and WebDriver cannot. Drops are handled in Rust, and the page cannot see them: it has no event permissions.
 - A real session, with a compositor and an input method. The host spot-check in §9 is for that. It ran in a VM on 2026-10-13, recorded in [gates/click-target.md](gates/click-target.md). A real GPU is still to come.

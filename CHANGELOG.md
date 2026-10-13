@@ -85,3 +85,5 @@
 - Repo: `brand/` holds the identity: the mark, the wordmark, the favicon and social images, the palette, the guide with every decision and who made it, and the source that regenerates it all. The code stays MIT; the name and the mark are kept apart from it. (#142)
 - Docs: the README and docs/ point at `brand/`, and desktop.md's file layout lists the icons and where they come from. (#142)
 - Docs: the README shows the mark above its title, by day and by night: the stack, which the guide keeps for where both the tile and the name are needed. (#145)
+- Desktop: on Windows a file double-clicked while the app runs opens its window in front of File Explorer, not behind it. A new window now takes the focus. (#148)
+- Docs: milestone-one.md records the double-click on Windows, run by hand on the named machine. The drop, and all of macOS, are still to run. (#20)
