@@ -1,0 +1,429 @@
+{
+ "note": "regen: where source/ rebuilds this file. source/verify.py compares them.",
+ "files": {
+  "BRAND.md": {
+   "sha256": "8880598f142d753c3972aeb1d79452b3550ede342b0f013d0bc82d95d743d148",
+   "regen": null
+  },
+  "README.md": {
+   "sha256": "f0717166ba8ff790225c55f97cce57d9846d64ab3337b0b82710e81b9118ed40",
+   "regen": null
+  },
+  "app-icon/128x128.png": {
+   "sha256": "9d4906c8c4e21b410ba904041a987609893812ca9d229bb77c276f70f4e28dc3",
+   "regen": "dist/tauri/128x128.png"
+  },
+  "app-icon/128x128@2x.png": {
+   "sha256": "e159bbbfd3ac9085cc0caf771c25149c25a27c57d2ba3ce620b052b8c9b0b2c6",
+   "regen": "dist/tauri/128x128@2x.png"
+  },
+  "app-icon/32x32.png": {
+   "sha256": "b0080a604b17c13a3def2540ff838d48ae3e5ee85b9cfb7e90789341f5bc390b",
+   "regen": "dist/tauri/32x32.png"
+  },
+  "app-icon/icon-1024.png": {
+   "sha256": "20901267995c3defa41141881260139a19335c9bfe49509e5fec46550b44fbb0",
+   "regen": "dist/png/icon-1024.png"
+  },
+  "app-icon/icon-dark-1024.png": {
+   "sha256": "d7dd47de33ebd958cb6425df2b585585baa4ff280d1745a4911358e0aa706e82",
+   "regen": "dist/png/icon-dark-1024.png"
+  },
+  "app-icon/icon-dark.svg": {
+   "sha256": "bc44bdcc929c58a36ab24870db02345cb4eee77cfea116ad1b1eef283f45ed5e",
+   "regen": "dist/svg/icon-dark.svg"
+  },
+  "app-icon/icon-macos-1024.png": {
+   "sha256": "c12d14368982ac4ff5dcb5ea6f0d2a7b2db5c04506c22d83f17155aa6a146c78",
+   "regen": "dist/png/icon-macos-1024.png"
+  },
+  "app-icon/icon-macos.svg": {
+   "sha256": "b3bbaa510cac9ee593b2757ae40c69df43d098bead659f0a429a8dbfc8567c23",
+   "regen": "dist/svg/icon-macos.svg"
+  },
+  "app-icon/icon.icns": {
+   "sha256": "25b5c6f1d2e36adbbe9a95da45b4856c0734ad904a119bbe71653963bc610b0c",
+   "regen": "dist/tauri/icon.icns"
+  },
+  "app-icon/icon.ico": {
+   "sha256": "58894ebc453e75cbc039fdfa52d414dbe42a2bb92b745b7a9134b5091a2d39bf",
+   "regen": "dist/tauri/icon.ico"
+  },
+  "app-icon/icon.png": {
+   "sha256": "9cff00be7dd4b1f1bf520f260d794cc683d2ae603ee4d2c889bbff20bf429d8b",
+   "regen": "dist/tauri/icon.png"
+  },
+  "app-icon/icon.svg": {
+   "sha256": "9b6442c47ec62533282820279eaa8c67933bfa829c4770fff942b1e49ca7128a",
+   "regen": "dist/svg/icon.svg"
+  },
+  "boards/evidence/r0-plex.png": {
+   "sha256": "97a0a2c0710a9fe32a1a7eacab55358efe48dd6ee7fbcf40eef540b7f73e61e7",
+   "regen": null
+  },
+  "boards/evidence/r1-16px-zoom.png": {
+   "sha256": "1d92f79f79c2da69cedef314e8e88b94247b3c10e05bd19ed53e07bd6eef8374",
+   "regen": null
+  },
+  "boards/evidence/r1-sheet.png": {
+   "sha256": "dd749f46916f429f8374dabb9d2a1ae02fe5994178dc66522a8749f70a19c15b",
+   "regen": null
+  },
+  "boards/evidence/r2-check.png": {
+   "sha256": "485b8c2f14d798d104dda6e4d1966b7d0df30e2ed55f7ea9bce72377b177425f",
+   "regen": null
+  },
+  "boards/evidence/r2-sheet.png": {
+   "sha256": "93a173bf05135352dec6022003ae6076cda293d2485a3ea6c4d8a863c258e0c9",
+   "regen": null
+  },
+  "boards/evidence/r2-zoom.png": {
+   "sha256": "d43c53bbe88ef119be6560d3142c37438bb9c51bf714acd659758db31fc53b74",
+   "regen": null
+  },
+  "boards/evidence/r3-sheet.png": {
+   "sha256": "c666176df4d81194ce295863c865d5fe7f5a1dae8683a0f29744e99712fcf987",
+   "regen": null
+  },
+  "boards/evidence/r4-grounds.png": {
+   "sha256": "adc53699bf2a3836e31347ba87789770d07f9f9287644d9975cdcf75c90f79ad",
+   "regen": null
+  },
+  "boards/hshblk-brand-board.png": {
+   "sha256": "e32d00b569eee46e31e30805988e9665b9ce2a5794337ecf85af816937e87c12",
+   "regen": "hshblk-brand-board.png"
+  },
+  "boards/hshblk-brand-board.svg": {
+   "sha256": "6c431747956dc50da1af82ba748ef820c8dfd74e763e9cc9f90be71832b0338e",
+   "regen": "hshblk-brand-board.svg"
+  },
+  "boards/hshblk-in-context.png": {
+   "sha256": "fdbbd07044745a584305a2828423961a9efad17aa66cb32c85f12e40e4daf66c",
+   "regen": "hshblk-in-context.png"
+  },
+  "boards/hshblk-in-context.svg": {
+   "sha256": "905fb23cdd5d0aaf280380cc52f79c167b3874c4d678ac5e3c2a078a7fff062a",
+   "regen": "hshblk-in-context.svg"
+  },
+  "colour/tokens.css": {
+   "sha256": "9afc4c777daed811701926903566902cc0d180bb8a383c4d8330d8da2508f3dc",
+   "regen": null
+  },
+  "colour/tokens.json": {
+   "sha256": "42dfd6395523944b349aac8ed90df891a7ecb8d11b48820222dece0df910d1ab",
+   "regen": null
+  },
+  "favicon/apple-touch-icon.png": {
+   "sha256": "fc4cae8f7568d23087318031a1f334e6cd86874c18e287f6fbc89da0a0a3feaf",
+   "regen": "dist/png/icon-180.png"
+  },
+  "favicon/favicon-16.png": {
+   "sha256": "761458ff374308e6922339c2475dd540a50ddb1ee3741f2d1a7f9619b260c503",
+   "regen": "dist/png/mark-16.png"
+  },
+  "favicon/favicon-32.png": {
+   "sha256": "b0080a604b17c13a3def2540ff838d48ae3e5ee85b9cfb7e90789341f5bc390b",
+   "regen": "dist/png/favicon-32.png"
+  },
+  "favicon/favicon-dark-16.png": {
+   "sha256": "126dc748a4c22acebf17a10e47e0087a373d8a600806d56e0c169c1a19aa32a1",
+   "regen": "dist/png/mark-dark-16.png"
+  },
+  "favicon/favicon-dark-32.png": {
+   "sha256": "358927a1a266d1530cece8257b3488243dad602d29ab2f537c3dc1de56cabb36",
+   "regen": "dist/png/favicon-dark-32.png"
+  },
+  "favicon/favicon.ico": {
+   "sha256": "7105a0c4479e5ecd9fccaf4e9b4caa1f30b35cdc98b7fe23d6f51b64a3a66c41",
+   "regen": "dist/ico/favicon.ico"
+  },
+  "favicon/favicon.svg": {
+   "sha256": "cd762ec07b2f79b1f53d48f039c2dfd5dbb2ddda778ba9e3acc494c1696684c9",
+   "regen": "dist/svg/favicon.svg"
+  },
+  "favicon/icon-192.png": {
+   "sha256": "52e30d19f36143eed636fb053b95b72d1bcc3c625e3a40daa86326fe3ef4e459",
+   "regen": "dist/png/icon-192.png"
+  },
+  "favicon/icon-512.png": {
+   "sha256": "9cff00be7dd4b1f1bf520f260d794cc683d2ae603ee4d2c889bbff20bf429d8b",
+   "regen": "dist/png/icon-512.png"
+  },
+  "index.html": {
+   "sha256": "888e0201e0de852c75bee87748fc2e0c3fc671e2a2771c455e6544bdfe431ff9",
+   "regen": null
+  },
+  "logo/png/glyph-512.png": {
+   "sha256": "d58ef598405fbecb96efbbcb2776dc39b704f3df7ce1981b5cee011c12a8913c",
+   "regen": "dist/png/glyph-512.png"
+  },
+  "logo/png/glyph-black-512.png": {
+   "sha256": "d8f7abcfb64b2b5ddb5abe173af1e9d25461f7ef50ba0eb5edf57013f630a03a",
+   "regen": "dist/png/glyph-black-512.png"
+  },
+  "logo/png/glyph-dark-512.png": {
+   "sha256": "1209ecfbe54361285e57424504784639278a84e2f87dda4948471ac25c87b99d",
+   "regen": "dist/png/glyph-dark-512.png"
+  },
+  "logo/png/glyph-white-512.png": {
+   "sha256": "2f12682946a0594b54ebbc0610a9c88a3b14d915997ec176b453c51a577f785d",
+   "regen": "dist/png/glyph-white-512.png"
+  },
+  "logo/png/mark-1024.png": {
+   "sha256": "20901267995c3defa41141881260139a19335c9bfe49509e5fec46550b44fbb0",
+   "regen": "dist/png/mark-1024.png"
+  },
+  "logo/png/mark-128.png": {
+   "sha256": "9d4906c8c4e21b410ba904041a987609893812ca9d229bb77c276f70f4e28dc3",
+   "regen": "dist/png/mark-128.png"
+  },
+  "logo/png/mark-16.png": {
+   "sha256": "761458ff374308e6922339c2475dd540a50ddb1ee3741f2d1a7f9619b260c503",
+   "regen": "dist/png/mark-16.png"
+  },
+  "logo/png/mark-24.png": {
+   "sha256": "02e6e60a1a1d6ea69c3f8236c4626fb39603ceef135492eb7281ead3f2a615db",
+   "regen": "dist/png/mark-24.png"
+  },
+  "logo/png/mark-256.png": {
+   "sha256": "e159bbbfd3ac9085cc0caf771c25149c25a27c57d2ba3ce620b052b8c9b0b2c6",
+   "regen": "dist/png/mark-256.png"
+  },
+  "logo/png/mark-32.png": {
+   "sha256": "de1ce6404d05412f1fe9632a38873f4918e042d96955af3f245efd906b39d616",
+   "regen": "dist/png/mark-32.png"
+  },
+  "logo/png/mark-48.png": {
+   "sha256": "9e2a2f7ac70ab8c4c5d0c7db054ecc76df7688c53d752c9831ce68d63f5e57a4",
+   "regen": "dist/png/mark-48.png"
+  },
+  "logo/png/mark-512.png": {
+   "sha256": "9cff00be7dd4b1f1bf520f260d794cc683d2ae603ee4d2c889bbff20bf429d8b",
+   "regen": "dist/png/mark-512.png"
+  },
+  "logo/png/mark-64.png": {
+   "sha256": "7dede76d6a69154ccb38f55b1af15aa202664dc6f902e97808a931e211285925",
+   "regen": "dist/png/mark-64.png"
+  },
+  "logo/png/mark-black-512.png": {
+   "sha256": "4bbe0b86f056beb3cdea8d75d02a4497d55de95198765774a2115237e3392e92",
+   "regen": "dist/png/mark-black-512.png"
+  },
+  "logo/png/mark-dark-1024.png": {
+   "sha256": "d7dd47de33ebd958cb6425df2b585585baa4ff280d1745a4911358e0aa706e82",
+   "regen": "dist/png/mark-dark-1024.png"
+  },
+  "logo/png/mark-dark-128.png": {
+   "sha256": "f741e8b48a3f3dc979d6fb01648993699d0d498089eeb8f4c37614a83d6111a2",
+   "regen": "dist/png/mark-dark-128.png"
+  },
+  "logo/png/mark-dark-16.png": {
+   "sha256": "126dc748a4c22acebf17a10e47e0087a373d8a600806d56e0c169c1a19aa32a1",
+   "regen": "dist/png/mark-dark-16.png"
+  },
+  "logo/png/mark-dark-24.png": {
+   "sha256": "84cac741e37c231bb0d5f4a0bee5b87ff854b4bffc166cc7c894fc45e4f3726f",
+   "regen": "dist/png/mark-dark-24.png"
+  },
+  "logo/png/mark-dark-256.png": {
+   "sha256": "6ec6da9a3579bab6e6bfd16e47d18444a29c43ed2c53b3c45505bcdf5f17abfe",
+   "regen": "dist/png/mark-dark-256.png"
+  },
+  "logo/png/mark-dark-32.png": {
+   "sha256": "c7154e21679a37024128cc0c5b96b5bfbf3e8f11c9e05cd7496f170a39478e92",
+   "regen": "dist/png/mark-dark-32.png"
+  },
+  "logo/png/mark-dark-48.png": {
+   "sha256": "bc63e4b5c93a133830b59282eca9f5d500a47aeb2e3a801b5653a7e66aadd423",
+   "regen": "dist/png/mark-dark-48.png"
+  },
+  "logo/png/mark-dark-512.png": {
+   "sha256": "445f6d2d2d2dd80f1971d71994b5cc07ba318b2f3b7ef2fbe4325986fb33261c",
+   "regen": "dist/png/mark-dark-512.png"
+  },
+  "logo/png/mark-dark-64.png": {
+   "sha256": "cc64ff7563079d71a3b81755cd18a1e74ebd5b2c74a3d0bc203bc4116d8380a4",
+   "regen": "dist/png/mark-dark-64.png"
+  },
+  "logo/png/mark-white-512.png": {
+   "sha256": "1ee7ecef4c9516b757b8a33b78d51e975eb41231c9a1c4af4cb55f8e1e437593",
+   "regen": "dist/png/mark-white-512.png"
+  },
+  "logo/png/stack-800.png": {
+   "sha256": "3744f530b6a562ae2b1ad82e5e9b99f2b58d040a14076bf383837d8a5630423a",
+   "regen": "dist/png/stack-800.png"
+  },
+  "logo/png/stack-dark-800.png": {
+   "sha256": "798dd9fae07897fac19343fddb8d0c4dfc4ff7e7bfb3ef6cf51e4fadb87cb0ba",
+   "regen": "dist/png/stack-dark-800.png"
+  },
+  "logo/png/wordmark-1200.png": {
+   "sha256": "ce65b9cd4d27078e9cbf9d65407cfe5e6dd5f8382bb75f57f5ffb886d0172f44",
+   "regen": "dist/png/wordmark-1200.png"
+  },
+  "logo/png/wordmark-black-1200.png": {
+   "sha256": "fe20f66b51e6e46e4050fd947b1fa64826f4fae052942037f9fe49b845d31329",
+   "regen": "dist/png/wordmark-black-1200.png"
+  },
+  "logo/png/wordmark-dark-1200.png": {
+   "sha256": "0907e251e11d30b172a87917572c4480d89082a386c860de7ead7f8d34aa4148",
+   "regen": "dist/png/wordmark-dark-1200.png"
+  },
+  "logo/png/wordmark-white-1200.png": {
+   "sha256": "4895a7b3930eade3f38a9d1109c21e02863b99bee25f6e53c9c661a4004d16f8",
+   "regen": "dist/png/wordmark-white-1200.png"
+  },
+  "logo/svg/glyph-black.svg": {
+   "sha256": "92e896fdab34ed2cd7e2936d4eac0df5266f07002dfdff7a52ad1d07496e62e7",
+   "regen": "dist/svg/glyph-black.svg"
+  },
+  "logo/svg/glyph-current.svg": {
+   "sha256": "5c52497eb823c939293f378b105e565248200685c3d98cb31e3b1007c440bdb1",
+   "regen": "dist/svg/glyph-current.svg"
+  },
+  "logo/svg/glyph-dark.svg": {
+   "sha256": "258f75979b6dae39de64413ea3656843d912a6b59f7c65334aa27e34dbe1491d",
+   "regen": "dist/svg/glyph-dark.svg"
+  },
+  "logo/svg/glyph-white.svg": {
+   "sha256": "0474b01cb5d34e22140c4b4416b47150755224e4989fc1f37bf41aa424e20db4",
+   "regen": "dist/svg/glyph-white.svg"
+  },
+  "logo/svg/glyph.svg": {
+   "sha256": "c9970215afd698e152de466c31ddd43eaa57635f32a0fa762cbe19a847ad9a0a",
+   "regen": "dist/svg/glyph.svg"
+  },
+  "logo/svg/mark-black.svg": {
+   "sha256": "146c8242f8941cb240148d0243f84f1163a818016e60ae0f1b2f2ffe9854f6c6",
+   "regen": "dist/svg/mark-black.svg"
+  },
+  "logo/svg/mark-dark.svg": {
+   "sha256": "66028237dcdd4c1ce737e7933a290c10a856f7c91df09481a75c24203717de13",
+   "regen": "dist/svg/mark-dark.svg"
+  },
+  "logo/svg/mark-white.svg": {
+   "sha256": "541e9f576cd645a44011bd45835766b0f00c899a7557cdc0fad1cb7ca70f468b",
+   "regen": "dist/svg/mark-white.svg"
+  },
+  "logo/svg/mark.svg": {
+   "sha256": "6f8af7a8d94f1182fb4b231f93234b060e5669ed006379af4e261e12be08b3b9",
+   "regen": "dist/svg/mark.svg"
+  },
+  "logo/svg/stack-dark.svg": {
+   "sha256": "6f64926c229dc4084e28a8d1510cdba9ab0be72e7f965b5359c94e151abeddc4",
+   "regen": "dist/svg/stack-dark.svg"
+  },
+  "logo/svg/stack.svg": {
+   "sha256": "d080522b010f42b15cff514a9b247da8006ba7c2d6a29f320dea488e3e210086",
+   "regen": "dist/svg/stack.svg"
+  },
+  "logo/svg/wordmark-black.svg": {
+   "sha256": "257ce50c2aa4669ec9466eb61098b34d4eb0a41fc52afb622ff26f5c49d36437",
+   "regen": "dist/svg/wordmark-black.svg"
+  },
+  "logo/svg/wordmark-current.svg": {
+   "sha256": "ec08bf0547654b288cc0e15bf8c7779cb198ad4dc5a1c8a26cf4a88b04645d1b",
+   "regen": "dist/svg/wordmark-current.svg"
+  },
+  "logo/svg/wordmark-dark.svg": {
+   "sha256": "d2a2ea9a7434489c039a81fc1be5b77d16fb3e996e6952af1fb548a45bc007dd",
+   "regen": "dist/svg/wordmark-dark.svg"
+  },
+  "logo/svg/wordmark-white.svg": {
+   "sha256": "4dc76d2d48c4c28cbd8933b61599cbefabc30b2e69cbfae3c01b92c20afd526c",
+   "regen": "dist/svg/wordmark-white.svg"
+  },
+  "logo/svg/wordmark.svg": {
+   "sha256": "af6ed865c0205c2f89706a2c3aae5d49a0d5b2fa2084404a1b04c769cc72d0e0",
+   "regen": "dist/svg/wordmark.svg"
+  },
+  "social/og-image-dark.png": {
+   "sha256": "a2911313fb9ab9109712a1793e3e0c77fbe1d2af04d540b12db993259b21e0ab",
+   "regen": "dist/png/og-image-dark.png"
+  },
+  "social/og-image-dark.svg": {
+   "sha256": "af5af26fee4d4394b8729a39463b96a0ef1d6e7fa15daa3e871eed2aa601bc64",
+   "regen": "dist/svg/og-image-dark.svg"
+  },
+  "social/og-image.png": {
+   "sha256": "e46d2e34231ddb6d3584f2a789ebc0f6e0b593b90edc57395dff7470f073a381",
+   "regen": "dist/png/og-image.png"
+  },
+  "social/og-image.svg": {
+   "sha256": "956215e77a9f7cb175457e0f515555c828853a7bd9be10aa44efd218171aa072",
+   "regen": "dist/svg/og-image.svg"
+  },
+  "social/readme-banner-dark.png": {
+   "sha256": "93a5e505cdc2e7fcd1c2bf605fdcb3b4e7909a0a8b91e2472df52dc08d02e2e6",
+   "regen": "dist/png/readme-banner-dark.png"
+  },
+  "social/readme-banner-dark.svg": {
+   "sha256": "82625897f11f2b4fb9047e077fdad926f5d1f3c284e2446b3eef902aa71389e9",
+   "regen": "dist/svg/readme-banner-dark.svg"
+  },
+  "social/readme-banner.png": {
+   "sha256": "9ec415ce3d18cad13b5175c5798d4ea0a64a14fb020e4e48c829fb2285448178",
+   "regen": "dist/png/readme-banner.png"
+  },
+  "social/readme-banner.svg": {
+   "sha256": "afbbe5f846c8c5f4f4e9fdd626787b760071cb0c3e2e5a581eb1e18c205964ba",
+   "regen": "dist/svg/readme-banner.svg"
+  },
+  "social/social-preview-dark.png": {
+   "sha256": "8a497969d029cba3bc6938f1d6234ced0c0c897a5cba3cf8ee1dee8498ba5090",
+   "regen": "dist/png/social-preview-dark.png"
+  },
+  "social/social-preview-dark.svg": {
+   "sha256": "3d5b04beca47e853dab8d94dbf47fecc096e2f5a34790f3d19871791b2db13a1",
+   "regen": "dist/svg/social-preview-dark.svg"
+  },
+  "social/social-preview.png": {
+   "sha256": "9581e1121fbaab22a6bbd24ca8ba1173ccb149499137e67a1d03afa13272d3bb",
+   "regen": "dist/png/social-preview.png"
+  },
+  "social/social-preview.svg": {
+   "sha256": "e650b8ca3824cb871c46adf0173af955e3c4f33e2479bbbe72f865abe84e713e",
+   "regen": "dist/svg/social-preview.svg"
+  },
+  "source/README.md": {
+   "sha256": "257263247353d4330705e2036ed6123385f27ed6b7fc1efc973246d2ea890c2c",
+   "regen": null
+  },
+  "source/board.py": {
+   "sha256": "8da51b932e24c746e93914122c0259faec82b5173ac1f3f9c19b280fc7361733",
+   "regen": null
+  },
+  "source/build.py": {
+   "sha256": "4b650157d96d46a3f3f75157e08df1650a838b21af89d6036b8b942ef1ff52d6",
+   "regen": null
+  },
+  "source/geom.py": {
+   "sha256": "a184529d6db20b070ef5de948e9f141a9ca86a44a536fc0378f806a4f877cbe8",
+   "regen": null
+  },
+  "source/glyphs.py": {
+   "sha256": "51fa8730dd0facb1219e3fe446b9b260eb9381f32080279d30662711e4df5677",
+   "regen": null
+  },
+  "source/package-lock.json": {
+   "sha256": "db2917251612e042f8a6eb24ec82b1b16fa2d42d13339bc7afb3b10575a5f172",
+   "regen": null
+  },
+  "source/package.json": {
+   "sha256": "03a74082d02177f4605d61038a046fcc90ce15ec2f7a2223bfabdac8ded94581",
+   "regen": null
+  },
+  "source/raster.js": {
+   "sha256": "a69c8a1f293535baab46a0204898eb44d4047d86f104a13026aaf89cf173d869",
+   "regen": null
+  },
+  "source/requirements.txt": {
+   "sha256": "c0435be7c3312e991610db87d7e9b74aa753cef0827c802cca43b7541d5d2dc8",
+   "regen": null
+  },
+  "source/verify.py": {
+   "sha256": "15730265bcc1d0e28961f112e469a61caa172124a473a589fbb9b4989be49956",
+   "regen": null
+  }
+ }
+}

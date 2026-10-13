@@ -7,6 +7,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { frontmatterPanel, frontmatterText, toggleFrontmatter } from "./page/frontmatter.ts";
 import { sourceShown, toggleSource } from "./page/page.ts";
 import { createSurface, printPage } from "./surface.ts";
+import glyph from "../../brand/logo/svg/glyph-current.svg?raw";
 
 type Opened = { name: string; modified: number | null; readOnlyReason: string | null };
 
@@ -127,12 +128,18 @@ function welcome(): HTMLElement {
   const box = element("section", "welcome");
   const open = element("button", "welcome-open", "Open a markdown file");
   open.addEventListener("click", pick);
-  box.append(
-    element("p", "welcome-mark", "#"),
-    open,
-    element("p", "welcome-hint", "or drop one on this window"),
-  );
+  box.append(mark(), open, element("p", "welcome-hint", "or drop one on this window"));
   return box;
+}
+
+/**
+ * The mark, brand/logo/svg/glyph-current.svg, inline so the CSP has nothing to fetch. It fills
+ * with currentColor, and the stylesheet gives it the accent.
+ */
+function mark(): Element {
+  const svg = new DOMParser().parseFromString(glyph, "image/svg+xml").documentElement;
+  svg.classList.add("welcome-mark");
+  return document.adoptNode(svg);
 }
 
 function element(tag: string, className: string, text?: string): HTMLElement {

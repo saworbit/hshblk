@@ -92,10 +92,14 @@ body {
   text-align: center;
   font-family: var(--mono);
 }
+/* The mark, at the size the font's # had: 3rem of Plex is 33.5 px of ink, and the drawing's
+   ink is 62% of its box, so the box is 54 px. */
 .welcome-mark {
+  display: block;
+  width: 3.375rem;
+  height: 3.375rem;
+  margin: 0 auto 1rem;
   color: var(--accent);
-  font-size: 3rem;
-  margin: 0 0 1rem;
 }
 .welcome-open {
   font: inherit;
