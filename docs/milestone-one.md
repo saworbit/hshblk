@@ -54,6 +54,6 @@ Run: 2026-10-13, on the named machine (§12 question 2): Windows 11 build 26300,
 
 ## Not covered
 
-- macOS and Windows: double-click, drop, and the rest. `tauri-driver` does not run on macOS, and this run was on Linux only.
+- macOS and Windows: double-click, drop, and the rest. `tauri-driver` does not run on macOS, and this run was on Linux only. On Windows, msedgedriver passes a WebView2 app's arguments as switches, so a WebDriver session cannot open a file there.
 - A drop from a file manager. Only the operating system can start one, and WebDriver cannot. Drops are handled in Rust, and the page cannot see them: it has no event permissions.
 - A real session, with a compositor and an input method. The host spot-check in §9 is for that.

@@ -29,6 +29,7 @@ export const frontmatterPanel = StateField.define<Shown>({
   provide: (field) => showPanel.from(field, (shown) => (shown.open ? panel : null)),
 });
 
+/** The frontmatter panel and its state, for the surface. */
 export const frontmatter: Extension = frontmatterPanel;
 
 /** The frontmatter's YAML, between its fences, or null when the file has none. */

@@ -118,11 +118,11 @@ Not done yet ([hld.md](hld.md) §12, question 1):
 | `desktop/src-tauri/src/documents.rs` | Opening a file: its facts, its scope, its handle. |
 | `desktop/src-tauri/src/assets.rs` | The resource channel for images. |
 | `desktop/src-tauri/src/windows.rs` | Where files come from (the command line, a double-click, the dialog, a drop) and the window each gets. |
-| `desktop/src-tauri/src/lib.rs` | The four commands the page may call, and the app. |
+| `desktop/src-tauri/src/lib.rs` | The four commands the page may call, and the app, with its File menu on macOS. |
 | `desktop/src-tauri/linux/hshblk.desktop` | The Linux desktop entry, which passes the double-clicked file. |
 | `desktop/src/main.ts` | The window: open, print, the status line, and the welcome. |
 | `desktop/src/surface.ts` | The CodeMirror surface, with editing turned off. |
-| `desktop/src/page/` | The page: the dialect, its decorations, links, images, tables, the whole-document parse, and the theme. |
+| `desktop/src/page/` | The page: the dialect, its decorations, links, images, tables, the frontmatter panel, the whole-document parse, and the theme. |
 | `desktop/scripts/` | What CI runs: the unit tests' runner, which fails when no test file matches, the licence check, and the check that a release tag names the version. |
 
 ## Tests
