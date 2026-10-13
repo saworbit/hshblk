@@ -10,6 +10,7 @@ Packages for Linux, macOS, and Windows come from the Desktop workflow on `main`.
 |---|---|
 | `Ctrl+O` (`⌘O`) | Open a file |
 | `Ctrl+F` (`⌘F`) | Find, in the source |
+| `Ctrl+/` (`⌘/`) | Show all the syntax, or hide it again |
 | `Ctrl+P` (`⌘P`) | Print the whole page |
 | `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading it names |
 | `Enter` | Open or close a `<details>`, with the caret on its tags. Tick or untick a task box, with the caret in its text |

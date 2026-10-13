@@ -44,6 +44,7 @@ Each file opens in a window of its own. A second file opens a second window in t
 |---|---|
 | `Ctrl+O` (`⌘O`) | Open a file |
 | `Ctrl+F` (`⌘F`) | Find, in the source |
+| `Ctrl+/` (`⌘/`) | Show all the syntax, or hide it again |
 | `Ctrl+P` (`⌘P`) | Print the whole page |
 | `Ctrl+A`, `Ctrl+C` | Select and copy, as source |
 | `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading it names |

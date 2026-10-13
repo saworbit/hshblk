@@ -68,3 +68,4 @@
 - CI: the Desktop workflow runs on every pull request, docs included, since main now requires its three checks. A docs-only pull request would wait on them forever. (#56)
 - Desktop: a file saved straight into the home folder, or above it, shows only the images beside it. Its scope was its folder, so it could show any image in the home, such as `Documents/passport.jpg`. A file in a folder below the home is unchanged. (#110)
 - Desktop: print shows every HTML block, the ones the reader has not scrolled to included, with each `<details>` in one open. Those frames printed blank, since they loaded after print had begun, and a details in one printed closed. Each goes back as the reader left it after. (#108)
+- Desktop: Ctrl+/ (⌘/) shows the whole file as written, every construct's syntax in place, a link's and the blocks' included, and the same key folds it again. The status line says so while it shows. It is the same view, so the caret, find, and copy stay put. (#116)

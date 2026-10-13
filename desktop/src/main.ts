@@ -1,7 +1,9 @@
 import "./styles.css";
 import { openSearchPanel } from "@codemirror/search";
+import { EditorView } from "@codemirror/view";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { sourceShown, toggleSource } from "./page/page.ts";
 import { createSurface, printPage } from "./surface.ts";
 
 type Opened = { name: string; modified: number | null; readOnlyReason: string | null };
@@ -37,6 +39,11 @@ if (handle) {
     nonce: nonce && !nonce.startsWith("__TAURI") ? nonce : undefined,
     // A link that does not open says why, in the status line.
     openLink: (url) => void invoke("open_url", { url }).catch((error) => say(status, `${error}`)),
+    // The status line says when the page shows the whole file as written.
+    extensions: EditorView.updateListener.of((update) => {
+      const source = status.querySelector<HTMLElement>(".status-source");
+      if (source) source.hidden = !sourceShown(update.state);
+    }),
   });
   // The window's keys work wherever focus is: the page, the find box, or nothing at all.
   // CodeMirror goes first, and a key it took is not taken again.
@@ -44,6 +51,7 @@ if (handle) {
     o: pick,
     p: () => void printPage(view),
     f: () => openSearchPanel(view),
+    "/": () => toggleSource(view),
   };
   document.addEventListener("keydown", (event) => {
     const run = keys[event.key];
@@ -74,6 +82,13 @@ function statusLine(opened: Opened): HTMLElement {
     line.append(element("span", "", `Modified ${when}`));
   }
   line.append(element("span", "", "Read only. Copy and find work on the source."));
+  const source = element(
+    "span",
+    "status-source",
+    `Showing the source. ${mac ? "⌘/" : "Ctrl+/"} hides it.`,
+  );
+  source.hidden = true;
+  line.append(source);
   if (opened.readOnlyReason) line.append(element("span", "status-reason", opened.readOnlyReason));
   return line;
 }

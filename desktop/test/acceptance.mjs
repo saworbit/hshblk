@@ -346,6 +346,28 @@ describe("the window's keys, wherever focus is", () => {
     assert.equal(await page.until(() => document.activeElement?.name), "search");
   });
 
+  test("Ctrl+/ shows all the syntax from the find box, and says so, until it goes again", async () => {
+    await page.press(Key.Control, "f");
+    assert.equal(await page.until(focused), "search");
+    await page.press(Key.Control, "/");
+    const shown = await page.until(() => {
+      const text = document.querySelector(".cm-content").textContent;
+      const said = document.querySelector(".status-source");
+      return (
+        text.includes("# Keys") && text.includes("**bold**") && !said.hidden && said.textContent
+      );
+    });
+    assert.match(shown, /^Showing the source\./);
+    await page.press(Key.Control, "/");
+    assert.ok(
+      await page.until(() => {
+        const text = document.querySelector(".cm-content").textContent;
+        const hidden = document.querySelector(".status-source").hidden;
+        return !text.includes("#") && !text.includes("**") && hidden;
+      }),
+    );
+  });
+
   test("Ctrl+P prints from the find box: the syntax open for the screen folds", async () => {
     const at = await page.run(() => {
       const box = document.querySelector(".pg-strong").getBoundingClientRect();

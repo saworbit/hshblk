@@ -54,6 +54,8 @@ type Page = {
   ticked: ReadonlySet<number>;
   /** Whether the page is printing, which opens every `<details>`. */
   printing: boolean;
+  /** Whether the page shows the whole file as written, with no syntax folded. */
+  source: boolean;
   /** The blocks' folds, less the ones the opening selection is in, and the details. */
   shown: DecorationSet;
 };
@@ -77,15 +79,35 @@ export const foldAll = StateEffect.define<null>();
 /** Opens every `<details>` while the page prints, and puts them back after. */
 export const printing = StateEffect.define<boolean>();
 
+/** Shows every construct's syntax at once, or folds it all again. */
+const showSource = StateEffect.define<boolean>();
+
+/**
+ * Shows the whole file as written, every construct's syntax in place, links' included, or folds
+ * it all again. It is the same text in the same view, so the caret, find, and copy stay put.
+ */
+export const toggleSource: StateCommand = ({ state, dispatch }) => {
+  dispatch(state.update({ effects: showSource.of(!sourceShown(state)) }));
+  return true;
+};
+
+/** Whether the page shows the whole file as written. */
+export function sourceShown(state: EditorState): boolean {
+  return state.field(page).source;
+}
+
 /**
  * Opens or closes the `<details>` whose opening tags hold the caret, as a click on its summary
  * does, whether the summary shows or its source. The page is read-only, so Enter is free for it.
  */
 export const toggleDetailsAtCaret: StateCommand = ({ state, dispatch }) => {
   const caret = state.selection.main.head;
-  const details = state
-    .field(page)
-    .blocks.details.find(({ head }) => head.lines.from <= caret && caret <= head.lines.to);
+  const { blocks, source } = state.field(page);
+  // With the source shown, the details is its tags, so opening it would show nothing.
+  if (source) return false;
+  const details = blocks.details.find(
+    ({ head }) => head.lines.from <= caret && caret <= head.lines.to,
+  );
   if (!details) return false;
   dispatch(state.update({ effects: toggleDetails.of(details.head.source.from) }));
   return true;
@@ -97,7 +119,9 @@ export const toggleDetailsAtCaret: StateCommand = ({ state, dispatch }) => {
  * box's `[ ]` its source shows, and Enter is left to the keymap.
  */
 export const toggleTaskAtCaret: StateCommand = ({ state, dispatch }) => {
-  const { tree, blocks } = state.field(page);
+  const { tree, blocks, source } = state.field(page);
+  // With the source shown, the box is its `[ ]`, so ticking it would show nothing.
+  if (source) return false;
   const { from, to } = state.selection.main;
   for (let node: SyntaxNode | null = tree.resolveInner(to, -1); node; node = node.parent) {
     if (node.name !== "Task") continue;
@@ -156,9 +180,10 @@ const painter = ViewPlugin.fromClass(
       const before = update.startState.field(page);
       const now = update.state.field(page);
       const repaint = now.tree !== before.tree || now.blocks !== before.blocks;
-      if (update.viewportChanged || repaint || now.ticked !== before.ticked) {
+      const redraw = now.ticked !== before.ticked || now.source !== before.source;
+      if (update.viewportChanged || repaint || redraw) {
         this.painted = paint(update.state, update.view.viewport);
-      } else if (now.opening !== before.opening) {
+      } else if (now.opening !== before.opening && !now.source) {
         this.painted = { ...this.painted, shown: unfold(this.painted.folds, now.opening) };
       }
     }
@@ -170,7 +195,7 @@ const painter = ViewPlugin.fromClass(
  * needs every line, and `painter` draws the rest near the viewport.
  */
 export const page = StateField.define<Page>({
-  create: (state) => build(state, null, null, new Set(), new Set(), false),
+  create: (state) => build(state, null, null, new Set(), new Set(), false, false),
   update(current, tr) {
     const folded = tr.effects.some((effect) => effect.is(foldAll));
     const selected = tr.selection && tr.isUserEvent("select");
@@ -180,6 +205,7 @@ export const page = StateField.define<Page>({
     let toggled = current.toggled;
     let ticked = current.ticked;
     let printed = current.printing;
+    let source = current.source;
     const flip = (set: ReadonlySet<number>, from: number) => {
       const next = new Set(set);
       if (!next.delete(from)) next.add(from);
@@ -189,23 +215,25 @@ export const page = StateField.define<Page>({
       if (effect.is(toggleDetails)) toggled = flip(toggled, effect.value);
       else if (effect.is(toggleTask)) ticked = flip(ticked, effect.value);
       else if (effect.is(printing)) printed = effect.value;
+      else if (effect.is(showSource)) source = effect.value;
     }
     if (tr.docChanged) {
       toggled = new Set([...toggled].map((from) => tr.changes.mapPos(from)));
       ticked = new Set([...ticked].map((from) => tr.changes.mapPos(from)));
     }
     if (tr.docChanged || pageTree(tr.state) !== current.tree) {
-      return build(tr.state, active, opening, toggled, ticked, printed);
+      return build(tr.state, active, opening, toggled, ticked, printed, source);
     }
     const same =
       active === current.active &&
       opening === current.opening &&
       toggled === current.toggled &&
       ticked === current.ticked &&
-      printed === current.printing;
+      printed === current.printing &&
+      source === current.source;
     if (same) return current;
-    const shown = draw(current.blocks, opening, toggled, printed);
-    return { ...current, active, opening, toggled, ticked, printing: printed, shown };
+    const shown = draw(current.blocks, opening, toggled, printed, source);
+    return { ...current, active, opening, toggled, ticked, printing: printed, source, shown };
   },
   provide: (field) => [
     EditorView.decorations.of((view) => view.plugin(painter)?.painted.styles ?? Decoration.none),
@@ -235,25 +263,28 @@ function build(
   toggled: ReadonlySet<number>,
   ticked: ReadonlySet<number>,
   printing: boolean,
+  source: boolean,
 ): Page {
   const tree = pageTree(state);
   // Until the whole document is parsed, the tree is only as long as CodeMirror has read.
   const blocks = wholeBlocks(state) ?? scanNow(state.doc, tree);
-  const shown = draw(blocks, opening, toggled, printing);
-  return { tree, blocks, active, opening, toggled, ticked, printing, shown };
+  const shown = draw(blocks, opening, toggled, printing, source);
+  return { tree, blocks, active, opening, toggled, ticked, printing, source, shown };
 }
 
 /**
  * The blocks as drawn: their folds, less the ones the opening selection is in, and each
  * `<details>` as its summary, its body folded while it is closed. Find or the keys in a closed
- * body open it while they are there, and print opens them all.
+ * body open it while they are there, and print opens them all. With the source shown, none is.
  */
 function draw(
   blocks: Blocks,
   opening: EditorSelection | null,
   toggled: ReadonlySet<number>,
   printing: boolean,
+  source: boolean,
 ): DecorationSet {
+  if (source) return Decoration.none;
   const folds = unfold(blocks.folds, opening);
   if (blocks.details.length === 0) return folds;
   const reached = (span: Fold) =>
@@ -279,11 +310,11 @@ function draw(
 
 /** The inline syntax from `from` to `to`, whole lines, drawn from the page's tree. */
 export function paint(state: EditorState, { from, to }: { from: number; to: number }): Painted {
-  const { tree, blocks, opening, ticked } = state.field(page);
+  const { tree, blocks, opening, ticked, source } = state.field(page);
   const skip = blocks.frontmatter?.to ?? -1;
-  const painter = new Painter(state.doc, blocks.definitions, ticked, skip, from, to);
+  const painter = new Painter(state.doc, blocks.definitions, ticked, skip, source, from, to);
   const { styles, folds } = painter.paint(tree);
-  return { styles, folds, shown: unfold(folds, opening) };
+  return { styles, folds, shown: source ? Decoration.none : unfold(folds, opening) };
 }
 
 function unfold(folds: DecorationSet, opening: EditorSelection | null): DecorationSet {
@@ -307,6 +338,8 @@ class Painter {
   readonly ticked: ReadonlySet<number>;
   /** Where the frontmatter ends. It shows as written, and nothing in it is markdown. */
   readonly skip: number;
+  /** Whether the page shows the whole file as written, so no syntax is concealed. */
+  readonly source: boolean;
   /** The start of the first line drawn. */
   readonly from: number;
   /** The end of the last line drawn. */
@@ -321,6 +354,7 @@ class Painter {
     definitions: Definitions,
     ticked: ReadonlySet<number>,
     skip: number,
+    source: boolean,
     from: number,
     to: number,
   ) {
@@ -328,6 +362,7 @@ class Painter {
     this.definitions = definitions;
     this.ticked = ticked;
     this.skip = skip;
+    this.source = source;
     this.from = doc.lineAt(from).from;
     this.to = doc.lineAt(to).to;
   }
@@ -541,9 +576,9 @@ class Painter {
     );
   }
 
-  /** Hides syntax for good, wherever the selection goes. */
+  /** Hides syntax for good, wherever the selection goes, unless the source shows. */
   #conceal(from: number, to: number): void {
-    if (from < to) this.#replace(this.#styles, from, to);
+    if (from < to && !this.source) this.#replace(this.#styles, from, to);
   }
 
   #wrap(node: SyntaxNode, className: string, markName: string): void {
