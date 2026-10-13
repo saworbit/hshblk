@@ -13,6 +13,7 @@ import {
   paint,
   printing,
   sourceShown,
+  startOfPage,
   toggleDetailsAtCaret,
   toggleSource,
   toggleTaskAtCaret,
@@ -657,6 +658,18 @@ describe("frontmatter", () => {
       "pg-heading pg-h1",
     ]);
     assert.deepEqual([...state.field(page).blocks.anchors.keys()], ["heading"]);
+  });
+
+  it("starts the caret after it, so the first key leaves it folded", () => {
+    const doc = `${front}\n\n# Heading`;
+    const state = open(doc);
+    const start = startOfPage(state);
+    assert.equal(start, front.length + 1);
+    assert.doesNotMatch(visible(select(state, start)), /title/);
+    assert.doesNotMatch(visible(select(state, start + 1)), /title/);
+    assert.equal(startOfPage(open("# No frontmatter")), 0);
+    // Frontmatter alone: the caret goes to its end.
+    assert.equal(startOfPage(open(front)), front.length);
   });
 
   it("holds a blank line, and closes at ... too", () => {

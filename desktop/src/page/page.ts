@@ -91,6 +91,17 @@ export const toggleSource: StateCommand = ({ state, dispatch }) => {
   return true;
 };
 
+/**
+ * Where the caret starts: the first line after the frontmatter, or the top. The frontmatter
+ * folds away, and a caret inside it would open it on the first key.
+ */
+export function startOfPage(state: EditorState): number {
+  const front = state.field(page).blocks.frontmatter;
+  if (!front) return 0;
+  const after = state.doc.lineAt(front.to).number + 1;
+  return after <= state.doc.lines ? state.doc.line(after).from : front.to;
+}
+
 /** Whether the page shows the whole file as written. */
 export function sourceShown(state: EditorState): boolean {
   return state.field(page).source;
