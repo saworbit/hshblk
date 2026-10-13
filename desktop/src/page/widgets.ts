@@ -192,6 +192,9 @@ const htmlHeights = new Map<string, number>();
 /** What measures a frame as its content changes, to let go of when the frame goes. */
 const fitting = new WeakMap<HTMLElement, ResizeObserver>();
 
+/** What sizes a frame to what it holds, for when it cannot wait for its observer. */
+const fits = new WeakMap<HTMLIFrameElement, () => void>();
+
 /** The frames whose HTML has loaded. A frame starts on a blank document, so its own cannot say. */
 const loaded = new WeakSet<HTMLIFrameElement>();
 
@@ -260,6 +263,7 @@ export class HtmlWidget extends WidgetType {
     const observer = new ResizeObserver(fit);
     observer.observe(root);
     fitting.set(frame, observer);
+    fits.set(frame, fit);
   }
 }
 
@@ -370,6 +374,9 @@ function openForPrint(frame: HTMLIFrameElement, view: EditorView): void {
     if (!opened.has(details)) opened.set(details, details.open);
     details.open = true;
   }
+  // The frame takes its open height now. Its observer would size it after print had begun, and
+  // the body would print cut off.
+  fits.get(frame)?.();
 }
 
 /**
