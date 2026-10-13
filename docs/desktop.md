@@ -135,7 +135,7 @@ Not done yet ([hld.md](hld.md) §12, question 1):
 | `node test/acceptance.mjs <app>` | [hld.md](hld.md) §8, items 1, 2, 4, 5, and 6, through the built app. |
 | `node test/gate/click-target.mjs <app>` | The click-target gate, §9. |
 | `test/double-click.sh` | §8, item 7, on Linux, with the package installed. |
-| `node test/timing.mjs <app> <file>...` | §8, item 3: first paint and whole parse, from the process's start. |
+| `node test/timing.mjs <app> <file>...` | §8, item 3: first paint and whole parse, from the process's start. On Linux and on Windows, where it reads the page over WebView2's DevTools port and needs no driver. |
 | `npm run licences`, and `cargo deny check` in `src-tauri/` | Every licence that ships is on §10's list. |
 
 `<app>` is a built binary, such as `src-tauri/target/debug/hshblk` after `npx tauri build --debug --no-bundle`. The tests that drive the app run on Linux under X. They need `tauri-driver` (`cargo install tauri-driver --locked`) and WebKitWebDriver (`webkit2gtk-driver`). Print also needs `xdotool` and `pdftotext`, and the double-click needs `gio` and a D-Bus session. CI runs them all under Xvfb, each in a D-Bus session of its own: [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml). The runner's own bus has a portal that cannot start, so a launch on it takes 30 seconds (see above).
