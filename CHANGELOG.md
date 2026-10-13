@@ -66,3 +66,4 @@
 - Docs: the design doc's rule for a `<details>` around markdown names Enter beside the click, and the click-target gate's record says where Up and Down through a block are tested.
 - Desktop: Enter with the caret in a task item's text ticks or unticks its box, as a click on it does. The box stays drawn while the caret is in the text, so the change shows, and the file keeps what it says. (#124)
 - CI: the Desktop workflow runs on every pull request, docs included, since main now requires its three checks. A docs-only pull request would wait on them forever. (#56)
+- Desktop: a file saved straight into the home folder, or above it, shows only the images beside it. Its scope was its folder, so it could show any image in the home, such as `Documents/passport.jpg`. A file in a folder below the home is unchanged. (#110)
