@@ -145,9 +145,10 @@ const MODIFIED = new Date("2020-01-02T12:00:00Z");
 
 /**
  * root/repo/.git, root/repo/docs/notes.md beside near.png, "near by.png", and a symlink that
- * leaves the repository, root/repo/images/far.png, and root/outside.png.
+ * leaves the repository, root/repo/images/far.png, and root/outside.png. The notes are NOTES
+ * unless a test gives its own.
  */
-function fixture() {
+function fixture(notes = NOTES) {
   const root = mkdtempSync(join(tmpdir(), "hshblk-acceptance-"));
   const repo = join(root, "repo");
   for (const dir of [".git", "docs", "images"]) mkdirSync(join(repo, dir), { recursive: true });
@@ -157,7 +158,7 @@ function fixture() {
   writeFileSync(join(root, "outside.png"), PNG);
   symlinkSync(join(root, "outside.png"), join(repo, "docs", "leave.png"));
   const file = join(repo, "docs", "notes.md");
-  writeFileSync(file, NOTES);
+  writeFileSync(file, notes);
   // A year the status line cannot get from today, to show it reads the file's own time.
   utimesSync(file, MODIFIED, MODIFIED);
   return { root, file };
@@ -1179,7 +1180,15 @@ End.
 });
 
 describe("print", () => {
-  const { file } = fixture();
+  // An HTML block near the top, and two below the window, which print has to draw and load.
+  const frames = `<details><summary>Near frame</summary><p>Near frame body.</p></details>
+
+${FILLER}
+
+<p>Far frame text.</p>
+
+<details><summary>Far frame</summary><p>Far frame body.</p></details>`;
+  const { file } = fixture(NOTES.replace(FILLER, frames));
 
   test("5. prints every line of the page, drawn, with no syntax open", async () => {
     const printed = await printByKeyboard(file);
@@ -1191,6 +1200,10 @@ describe("print", () => {
     assert.match(printed, /^A folded body\.$/m);
     assert.match(printed, /^The end\.$/m);
     assert.doesNotMatch(printed, /^# |\*\*|\[far\]/m);
+    // So does every HTML block, the ones below the window too, with each details in one open.
+    assert.match(printed, /Near frame body\./);
+    assert.match(printed, /Far frame text\./);
+    assert.match(printed, /Far frame body\./);
   });
 });
 

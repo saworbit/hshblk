@@ -192,6 +192,15 @@ const htmlHeights = new Map<string, number>();
 /** What measures a frame as its content changes, to let go of when the frame goes. */
 const fitting = new WeakMap<HTMLElement, ResizeObserver>();
 
+/** What sizes a frame to what it holds, for when it cannot wait for its observer. */
+const fits = new WeakMap<HTMLIFrameElement, () => void>();
+
+/** The frames whose HTML has loaded. A frame starts on a blank document, so its own cannot say. */
+const loaded = new WeakSet<HTMLIFrameElement>();
+
+/** For a page that is printing, the details in its frames that print opened, and how each was. */
+const printed = new WeakMap<EditorView, Map<HTMLDetailsElement, boolean>>();
+
 /**
  * docs/hld.md §7: a raw HTML block, drawn in a sandboxed frame. The frame shares the page's
  * origin, so the page can size it to what it holds and read what is under the pointer, and it
@@ -223,8 +232,10 @@ export class HtmlWidget extends WidgetType {
     if (height !== undefined) frame.style.height = `${height}px`;
     frame.srcdoc = framed(this.html, view);
     frame.addEventListener("load", () => {
+      loaded.add(frame);
       this.#fit(frame, view);
       retoggle(frame, view);
+      openForPrint(frame, view);
     });
     return frame;
   }
@@ -252,6 +263,7 @@ export class HtmlWidget extends WidgetType {
     const observer = new ResizeObserver(fit);
     observer.observe(root);
     fitting.set(frame, observer);
+    fits.set(frame, fit);
   }
 }
 
@@ -309,6 +321,62 @@ function retoggle(frame: HTMLIFrameElement, view: EditorView): void {
     const one = details?.[index];
     if (one) one.open = !one.open;
   }
+}
+
+/** The page's HTML blocks, as drawn now. */
+function frames(view: EditorView): HTMLIFrameElement[] {
+  return [...view.contentDOM.querySelectorAll<HTMLIFrameElement>("iframe.pg-html")];
+}
+
+/**
+ * Resolves once every HTML block CodeMirror draws in its next frame has loaded, or after `wait`
+ * milliseconds, so neither a frame that never loads nor a window that never paints holds print up.
+ */
+export function framesLoaded(view: EditorView, wait: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, wait);
+    const done = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    // CodeMirror's measure, which draws, is already waiting for this frame, so it runs first.
+    requestAnimationFrame(() => {
+      const pending = frames(view).filter((frame) => !loaded.has(frame));
+      let left = pending.length;
+      if (left === 0) return done();
+      const one = () => {
+        left -= 1;
+        if (left === 0) done();
+      };
+      for (const frame of pending) frame.addEventListener("load", one, { once: true });
+    });
+  });
+}
+
+/**
+ * Opens every details in the page's HTML blocks while it prints, as print opens a details around
+ * markdown. A frame that loads while it prints opens its own. Off, each goes back as it was.
+ */
+export function printFrames(view: EditorView, on: boolean): void {
+  if (!on) {
+    for (const [details, open] of printed.get(view) ?? []) details.open = open;
+    printed.delete(view);
+    return;
+  }
+  if (!printed.has(view)) printed.set(view, new Map());
+  for (const frame of frames(view)) openForPrint(frame, view);
+}
+
+function openForPrint(frame: HTMLIFrameElement, view: EditorView): void {
+  const opened = printed.get(view);
+  if (!opened) return;
+  for (const details of frame.contentDocument?.querySelectorAll("details") ?? []) {
+    if (!opened.has(details)) opened.set(details, details.open);
+    details.open = true;
+  }
+  // The frame takes its open height now. Its observer would size it after print had begun, and
+  // the body would print cut off.
+  fits.get(frame)?.();
 }
 
 /**

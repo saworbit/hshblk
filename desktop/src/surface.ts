@@ -16,7 +16,7 @@ import {
 import { linkOpener, modClickOpens, showFrameLink } from "./page/links.ts";
 import { clickPastLineEnd } from "./page/pointer.ts";
 import { pageTheme } from "./page/theme.ts";
-import { summaryToggles } from "./page/widgets.ts";
+import { framesLoaded, printFrames, summaryToggles } from "./page/widgets.ts";
 
 export type SurfaceOptions = {
   assets: AssetUrl;
@@ -83,15 +83,46 @@ export function createSurface(
   });
 }
 
+/** How long print waits for the HTML blocks to load, so one that never loads cannot hold it up. */
+const FRAME_WAIT = 3000;
+
 /**
- * Prints the page as it reads, docs/hld.md §7: every line drawn, every `<details>` open, and no
- * syntax or address open under the selection, which are for the screen.
+ * Prints the page as it reads, docs/hld.md §7: every line drawn, every `<details>` open, those in
+ * HTML blocks too, and no syntax or address open under the selection, which are for the screen.
+ * Each `<details>` goes back as the reader left it after.
  */
-export function printPage(view: EditorView): void {
+export async function printPage(view: EditorView): Promise<void> {
   finishParse(view);
   view.dispatch({ effects: [foldAll.of(null), printing.of(true), showFrameLink.of(null)] });
-  addEventListener("afterprint", () => view.dispatch({ effects: printing.of(false) }), {
-    once: true,
-  });
+  // CodeMirror draws every line once print has begun, too late for an HTML block drawn then to
+  // load before WebKit takes the page. So every line is drawn first, and print waits for them.
+  const drawn = drawEveryLine(view, true);
+  if (drawn) await framesLoaded(view, FRAME_WAIT);
+  printFrames(view, true);
+  addEventListener(
+    "afterprint",
+    () => {
+      printFrames(view, false);
+      if (drawn) drawEveryLine(view, false);
+      view.dispatch({ effects: printing.of(false) });
+    },
+    { once: true },
+  );
   print();
+}
+
+/**
+ * Sets the flag CodeMirror's own print handler sets to draw every line, not only those near the
+ * window. It is internal, so if an upgrade renames it, print goes on as before, with HTML blocks
+ * the reader has not reached left blank, and says so in the console.
+ */
+function drawEveryLine(view: EditorView, on: boolean): boolean {
+  const viewState = (view as unknown as { viewState?: { printing?: unknown } }).viewState;
+  if (typeof viewState?.printing !== "boolean") {
+    console.warn("CodeMirror has no viewState.printing, so print draws only what has been seen.");
+    return false;
+  }
+  viewState.printing = on;
+  view.requestMeasure();
+  return true;
 }
