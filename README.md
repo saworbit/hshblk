@@ -8,7 +8,7 @@ Packages for Linux, macOS, and Windows come from the Desktop workflow on `main`.
 
 | Key | Does |
 |---|---|
-| `Ctrl+O` (`⌘O`) | Open a file |
+| `Ctrl+O` (`⌘O`) | Open a file. On macOS, so does File > Open |
 | `Ctrl+F` (`⌘F`) | Find, in the source |
 | `Ctrl+/` (`⌘/`) | Show all the syntax, or hide it again |
 | `Ctrl+Shift+M` (`⌘⇧M`) | Show or hide the frontmatter's panel |

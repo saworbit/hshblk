@@ -42,7 +42,7 @@ Each file opens in a window of its own. A second file opens a second window in t
 
 | Key | Does |
 |---|---|
-| `Ctrl+O` (`⌘O`) | Open a file |
+| `Ctrl+O` (`⌘O`) | Open a file. On macOS, so does File > Open |
 | `Ctrl+F` (`⌘F`) | Find, in the source |
 | `Ctrl+/` (`⌘/`) | Show all the syntax, or hide it again |
 | `Ctrl+Shift+M` (`⌘⇧M`) | Show or hide the frontmatter's panel |
@@ -52,6 +52,7 @@ Each file opens in a window of its own. A second file opens a second window in t
 | `Enter` | Open or close a `<details>`, with the caret on its tags. Tick or untick a task box, with the caret in its text |
 
 - Dropping a file on a window opens it in a new window.
+- On macOS, the menu bar's File menu has Open, with ⌘O, above Tauri's own items, so Edit's Copy and Select All stay. Linux and Windows have no menu bar, which would sit above the page in every window.
 - Move the caret into a construct with the keys, or find in it, and its syntax shows, so `**bold**` reads as written. A click places the caret and opens nothing, so the text holds still under the pointer. A link never unfolds: its address shows in a popover under it, with **Open** for web and mail addresses. A find match in the address shows there, marked.
 - Copy and find work on the source, hidden syntax included. The status line says so, after the file's name and when it was last modified.
 - Images load when they are inside the document's repository: the enclosing git repository, or the file's folder when there is none. A repository at the home folder or above it does not count, so dotfiles kept in `~/.git` do not open the whole home. A file directly in the home folder shows only the images beside it, not those in folders below. A path that starts with `/` starts at that root, as on GitHub. Nothing loads from the network.
