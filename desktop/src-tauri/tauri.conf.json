@@ -30,7 +30,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["deb", "rpm", "appimage", "nsis", "msi", "app", "dmg"],
+    "targets": ["deb", "rpm", "nsis", "msi", "app", "dmg"],
     "category": "Productivity",
     "shortDescription": "A page for a markdown file.",
     "longDescription": "Hash Block opens a markdown file as a typeset page. Nothing is written back.",

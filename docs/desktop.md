@@ -8,11 +8,11 @@ The Desktop workflow builds the packages on every push to `main`. Open the lates
 
 | System | In the artifact |
 |---|---|
-| Linux | `.deb`, `.rpm`, and `.AppImage` |
+| Linux | `.deb` and `.rpm` |
 | macOS | `.dmg` |
 | Windows | `.exe` installer and `.msi` |
 
-An AppImage runs without installing: make it executable, and run it. It is the Linux package the updater will update, once there is one. None is signed yet ([hld.md](hld.md) §12, question 1), and macOS ships unsigned until there is an Apple Developer ID. The first time, macOS will not open it: in **System Settings**, **Privacy & Security**, choose **Open Anyway**. Windows SmartScreen warns too: **More info**, then **Run anyway**.
+There is no AppImage: Tauri's bundles WebKitGTK, which [hld.md](hld.md) §10 rules out. None is signed yet ([hld.md](hld.md) §12, question 1), and macOS ships unsigned until there is an Apple Developer ID. The first time, macOS will not open it: in **System Settings**, **Privacy & Security**, choose **Open Anyway**. Windows SmartScreen warns too: **More info**, then **Run anyway**.
 
 On Linux the app uses the system's WebKitGTK, which the package depends on. It is not bundled, so it gets the distribution's security updates ([hld.md](hld.md) §10).
 
@@ -101,7 +101,7 @@ The macOS app is signed and notarized when the repository has these secrets. Wit
 Not done yet ([hld.md](hld.md) §12, question 1):
 
 - Windows signing. A code-signing certificate issued since June 2023 keeps its key in hardware or in a signing service, so it cannot be a secret here. Each service signs through its own command, set as `bundle.windows.signCommand`. That waits on choosing one.
-- The updater. It needs a key pair: the public key in `tauri.conf.json`, the private key as a secret. The app also has to say how it offers an update, and on Linux Tauri updates only an AppImage, not the `.deb` or `.rpm` built now.
+- The updater. It needs a key pair: the public key in `tauri.conf.json`, the private key as a secret. The app also has to say how it offers an update. On Linux, Tauri updates only an AppImage, which hld.md §10 rules out, so Linux updates wait for a Flatpak against the GNOME runtime.
 
 ## How a file becomes a page
 
