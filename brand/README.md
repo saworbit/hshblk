@@ -41,7 +41,7 @@ product takes from it:
 | `logo/svg/glyph-current.svg` | The welcome screen. `desktop/src/main.ts` imports it from here, and the stylesheet colours it with `--accent`. |
 | `logo/svg/mark.svg`, `mark-dark.svg` | The README, above its title: the stack, by day and by night through a `<picture>`. |
 | `colour/tokens.css` | Nothing: the app has the same five variables in `desktop/src/styles.css`, which is where they came from. |
-| `social/social-preview.png` | The repository's social preview, uploaded by hand under Settings. |
+| `social/social-preview.png` | The repository's social preview, once it is public: GitHub offers the upload only then, under Settings. |
 
 The assets are generated, so a change goes in `source/`, not in them. `BRAND.md`, this file,
 `index.html` and `pack-manifest.json` were brought up to date with the move; nothing else was

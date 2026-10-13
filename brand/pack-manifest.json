@@ -2,11 +2,11 @@
  "note": "regen: where source/ rebuilds this file. source/verify.py compares them.",
  "files": {
   "BRAND.md": {
-   "sha256": "06b3cfa6a5e3dc6c6d11d7513f1eadcb7ebb6932d5e9c72398279bee28ebf319",
+   "sha256": "84b34a8bd485df75f10354334fb62626b3088f8f05e40d22d8dfd9d564439307",
    "regen": null
   },
   "README.md": {
-   "sha256": "4a7783bc6ae52b0fe5cce6e93e132b070462167aedd4f387e8f59ba89e3ddf58",
+   "sha256": "3656ba34bba32fdec07d47dfa292a17721bb7c906321853fdcd2258dae5f2329",
    "regen": null
   },
   "app-icon/128x128.png": {
