@@ -120,6 +120,7 @@ Not done yet ([hld.md](hld.md) §12, question 1):
 | `desktop/src-tauri/src/windows.rs` | Where files come from (the command line, a double-click, the dialog, a drop) and the window each gets. |
 | `desktop/src-tauri/src/lib.rs` | The four commands the page may call, and the app, with its File menu on macOS. |
 | `desktop/src-tauri/linux/hshblk.desktop` | The Linux desktop entry, which passes the double-clicked file. |
+| `desktop/src-tauri/icons/` | The app icon: [`brand/app-icon/`](../brand/app-icon/), file for file. 16 and 32 px are a drawing of their own, so it is copied, never regenerated with `tauri icon`. |
 | `desktop/src/main.ts` | The window: open, print, the status line, and the welcome. |
 | `desktop/src/surface.ts` | The CodeMirror surface, with editing turned off. |
 | `desktop/src/page/` | The page: the dialect, its decorations, links, images, tables, the frontmatter panel, the whole-document parse, and the theme. |

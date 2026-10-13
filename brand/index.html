@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hash Block brand</title>
+<link rel="icon" href="favicon/favicon.svg">
+<style>
+:root { --bg:#f3eee6; --fg:#1c1915; --muted:#6c6459; --line:#e4d9c8; --accent:#8f3d2b; }
+@media (prefers-color-scheme: dark) { :root { --bg:#1c1915; --fg:#ebe3d5; --muted:#948e84;
+  --line:#3a332b; --accent:#e08c71; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg);
+  font:17px/1.6 "Source Serif 4", "Iowan Old Style", Palatino, Georgia, serif; }
+.wrap { max-width:1040px; margin:0 auto; padding:48px 16px 80px; }
+h1 { position:absolute; left:-9999px; }
+h2 { font:500 12px/1 "IBM Plex Mono", ui-monospace, monospace; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--muted); margin:64px 0 16px; }
+p { margin:0 0 12px; }
+.lead { max-width:680px; }
+.muted { color:var(--muted); }
+code { font:14px "IBM Plex Mono", ui-monospace, monospace; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:16px; }
+.panel { margin:0; border:1px solid var(--line); border-radius:10px; padding:24px; display:flex;
+  flex-direction:column; gap:12px; align-items:center; justify-content:center; min-height:180px; }
+.panel img { max-width:100%; height:auto; }
+.panel figcaption { font:12px "IBM Plex Mono", ui-monospace, monospace; color:#6c6459; }
+.panel.on-ink figcaption { color:#948e84; }
+.hero .panel { min-height:220px; }
+.px { display:flex; gap:24px; align-items:flex-end; flex-wrap:wrap; padding:24px; border-radius:10px;
+  border:1px solid var(--line); }
+.px figure { margin:0; text-align:center; font:12px "IBM Plex Mono", monospace; color:#6c6459; }
+.px img { display:block; margin:0 auto 6px; }
+.rule { border:1px solid var(--line); border-radius:10px; padding:24px; }
+.rule svg { display:block; width:auto; margin:8px 0 10px; }
+.rule svg.src { height:30px; }
+.rule svg.page { height:44px; margin-top:20px; }
+.rule .a { fill:var(--accent); } .rule .m { fill:var(--muted); } .rule .t { fill:var(--fg); }
+.sws { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:16px; }
+.sw { border:1px solid var(--line); border-radius:10px; padding:14px; }
+.sw .chip { display:flex; height:44px; border-radius:6px; overflow:hidden; margin-bottom:10px; border:1px solid var(--line); }
+.sw .chip span { flex:1; }
+.sw b { display:block; font:500 14px "IBM Plex Mono", monospace; }
+.sw code { font-size:12px; color:var(--muted); }
+.sw p { font-size:14px; color:var(--muted); margin:6px 0 0; }
+.wide img { width:100%; height:auto; border:1px solid var(--line); border-radius:10px; display:block; }
+.wide figcaption { font:12px "IBM Plex Mono", monospace; color:var(--muted); margin-top:6px; }
+.wide figure { margin:0; }
+ul.rules li { margin:6px 0; }
+table { border-collapse:collapse; width:100%; font-size:15px; }
+td { border-top:1px solid var(--line); padding:8px 12px 8px 0; vertical-align:top; }
+a { color:var(--accent); }
+footer { margin-top:72px; font:12px "IBM Plex Mono", monospace; color:var(--muted); }
+</style>
+</head>
+<body><div class="wrap">
+<h1>Hash Block brand</h1>
+<div class="grid hero">
+  <figure class="panel " style="background:#f3eee6"><img src="logo/svg/wordmark.svg" alt="" width="380"><figcaption>wordmark.svg</figcaption></figure>
+  <figure class="panel on-ink" style="background:#1c1915"><img src="logo/svg/wordmark-dark.svg" alt="" width="380"><figcaption>wordmark-dark.svg</figcaption></figure>
+</div>
+<p class="lead" style="margin-top:20px">A page for a markdown file. Open one. Nothing is written back. The identity is two pieces the product already had:
+the <code>#</code> its welcome screen draws in IBM Plex Mono, and the H1 its page sets in Source Serif 4.</p>
+
+<h2>The mark</h2>
+<div class="grid">
+  <figure class="panel " style="background:#ffffff"><img src="logo/svg/mark.svg" alt="" width="160"><figcaption>mark.svg · by day</figcaption></figure>
+  <figure class="panel " style="background:#ffffff"><img src="logo/svg/mark-dark.svg" alt="" width="160"><figcaption>mark-dark.svg · by night</figcaption></figure>
+  <figure class="panel " style="background:#f3eee6"><img src="logo/svg/glyph.svg" alt="" width="130"><figcaption>glyph.svg · on paper</figcaption></figure>
+  <figure class="panel on-ink" style="background:#1c1915"><img src="logo/svg/glyph-dark.svg" alt="" width="130"><figcaption>glyph-dark.svg · on ink</figcaption></figure>
+</div>
+<p class="lead" style="margin-top:16px">Plex Mono's <code>#</code> is open in the middle: its bars stop at
+each stroke and never cross the gap. The mark keeps Plex's slant, bar heights and arm length, and is set
+1.4&times; heavier with a 1.75&times; wider gap, so that gap is still there at 16 px.</p>
+
+<h2>True pixels</h2>
+<div class="px" style="background:#ffffff"><figure><img src="logo/png/mark-16.png" width="16" height="16" alt="">16</figure><figure><img src="logo/png/mark-24.png" width="24" height="24" alt="">24</figure><figure><img src="logo/png/mark-32.png" width="32" height="32" alt="">32</figure><figure><img src="logo/png/mark-48.png" width="48" height="48" alt="">48</figure><figure><img src="logo/png/mark-64.png" width="64" height="64" alt="">64</figure><figure><img src="logo/png/mark-128.png" width="128" height="128" alt="">128</figure></div>
+<div class="px" style="background:#ffffff;margin-top:12px"><figure><img src="logo/png/mark-dark-16.png" width="16" height="16" alt="">16</figure><figure><img src="logo/png/mark-dark-24.png" width="24" height="24" alt="">24</figure><figure><img src="logo/png/mark-dark-32.png" width="32" height="32" alt="">32</figure><figure><img src="logo/png/mark-dark-48.png" width="48" height="48" alt="">48</figure><figure><img src="logo/png/mark-dark-64.png" width="64" height="64" alt="">64</figure><figure><img src="logo/png/mark-dark-128.png" width="128" height="128" alt="">128</figure></div>
+<p class="lead muted" style="margin-top:12px">16 is its own drawing, every edge on a whole pixel. From 24 up it is the master.</p>
+
+<h2>The rule</h2>
+<div class="rule">
+  <svg class="src" viewBox="0 26.0 720.0 75.2" role="img" aria-label="# Hash Block"><path class="a" d="M13.5 79.3H1.3V70.9H15.0L17.0 59.3H5.0V50.9H18.5L22.200000000000003 30.200000000000003H31.3L19.0 100.0H9.9ZM41.0 30.200000000000003H50.1L46.5 50.9H58.7V59.3H45.0L43.0 70.9H55.0V79.3H41.5L37.800000000000004 100.0H28.700000000000003Z"/><path class="m" d="M161.6 69.3H138.4V100.0H127.2V30.200000000000003H138.4V59.9H161.6V30.200000000000003H172.8V100.0H161.6Z M229.2 100.0Q224.5 100.0 222.15 97.6Q219.8 95.2 219.3 91.3H218.8Q217.3 96.0 213.35000000000002 98.6Q209.4 101.2 203.3 101.2Q195.4 101.2 190.7 97.05000000000001Q186.0 92.9 186.0 85.6Q186.0 78.1 191.55 74.15Q197.1 70.2 208.6 70.2H218.5V66.19999999999999Q218.5 55.699999999999996 207.4 55.699999999999996Q202.4 55.699999999999996 199.3 57.64999999999999Q196.2 59.599999999999994 194.1 62.8L187.6 57.5Q189.8 53.3 195.0 50.25Q200.2 47.199999999999996 208.4 47.199999999999996Q218.2 47.199999999999996 223.8 51.89999999999999Q229.4 56.599999999999994 229.4 65.5V91.4H235.9V100.0ZM206.4 93.2Q211.7 93.2 215.1 90.80000000000001Q218.5 88.4 218.5 84.6V77.1H208.8Q197.0 77.1 197.0 84.2V86.2Q197.0 89.7 199.5 91.45Q202.0 93.2 206.4 93.2Z M270.1 101.2Q261.7 101.2 255.64999999999998 98.5Q249.6 95.8 245.9 91.3L252.6 85.3Q256.0 89.0 260.25 90.95Q264.5 92.9 270.3 92.9Q275.6 92.9 278.85 91.1Q282.1 89.3 282.1 85.5Q282.1 83.9 281.5 82.80000000000001Q280.9 81.7 279.79999999999995 81.0Q278.7 80.3 277.25 79.9Q275.8 79.5 274.2 79.3L266.0 78.0Q263.0 77.6 259.9 76.69999999999999Q256.8 75.8 254.35000000000002 74.15Q251.9 72.5 250.35000000000002 69.9Q248.8 67.3 248.8 63.3Q248.8 55.4 254.85 51.3Q260.9 47.199999999999996 270.8 47.199999999999996Q278.0 47.199999999999996 283.25 49.349999999999994Q288.5 51.5 292.0 55.3L285.9 61.699999999999996Q283.9 59.4 280.2 57.45Q276.5 55.5 270.4 55.5Q259.5 55.5 259.5 62.4Q259.5 65.69999999999999 261.85 66.94999999999999Q264.2 68.2 267.4 68.6L275.6 69.9Q278.7 70.4 281.75 71.2Q284.8 72.0 287.25 73.65Q289.7 75.3 291.25 77.9Q292.8 80.5 292.8 84.5Q292.8 92.3 286.75 96.75Q280.7 101.2 270.1 101.2Z M308.4 26.0H319.3V57.199999999999996H319.8Q320.6 55.199999999999996 321.85 53.349999999999994Q323.1 51.5 324.9 50.15Q326.7 48.8 329.1 48.0Q331.5 47.199999999999996 334.7 47.199999999999996Q342.5 47.199999999999996 347.3 52.3Q352.1 57.4 352.1 66.8V100.0H341.2V68.4Q341.2 56.099999999999994 330.5 56.099999999999994Q328.4 56.099999999999994 326.4 56.64999999999999Q324.4 57.199999999999996 322.79999999999995 58.3Q321.2 59.4 320.25 61.099999999999994Q319.3 62.8 319.3 65.0V100.0H308.4Z M428.3 30.200000000000003H452.4Q461.9 30.200000000000003 467.15 35.1Q472.4 40.0 472.4 48.5Q472.4 54.599999999999994 469.4 58.199999999999996Q466.4 61.8 461.3 63.3V63.8Q467.4 65.19999999999999 471.1 69.14999999999999Q474.8 73.1 474.8 80.3Q474.8 84.6 473.4 88.19999999999999Q472.0 91.8 469.4 94.44999999999999Q466.8 97.1 463.15 98.55Q459.5 100.0 455.1 100.0H428.3ZM451.7 91.4Q457.3 91.4 460.3 89.1Q463.3 86.8 463.3 81.7V78.1Q463.3 73.0 460.3 70.7Q457.3 68.4 451.7 68.4H439.3V91.4ZM450.1 60.199999999999996Q455.4 60.199999999999996 458.15 58.14999999999999Q460.9 56.099999999999994 460.9 51.3V47.699999999999996Q460.9 42.9 458.15 40.849999999999994Q455.4 38.8 450.1 38.8H439.3V60.199999999999996Z M487.5 91.2H504.6V34.8H487.5V26.0H515.5V91.2H532.6V100.0H487.5Z M570.0 101.2Q564.3 101.2 559.75 99.30000000000001Q555.2 97.4 552.05 93.9Q548.9 90.4 547.2 85.4Q545.5 80.4 545.5 74.2Q545.5 68.0 547.2 63.0Q548.9 58.0 552.05 54.5Q555.2 51.0 559.75 49.099999999999994Q564.3 47.199999999999996 570.0 47.199999999999996Q575.7 47.199999999999996 580.25 49.099999999999994Q584.8 51.0 587.95 54.5Q591.1 58.0 592.8 63.0Q594.5 68.0 594.5 74.2Q594.5 80.4 592.8 85.4Q591.1 90.4 587.95 93.9Q584.8 97.4 580.25 99.30000000000001Q575.7 101.2 570.0 101.2ZM570.0 92.6Q576.0 92.6 579.55 88.94999999999999Q583.1 85.3 583.1 78.1V70.3Q583.1 63.1 579.55 59.45Q576.0 55.8 570.0 55.8Q564.0 55.8 560.45 59.45Q556.9 63.1 556.9 70.3V78.1Q556.9 85.3 560.45 88.94999999999999Q564.0 92.6 570.0 92.6Z M631.9 101.2Q626.1 101.2 621.55 99.30000000000001Q617.0 97.4 613.85 93.9Q610.7 90.4 609.05 85.4Q607.4 80.4 607.4 74.2Q607.4 68.0 609.05 63.0Q610.7 58.0 613.85 54.5Q617.0 51.0 621.55 49.099999999999994Q626.1 47.199999999999996 631.8 47.199999999999996Q639.8 47.199999999999996 644.65 50.599999999999994Q649.5 54.0 651.9 59.4L643.4 64.0Q642.0 60.4 639.15 58.3Q636.3 56.199999999999996 631.8 56.199999999999996Q625.6 56.199999999999996 622.2 59.949999999999996Q618.8 63.699999999999996 618.8 69.9V78.5Q618.8 84.6 622.2 88.4Q625.6 92.2 632.0 92.2Q636.8 92.2 639.8499999999999 90.0Q642.9 87.8 644.7 84.0L652.7 88.9Q650.2 94.3 645.1 97.75Q640.0 101.2 631.9 101.2Z M668.8 26.0H679.7V70.7H680.2L688.3 62.4L702.8 48.4H715.7L694.8 68.7L718.0 100.0H704.9L686.9 74.9L679.7 81.6V100.0H668.8Z"/></svg>
+  <p class="muted">Source. Where you see syntax: the app icon, the favicon, the welcome screen. The <code>#</code> lives here.</p>
+  <svg class="page" viewBox="0 26.3 476.2 75.0" role="img" aria-label="Hash Block"><path class="t" d="M3.8000000000000003 100.0V96.7L15.8 95.3H19.200000000000003L31.400000000000002 96.7V100.0ZM11.700000000000001 100.0Q11.9 95.4 12.0 90.2Q12.100000000000001 85.0 12.100000000000001 79.5Q12.100000000000001 74.0 12.100000000000001 68.8V64.4Q12.100000000000001 59.199999999999996 12.100000000000001 53.849999999999994Q12.100000000000001 48.5 12.0 43.3Q11.9 38.099999999999994 11.700000000000001 33.5H23.5Q23.400000000000002 38.0 23.300000000000004 43.2Q23.200000000000003 48.4 23.200000000000003 53.8Q23.200000000000003 59.199999999999996 23.200000000000003 64.4V68.0Q23.200000000000003 73.6 23.200000000000003 79.19999999999999Q23.200000000000003 84.8 23.300000000000004 90.1Q23.400000000000002 95.4 23.5 100.0ZM17.5 68.0V64.0H56.800000000000004V68.0ZM42.800000000000004 100.0V96.7L55.0 95.3H58.300000000000004L70.4 96.7V100.0ZM50.7 100.0Q50.900000000000006 95.4 51.0 90.15Q51.1 84.9 51.1 79.30000000000001Q51.1 73.7 51.1 68.0V64.4Q51.1 59.199999999999996 51.1 53.849999999999994Q51.1 48.5 51.0 43.3Q50.900000000000006 38.099999999999994 50.7 33.5H62.5Q62.300000000000004 38.0 62.2 43.2Q62.1 48.4 62.1 53.8Q62.1 59.199999999999996 62.1 64.4V68.8Q62.1 74.0 62.1 79.45Q62.1 84.9 62.2 90.15Q62.300000000000004 95.4 62.5 100.0ZM3.8000000000000003 36.8V33.5H31.400000000000002V36.8L19.200000000000003 38.199999999999996H15.8ZM42.800000000000004 36.8V33.5H70.4V36.8L58.300000000000004 38.199999999999996H55.0Z M88.10000000000001 101.3Q82.7 101.3 79.1 98.25Q75.5 95.2 75.5 89.3Q75.5 86.2 76.85 83.5Q78.2 80.8 81.80000000000001 78.44999999999999Q85.4 76.1 92.2 74.1Q94.4 73.4 96.80000000000001 72.75Q99.2 72.1 101.85 71.35Q104.5 70.6 107.4 69.9V72.8Q103.4 73.9 100.25 74.95Q97.10000000000001 76.0 94.80000000000001 76.8Q91.0 78.2 89.05000000000001 79.9Q87.10000000000001 81.6 86.4 83.5Q85.7 85.4 85.7 87.4Q85.7 91.4 87.75 93.15Q89.80000000000001 94.9 92.9 94.9Q94.60000000000001 94.9 96.20000000000002 94.4Q97.80000000000001 93.9 99.85000000000001 92.55000000000001Q101.9 91.2 105.0 88.6L106.1 93.1H102.9Q100.4 95.9 98.15 97.75Q95.9 99.6 93.5 100.44999999999999Q91.10000000000001 101.3 88.10000000000001 101.3ZM111.30000000000001 101.1Q107.0 101.1 104.55000000000001 98.65Q102.10000000000001 96.2 101.9 92.0V91.6V68.1Q101.9 63.3 101.05000000000001 60.65Q100.2 58.0 98.30000000000001 56.9Q96.4 55.8 93.2 55.8Q91.4 55.8 89.5 56.15Q87.60000000000001 56.5 85.10000000000001 57.4L89.2 54.5L87.60000000000001 62.3Q87.2 65.5 85.65 66.95Q84.10000000000001 68.4 81.9 68.4Q79.8 68.4 78.6 67.3Q77.4 66.19999999999999 77.0 64.19999999999999Q78.0 58.599999999999994 83.25 55.25Q88.5 51.9 96.60000000000001 51.9Q102.0 51.9 105.4 53.7Q108.80000000000001 55.5 110.45000000000002 59.3Q112.10000000000001 63.1 112.10000000000001 69.2V91.2Q112.10000000000001 93.7 112.95000000000002 94.80000000000001Q113.80000000000001 95.9 115.10000000000001 95.9Q116.2 95.9 117.05000000000001 95.30000000000001Q117.9 94.7 118.9 93.5L120.60000000000001 95.1Q119.2 98.1 116.9 99.6Q114.60000000000001 101.1 111.30000000000001 101.1Z M139.7 101.3Q135.3 101.3 131.8 100.35Q128.3 99.4 124.60000000000001 97.4L124.8 85.5H129.1L132.5 98.3H128.4V94.4Q131.1 96.1 133.7 96.9Q136.3 97.7 139.7 97.7Q143.1 97.7 145.3 96.75Q147.5 95.8 148.65 94.05Q149.8 92.3 149.8 90.1Q149.8 86.7 147.4 84.80000000000001Q145.0 82.9 140.7 81.4L136.7 80.0Q133.4 78.7 130.75 76.95Q128.1 75.2 126.55 72.6Q125.0 70.0 125.0 66.3Q125.0 62.3 126.95 59.05Q128.9 55.8 132.8 53.849999999999994Q136.7 51.9 142.4 51.9Q146.4 51.9 149.65 52.849999999999994Q152.9 53.8 156.2 55.699999999999996L155.7 66.69999999999999H151.5L148.3 55.199999999999996H152.4V59.099999999999994Q150.0 57.3 147.6 56.449999999999996Q145.2 55.599999999999994 142.3 55.599999999999994Q138.1 55.599999999999994 135.8 57.5Q133.5 59.4 133.5 62.5Q133.5 65.8 135.75 67.6Q138.0 69.4 142.5 71.1L145.8 72.3Q149.8 73.8 152.7 75.75Q155.6 77.7 157.14999999999998 80.35Q158.7 83.0 158.7 86.6Q158.7 90.9 156.5 94.25Q154.3 97.6 150.05 99.44999999999999Q145.8 101.3 139.7 101.3Z M162.9 100.0V97.0L172.70000000000002 95.3H176.8L186.3 97.0V100.0ZM169.4 100.0Q169.5 97.7 169.55 93.95Q169.6 90.2 169.65 86.15Q169.70000000000002 82.1 169.70000000000002 79.0V34.7L162.4 33.39999999999999V30.599999999999994L179.0 26.299999999999997L180.20000000000002 27.200000000000003L179.8 44.0V62.8L180.0 63.6V79.0Q180.0 82.1 180.05 86.15Q180.10000000000002 90.2 180.15000000000003 93.95Q180.20000000000002 97.7 180.4 100.0ZM192.70000000000002 100.0V97.0L202.4 95.3H206.4L216.0 97.0V100.0ZM198.9 100.0Q199.10000000000002 97.7 199.15000000000003 93.95Q199.20000000000002 90.2 199.25 86.2Q199.3 82.2 199.3 79.0V69.5Q199.3 63.5 197.65 61.3Q196.0 59.099999999999994 192.10000000000002 59.099999999999994Q189.9 59.099999999999994 187.7 59.89999999999999Q185.5 60.699999999999996 183.25 62.3Q181.0 63.9 178.6 66.3L177.4 62.8H178.4Q180.9 59.5 183.85000000000002 57.05Q186.8 54.599999999999994 190.10000000000002 53.25Q193.4 51.9 196.8 51.9Q203.0 51.9 206.3 55.9Q209.60000000000002 59.9 209.60000000000002 68.9V79.0Q209.60000000000002 82.2 209.65000000000003 86.2Q209.70000000000002 90.2 209.8 93.95Q209.9 97.7 210.0 100.0Z M241.90000000000003 100.0V96.7L254.00000000000003 95.3H255.8V100.0ZM249.90000000000003 100.0Q250.10000000000002 95.4 250.15000000000003 90.2Q250.20000000000002 85.0 250.20000000000002 79.5Q250.20000000000002 74.0 250.20000000000002 68.8V64.5Q250.20000000000002 59.3 250.20000000000002 53.9Q250.20000000000002 48.5 250.15000000000003 43.3Q250.10000000000002 38.099999999999994 249.90000000000003 33.5H261.6Q261.40000000000003 38.0 261.30000000000007 43.25Q261.20000000000005 48.5 261.20000000000005 53.849999999999994Q261.20000000000005 59.199999999999996 261.20000000000005 64.5V68.1Q261.20000000000005 73.6 261.20000000000005 79.19999999999999Q261.20000000000005 84.8 261.30000000000007 90.05Q261.40000000000003 95.3 261.6 100.0ZM255.40000000000003 100.0V96.1H266.1Q274.6 96.1 278.95000000000005 92.4Q283.3 88.7 283.3 81.9Q283.3 74.6 279.0 71.0Q274.70000000000005 67.4 265.6 67.4H255.40000000000003V63.6H265.20000000000005Q270.5 63.6 273.9 62.15Q277.3 60.699999999999996 279.0 57.64999999999999Q280.70000000000005 54.599999999999994 280.70000000000005 50.0Q280.70000000000005 45.5 279.1 42.75Q277.5 40.0 274.4 38.7Q271.3 37.4 266.70000000000005 37.4H255.40000000000003V33.5H269.40000000000003Q276.90000000000003 33.5 281.75 35.5Q286.6 37.5 289.0 41.05Q291.40000000000003 44.599999999999994 291.40000000000003 49.3Q291.40000000000003 53.4 289.25 56.95Q287.1 60.5 282.55 62.8Q278.0 65.1 270.6 65.69999999999999V64.8Q278.90000000000003 65.19999999999999 284.25 67.44999999999999Q289.6 69.7 292.20000000000005 73.35Q294.8 77.0 294.8 81.7Q294.8 85.3 293.20000000000005 88.6Q291.6 91.9 288.35 94.45Q285.1 97.0 279.90000000000003 98.5Q274.70000000000005 100.0 267.6 100.0ZM241.90000000000003 36.8V33.5H255.8V38.199999999999996H254.00000000000003Z M299.50000000000006 100.0V97.0L309.50000000000006 95.3H313.6L323.6 97.0V100.0ZM306.20000000000005 100.0Q306.30000000000007 97.0 306.35 93.4Q306.40000000000003 89.8 306.45000000000005 86.05Q306.50000000000006 82.3 306.50000000000006 79.0V34.7L299.20000000000005 33.39999999999999V30.599999999999994L315.90000000000003 26.299999999999997L317.20000000000005 27.200000000000003L316.80000000000007 43.199999999999996V79.0Q316.80000000000007 82.3 316.85 86.05Q316.90000000000003 89.8 316.95000000000005 93.4Q317.00000000000006 97.0 317.20000000000005 100.0Z M351.70000000000005 101.3Q345.3 101.3 340.1 98.44999999999999Q334.90000000000003 95.6 331.90000000000003 90.1Q328.90000000000003 84.6 328.90000000000003 76.7Q328.90000000000003 68.9 332.0 63.35Q335.1 57.8 340.30000000000007 54.849999999999994Q345.50000000000006 51.9 351.70000000000005 51.9Q357.90000000000003 51.9 363.1 54.8Q368.30000000000007 57.699999999999996 371.4000000000001 63.2Q374.50000000000006 68.7 374.50000000000006 76.6Q374.50000000000006 84.4 371.4000000000001 90.0Q368.30000000000007 95.6 363.1 98.44999999999999Q357.90000000000003 101.3 351.70000000000005 101.3ZM351.70000000000005 97.7Q355.3 97.7 357.90000000000003 95.4Q360.50000000000006 93.1 361.9000000000001 88.44999999999999Q363.30000000000007 83.8 363.30000000000007 76.7Q363.30000000000007 69.5 361.9000000000001 64.85Q360.50000000000006 60.199999999999996 357.90000000000003 57.89999999999999Q355.3 55.599999999999994 351.70000000000005 55.599999999999994Q348.00000000000006 55.599999999999994 345.40000000000003 57.89999999999999Q342.8 60.199999999999996 341.45000000000005 64.89999999999999Q340.1 69.6 340.1 76.8Q340.1 83.9 341.45000000000005 88.55000000000001Q342.8 93.2 345.40000000000003 95.45Q348.00000000000006 97.7 351.70000000000005 97.7Z M404.20000000000005 101.3Q397.40000000000003 101.3 392.35 98.44999999999999Q387.3 95.6 384.5 90.19999999999999Q381.70000000000005 84.8 381.70000000000005 77.2Q381.70000000000005 69.0 384.90000000000003 63.4Q388.1 57.8 393.45000000000005 54.849999999999994Q398.8 51.9 405.1 51.9Q409.70000000000005 51.9 413.35 53.599999999999994Q417.00000000000006 55.3 419.25000000000006 58.15Q421.50000000000006 61.0 422.00000000000006 64.6Q421.50000000000006 66.69999999999999 420.30000000000007 67.69999999999999Q419.1 68.7 417.00000000000006 68.7Q414.70000000000005 68.7 413.20000000000005 67.19999999999999Q411.70000000000005 65.69999999999999 411.20000000000005 62.6L409.6 54.599999999999994L414.40000000000003 58.0Q412.3 56.599999999999994 410.15000000000003 56.099999999999994Q408.00000000000006 55.599999999999994 406.00000000000006 55.599999999999994Q402.1 55.599999999999994 399.05000000000007 57.89999999999999Q396.00000000000006 60.199999999999996 394.25000000000006 64.64999999999999Q392.50000000000006 69.1 392.50000000000006 75.4Q392.50000000000006 81.5 394.40000000000003 85.8Q396.3 90.1 399.65000000000003 92.3Q403.00000000000006 94.5 407.6 94.5Q410.1 94.5 412.30000000000007 93.9Q414.50000000000006 93.3 416.50000000000006 91.9Q418.50000000000006 90.5 420.30000000000007 88.3L422.40000000000003 90.0Q420.50000000000006 93.7 417.90000000000003 96.25Q415.3 98.8 411.95000000000005 100.05Q408.6 101.3 404.20000000000005 101.3Z M425.50000000000006 100.0V97.0L435.40000000000003 95.3H439.50000000000006L449.6 97.0V100.0ZM432.20000000000005 100.0Q432.30000000000007 98.0 432.35 95.4Q432.40000000000003 92.8 432.45000000000005 89.94999999999999Q432.50000000000006 87.1 432.50000000000006 84.25Q432.50000000000006 81.4 432.50000000000006 79.0V34.7L425.20000000000005 33.39999999999999V30.599999999999994L441.90000000000003 26.299999999999997L443.20000000000005 27.200000000000003L442.80000000000007 44.0V78.8Q442.80000000000007 81.3 442.80000000000007 84.15Q442.80000000000007 87.0 442.85 89.9Q442.90000000000003 92.8 443.0 95.4Q443.1 98.0 443.20000000000005 100.0ZM437.6 86.5V81.3H438.1L451.40000000000003 67.3L464.70000000000005 53.3H470.1ZM461.40000000000003 100.0 447.20000000000005 74.2 454.6 67.19999999999999 470.90000000000003 95.9 476.80000000000007 97.0V100.0ZM452.40000000000003 56.3V53.3H474.30000000000007V56.3L464.40000000000003 57.8L462.00000000000006 58.099999999999994Z"/></svg>
+  <p class="muted">Page. Where you read: titles, the README, a site. The name lives here.</p>
+  <p>They are one markdown line in two states, so they never share a line. Read aloud,
+  <code># Hash Block</code> is &ldquo;hash Hash Block&rdquo;; at a glance it is a hashtag; and the app's own page
+  never shows it. Where both are needed, stack them.</p>
+</div>
+<div class="grid" style="margin-top:16px">
+  <figure class="panel " style="background:#f3eee6"><img src="logo/svg/stack.svg" alt="" width="220"><figcaption>stack.svg</figcaption></figure>
+  <figure class="panel on-ink" style="background:#1c1915"><img src="logo/svg/stack-dark.svg" alt="" width="220"><figcaption>stack-dark.svg</figcaption></figure>
+</div>
+
+<h2>One colour</h2>
+<div class="grid">
+  <figure class="panel " style="background:#ffffff"><img src="logo/svg/mark-black.svg" alt="" width="120"><figcaption>mark-black.svg · the glyph is a hole</figcaption></figure>
+  <figure class="panel on-ink" style="background:#1c1915"><img src="logo/svg/mark-white.svg" alt="" width="120"><figcaption>mark-white.svg</figcaption></figure>
+  <figure class="panel " style="background:#ffffff"><img src="logo/svg/wordmark-black.svg" alt="" width="240"><figcaption>wordmark-black.svg</figcaption></figure>
+  <figure class="panel on-ink" style="background:#1c1915"><img src="logo/svg/wordmark-white.svg" alt="" width="240"><figcaption>wordmark-white.svg</figcaption></figure>
+</div>
+
+<h2>App icon</h2>
+<div class="grid">
+  <figure class="panel " style="background:#e6e3df"><img src="app-icon/icon-macos.svg" alt="" width="180"><figcaption>icon-macos.svg · Apple's 1024 grid</figcaption></figure>
+  <figure class="panel " style="background:#ffffff"><img src="app-icon/icon.svg" alt="" width="150"><figcaption>icon.svg · full-bleed</figcaption></figure>
+  <figure class="panel " style="background:#ffffff"><img src="app-icon/icon-dark.svg" alt="" width="150"><figcaption>icon-dark.svg</figcaption></figure>
+</div>
+
+<h2>In context</h2>
+<div class="wide"><figure><img src="boards/hshblk-in-context.png" alt="The icon at true size in a browser tab, the taskbar, the dock, a window and the welcome screen">
+<figcaption>hshblk-in-context.png · every icon at its true pixel size</figcaption></figure></div>
+
+<h2>Colour</h2>
+<div class="sws"><div class="sw"><div class="chip"><span style="background:#f3eee6"></span><span style="background:#1c1915"></span></div><b>--paper</b><code>#f3eee6 · #1c1915</code><p>The ground, and the app icon's tile.</p></div><div class="sw"><div class="chip"><span style="background:#1c1915"></span><span style="background:#ebe3d5"></span></div><b>--ink</b><code>#1c1915 · #ebe3d5</code><p>Text, and the wordmark.</p></div><div class="sw"><div class="chip"><span style="background:#6c6459"></span><span style="background:#948e84"></span></div><b>--muted</b><code>#6c6459 · #948e84</code><p>Secondary text: the sentence under the name.</p></div><div class="sw"><div class="chip"><span style="background:#8f3d2b"></span><span style="background:#e08c71"></span></div><b>--accent</b><code>#8f3d2b · #e08c71</code><p>The mark. Nothing else in the identity uses it.</p></div><div class="sw"><div class="chip"><span style="background:#e4d9c8"></span><span style="background:#3a332b"></span></div><b>--rule</b><code>#e4d9c8 · #3a332b</code><p>Hairlines: the tile's edge where it sits on its own ground.</p></div></div>
+<p class="lead muted" style="margin-top:16px">Each chip: by day, then by night. All five are the product's own
+(<code>styles.css</code>); nothing was chosen for the brand. Contrast is in <a href="colour/tokens.json">colour/tokens.json</a>.</p>
+
+<h2>Social</h2>
+<div class="grid wide">
+  <figure><img src="social/social-preview.png" alt="Social preview"><figcaption>social-preview.png · GitHub, 1280×640</figcaption></figure>
+  <figure><img src="social/social-preview-dark.png" alt="Social preview, dark"><figcaption>social-preview-dark.png</figcaption></figure>
+  <figure><img src="social/og-image.png" alt="og:image"><figcaption>og-image.png · 1200×630</figcaption></figure>
+  <figure><img src="social/readme-banner.png" alt="README banner"><figcaption>readme-banner.png · for pictures, not the README</figcaption></figure>
+</div>
+
+<h2>Rules</h2>
+<ul class="rules">
+  <li>The <code>#</code> and the name never share a line. Stack them where both are needed.</li>
+  <li>Below 24 px, use the 16 px drawing (<code>mark-16.png</code>, <code>favicon.svg</code>), never the master scaled down.</li>
+  <li>Never close the gap between the strokes, and never let a bar cross it: that is the generic <code>#</code>, and HASH's.</li>
+  <li>The mark is accent on paper or dark accent on ink. In one colour it is black or white, with the glyph a real hole.</li>
+  <li>The name is Source Serif 4 at 560, as the page's H1. Nothing is added to it.</li>
+</ul>
+
+<h2>Files</h2>
+<table>
+  <tr><td><a href="logo/svg/">logo/svg/</a></td><td>Masters, fully outlined. Prefer these.</td></tr>
+  <tr><td><a href="logo/png/">logo/png/</a></td><td>Rasters; <code>mark-16.png</code> is the pixel drawing.</td></tr>
+  <tr><td><a href="app-icon/">app-icon/</a></td><td>The app icon. <code>desktop/src-tauri/icons/</code> is its six Tauri files, copied file for file.</td></tr>
+  <tr><td><a href="favicon/">favicon/</a></td><td><code>favicon.svg</code> swaps to dark itself; <code>favicon.ico</code>; touch and PWA icons.</td></tr>
+  <tr><td><a href="social/">social/</a></td><td>Social preview, og:image, banners.</td></tr>
+  <tr><td><a href="colour/">colour/</a></td><td><code>tokens.css</code>, <code>tokens.json</code>.</td></tr>
+  <tr><td><a href="boards/">boards/</a></td><td>Brand board, in-context sheet, and <code>evidence/</code>: the round sheets BRAND.md cites.</td></tr>
+  <tr><td><a href="source/README.md">source/</a></td><td>The parametric source. <code>verify.py</code> regenerates and compares.</td></tr>
+  <tr><td><a href="BRAND.md">BRAND.md</a> · <a href="README.md">README.md</a></td><td>Guidelines; the pack guide.</td></tr>
+</table>
+
+<footer>Hash Block brand pack · built by build_pack.py from the design project, and in the repository since 2026-10-13. The assets are generated: change source/, not them.</footer>
+</div></body></html>

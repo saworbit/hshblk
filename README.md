@@ -30,7 +30,8 @@ npm run tauri dev
 
 - [docs/desktop.md](docs/desktop.md) is how the desktop app is installed, built, and tested.
 - [docs/hld.md](docs/hld.md) is its design, and the editor it becomes. It is not signed off. [docs/milestone-one.md](docs/milestone-one.md) records the first milestone's acceptance against it.
+- [brand/](brand/) is the identity: the mark, the wordmark, the palette, and [brand/BRAND.md](brand/BRAND.md), its guide. The app icon and the welcome screen's mark come from it.
 
 ## License
 
-Hash Block is released under the [MIT License](LICENSE).
+Hash Block is released under the [MIT License](LICENSE). The name and the mark are kept apart from it, so a fork does not look like this project.

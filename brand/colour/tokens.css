@@ -1,0 +1,21 @@
+/* Hash Block brand tokens.
+ * These are the product's own variables (desktop/src/styles.css), renamed so
+ * they can sit beside another site's. Inside the app, use --paper, --ink,
+ * --muted, --accent and --rule directly. Light first, then dark. */
+:root {
+  --hshblk-paper: #f3eee6;    /* The ground, and the app icon's tile. */
+  --hshblk-ink: #1c1915;      /* Text, and the wordmark. */
+  --hshblk-muted: #6c6459;    /* Secondary text: the sentence under the name. */
+  --hshblk-accent: #8f3d2b;   /* The mark. Nothing else in the identity uses it. */
+  --hshblk-rule: #e4d9c8;     /* Hairlines: the tile's edge where it sits on its own ground. */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hshblk-paper: #1c1915;
+    --hshblk-ink: #ebe3d5;
+    --hshblk-muted: #948e84;
+    --hshblk-accent: #e08c71;
+    --hshblk-rule: #3a332b;
+  }
+}

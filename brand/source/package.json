@@ -1,0 +1,13 @@
+{
+  "name": "hshblk-brand",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hash Block identity - parametric SVG source, PNG/ICO export.",
+  "type": "commonjs",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@fontsource-variable/source-serif-4": "^5.3.1",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}
