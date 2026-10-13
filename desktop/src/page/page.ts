@@ -286,10 +286,16 @@ function draw(
 ): DecorationSet {
   if (source) return Decoration.none;
   const folds = unfold(blocks.folds, opening);
-  if (blocks.details.length === 0) return folds;
+  const { frontmatter } = blocks;
+  if (blocks.details.length === 0 && !frontmatter) return folds;
   const reached = (span: Fold) =>
     opening?.ranges.some((range) => range.from <= span.to && range.to >= span.from) ?? false;
   const add: Range<Decoration>[] = [];
+  // The frontmatter folds away. The status line's indicator says it is there, and its panel
+  // shows it. The keys and find show its source where they reach it.
+  if (frontmatter && !reached(frontmatter)) {
+    add.push(Decoration.replace({ block: true }).range(frontmatter.from, frontmatter.to));
+  }
   for (const { summary, open, head, body, tail } of blocks.details) {
     const from = head.source.from;
     const shown = printing || open !== toggled.has(from) || (body !== null && reached(body));

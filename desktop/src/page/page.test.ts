@@ -640,10 +640,13 @@ describe("frontmatter", () => {
   const front = "---\ntitle: Notes\ntags: [a, b]\n[x]: /y\n---";
   const quiet = "pg-code-block pg-frontmatter";
 
-  it("shows as a quiet block of its source, and anchors and defines nothing", () => {
+  it("folds away, a quiet block of its source where the keys reach it, and anchors nothing", () => {
     const doc = `${front}\n\n# Heading\n\n[x]`;
     const state = open(doc);
-    assert.equal(visible(state), `${front}\n\nHeading\n\n[x]`);
+    // The status line's indicator and the panel show it.
+    assert.equal(visible(state), "\n\nHeading\n\n[x]");
+    assert.equal(visible(select(state, doc.indexOf("tags"))), `${front}\n\nHeading\n\n[x]`);
+    assert.equal(visible(click(state, doc.indexOf("tags"))), "\n\nHeading\n\n[x]");
     assert.deepEqual(lineClasses(state, styles).slice(0, 7), [
       quiet,
       quiet,
@@ -659,7 +662,8 @@ describe("frontmatter", () => {
   it("holds a blank line, and closes at ... too", () => {
     const doc = "---\ntitle: x\n\ntags: y\n...\n\nAfter";
     const state = open(doc);
-    assert.equal(visible(state), doc);
+    assert.equal(visible(state), "\n\nAfter");
+    assert.equal(visible(select(state, doc.indexOf("tags"))), doc);
     assert.deepEqual(lineClasses(state, styles), [quiet, quiet, quiet, quiet, quiet, "", ""]);
   });
 

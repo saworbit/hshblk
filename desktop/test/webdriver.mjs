@@ -9,6 +9,7 @@ const ROOT = "http://127.0.0.1:4444";
 /** The WebDriver code points for keys that are not characters. */
 export const Key = {
   Control: "\uE009",
+  Shift: "\uE008",
   Enter: "\uE007",
   Escape: "\uE00C",
   ArrowUp: "\uE013",

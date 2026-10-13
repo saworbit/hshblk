@@ -1044,6 +1044,44 @@ describe("a task list", () => {
   });
 });
 
+describe("frontmatter", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-frontmatter-"));
+  const file = join(folder, "front.md");
+  writeFileSync(file, "---\ntitle: Notes\ntags: [a, b]\n---\n\n# Front\n\nText.\n");
+  const bytes = fingerprint(file);
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelector(".pg-h1"));
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  test("folds away, and the status line's indicator opens its fields", async () => {
+    const text = () => document.querySelector(".cm-content").textContent;
+    assert.doesNotMatch(await page.run(text), /title:/);
+    const at = await page.until(() => {
+      const button = document.querySelector(".status-frontmatter");
+      if (!button || button.hidden) return null;
+      const box = button.getBoundingClientRect();
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    });
+    await page.click(at.x, at.y);
+    // The panel loads the yaml package as it first opens, so this also finds it under the CSP.
+    const listed = await page.until(() => {
+      const terms = [...document.querySelectorAll(".pg-front-fields dt, .pg-front-fields dd")];
+      return terms.map((term) => term.textContent).join(" ");
+    });
+    assert.equal(listed, "title Notes tags a, b");
+    await page.press(Key.Control, Key.Shift, "M");
+    assert.ok(await page.until(() => !document.querySelector(".pg-front-panel")));
+    assert.deepEqual(fingerprint(file), bytes);
+  });
+});
+
 describe("a <details> around markdown", () => {
   const folder = mkdtempSync(join(tmpdir(), "hshblk-details-"));
   const file = join(folder, "details.md");
