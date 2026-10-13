@@ -262,7 +262,7 @@ The display fixtures are the page's tests, `desktop/src/page/page.test.ts`. Each
 
 Milestone one ships the open side only: launch, double-click, `pick`, drop, `open`, `read_asset`, and `open_url`. No command can write, so "the file is not modified" holds by construction. Acceptance still checks it.
 
-From `app file.md`, on a named machine:
+From `app file.md`, on a named machine. The named machine is the maintainer's desktop: Windows 11, an AMD Ryzen 9 5900X, 32 GB, a GeForce RTX 3070 Ti, and WebView2 155.
 
 1. A file in the section 7 dialect, with headings, lists, a fenced block, a GFM table, and a sibling image, paints as a page rather than a code buffer. A remote image does not load. An image via `../` inside the repository loads. One outside it, or through a symlink that leaves it, does not.
 2. A script tag does not run. A raw HTML block is drawn in a frame that runs no script and fetches nothing but images in the repository, through the resource channel. Inline HTML is shown as source. The file's bytes and modification time are unchanged.
@@ -274,7 +274,7 @@ From `app file.md`, on a named machine:
 
 The surface is CodeMirror with editing commands disabled. A `load_html` dump fails the milestone.
 
-Result, 2026-10-10, on a Linux container that is not the named machine: items 1, 2, 4, 5, and 6 pass, and item 7 passes on Linux. Item 3 is at the line for the largest file and over for its tenfold, with most of the second spent before the page loads. The record is [milestone-one.md](milestone-one.md).
+Result, 2026-10-10, on a Linux container that is not the named machine: items 1, 2, 4, 5, and 6 pass, and item 7 passes on Linux. Item 3 is at the line for the largest file and over for its tenfold, with most of the second spent before the page loads. On 2026-10-13, on the named machine, item 3 passes: first paint came 0.64 to 0.84 s after the process started, for the largest file and its tenfold. The record is [milestone-one.md](milestone-one.md).
 
 ## 9. Week-one gates
 
@@ -337,6 +337,6 @@ Fallback rule, precommitted: if that spot-check fails and the cause is WebKitGTK
 ## 12. Questions still open
 
 1. Is the security-release commitment true for this maintainer? The app needs a signed auto-update channel either way, for its own bugs and for Tauri and Rust advisories. Once that exists, Electron's extra cost is cadence: a new major every 8 weeks, three supported at a time. If signed auto-update is not running at milestone one, neither host is safe to ship.
-2. Which machine is the named machine in section 8? The budget is set. The machine is not.
+2. Which machine is the named machine in section 8? Answered on 2026-10-13. It is the maintainer's desktop: Windows 11, an AMD Ryzen 9 5900X, 32 GB, a GeForce RTX 3070 Ti, and WebView2 155. Both fixtures reach first paint within 1 second there ([milestone-one.md](milestone-one.md)).
 3. Does the corpus find mixed line endings common enough to bring back ChangeSet saves? It found none in 5,936 files, so no ([gates/corpus.md](gates/corpus.md)). A survey of the maintainer's own notes could still change that.
 4. Is unfolding a table on entry acceptable once the click-target prototype exists? A nested cell editor would not break the single-buffer claim, if each cell is a CodeMirror view that dispatches changes into the parent's range and holds no state of its own. Section 3 already accepts misaligned pipes after a one-cell edit.
