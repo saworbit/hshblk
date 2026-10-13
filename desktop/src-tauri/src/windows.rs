@@ -83,8 +83,15 @@ fn build(app: &AppHandle, label: &str, title: &str) {
         // A link in a document never takes the window anywhere. open_url sends it to the browser.
         .on_navigation(is_the_app)
         .build();
-    if let Err(error) = built {
-        refuse(app, &format!("A window could not open: {error}."));
+    match built {
+        // Shown is not in front. On Windows a file handed over by a second launch opened behind
+        // File Explorer. The single-instance plugin passes its right to the foreground for this.
+        Ok(window) => {
+            if let Err(error) = window.set_focus() {
+                eprintln!("A window could not take the focus: {error}");
+            }
+        }
+        Err(error) => refuse(app, &format!("A window could not open: {error}.")),
     }
 }
 
