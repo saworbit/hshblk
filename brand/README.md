@@ -39,6 +39,7 @@ product takes from it:
 |---|---|
 | `app-icon/`, the six files `tauri.conf.json` names | `desktop/src-tauri/icons/`, copied file for file. Never regenerated with `tauri icon`: 16 and 32 px are a drawing of their own. |
 | `logo/svg/glyph-current.svg` | The welcome screen. `desktop/src/main.ts` imports it from here, and the stylesheet colours it with `--accent`. |
+| `logo/svg/mark.svg`, `mark-dark.svg` | The README, above its title: the stack, by day and by night through a `<picture>`. |
 | `colour/tokens.css` | Nothing: the app has the same five variables in `desktop/src/styles.css`, which is where they came from. |
 | `social/social-preview.png` | The repository's social preview, uploaded by hand under Settings. |
 

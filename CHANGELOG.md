@@ -83,3 +83,4 @@
 - Desktop: the welcome screen draws the mark, `brand/logo/svg/glyph-current.svg`, in the accent, in place of the font's `#`, at the size that glyph had. (#142)
 - Repo: `brand/` holds the identity: the mark, the wordmark, the favicon and social images, the palette, the guide with every decision and who made it, and the source that regenerates it all. The code stays MIT; the name and the mark are kept apart from it. (#142)
 - Docs: the README and docs/ point at `brand/`, and desktop.md's file layout lists the icons and where they come from. (#142)
+- Docs: the README shows the mark above its title, by day and by night: the stack, which the guide keeps for where both the tile and the name are needed. (#145)
