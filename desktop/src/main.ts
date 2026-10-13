@@ -42,7 +42,7 @@ if (handle) {
   // CodeMirror goes first, and a key it took is not taken again.
   const keys: Record<string, () => void> = {
     o: pick,
-    p: () => printPage(view),
+    p: () => void printPage(view),
     f: () => openSearchPanel(view),
   };
   document.addEventListener("keydown", (event) => {

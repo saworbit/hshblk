@@ -67,3 +67,4 @@
 - Desktop: Enter with the caret in a task item's text ticks or unticks its box, as a click on it does. The box stays drawn while the caret is in the text, so the change shows, and the file keeps what it says. (#124)
 - CI: the Desktop workflow runs on every pull request, docs included, since main now requires its three checks. A docs-only pull request would wait on them forever. (#56)
 - Desktop: a file saved straight into the home folder, or above it, shows only the images beside it. Its scope was its folder, so it could show any image in the home, such as `Documents/passport.jpg`. A file in a folder below the home is unchanged. (#110)
+- Desktop: print shows every HTML block, the ones the reader has not scrolled to included, with each `<details>` in one open. Those frames printed blank, since they loaded after print had begun, and a details in one printed closed. Each goes back as the reader left it after. (#108)
