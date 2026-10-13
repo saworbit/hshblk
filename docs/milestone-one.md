@@ -52,7 +52,7 @@ Run: 2026-10-14, on the named machine: Windows 11 Home 26H2, build 26300.9550, W
 - A double-click on `first.md` in File Explorer opened it in its own window, as a page, in front.
 - With File Explorer in front again, a double-click on `second note.md` opened a second window in the same process, and the second launch exited. The name's space reached the app whole.
 - At 51e2d0b that second window opened behind File Explorer, which kept the focus, two tries out of two (#148). With the fix, each new window came to the front, two tries out of two.
-- Not run: a drop. It needs a person to drag a file from File Explorer onto a window.
+- With the fix, a file dragged from File Explorer onto a window, by hand, opened in a window of its own, in front.
 
 ## Found and fixed on the way
 
@@ -64,6 +64,6 @@ Run: 2026-10-14, on the named machine: Windows 11 Home 26H2, build 26300.9550, W
 
 ## Not covered
 
-- macOS: double-click, drop, and the rest. Windows: the drop and the rest, since only the double-click ran by hand. `tauri-driver` does not run on macOS, and this run was on Linux only. On Windows, msedgedriver passes a WebView2 app's arguments as switches, so a WebDriver session cannot open a file there.
+- macOS: double-click, drop, and the rest. Windows: the rest, since only the double-click and the drop ran by hand. `tauri-driver` does not run on macOS, and this run was on Linux only. On Windows, msedgedriver passes a WebView2 app's arguments as switches, so a WebDriver session cannot open a file there.
 - A drop from a file manager. Only the operating system can start one, and WebDriver cannot. Drops are handled in Rust, and the page cannot see them: it has no event permissions.
 - A real session, with a compositor and an input method. The host spot-check in §9 is for that. It ran in a VM on 2026-10-13, recorded in [gates/click-target.md](gates/click-target.md). A real GPU is still to come.
