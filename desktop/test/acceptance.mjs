@@ -346,6 +346,28 @@ describe("the window's keys, wherever focus is", () => {
     assert.equal(await page.until(() => document.activeElement?.name), "search");
   });
 
+  test("Ctrl+/ shows all the syntax from the find box, and says so, until it goes again", async () => {
+    await page.press(Key.Control, "f");
+    assert.equal(await page.until(focused), "search");
+    await page.press(Key.Control, "/");
+    const shown = await page.until(() => {
+      const text = document.querySelector(".cm-content").textContent;
+      const said = document.querySelector(".status-source");
+      return (
+        text.includes("# Keys") && text.includes("**bold**") && !said.hidden && said.textContent
+      );
+    });
+    assert.match(shown, /^Showing the source\./);
+    await page.press(Key.Control, "/");
+    assert.ok(
+      await page.until(() => {
+        const text = document.querySelector(".cm-content").textContent;
+        const hidden = document.querySelector(".status-source").hidden;
+        return !text.includes("#") && !text.includes("**") && hidden;
+      }),
+    );
+  });
+
   test("Ctrl+P prints from the find box: the syntax open for the screen folds", async () => {
     const at = await page.run(() => {
       const box = document.querySelector(".pg-strong").getBoundingClientRect();
@@ -1018,6 +1040,44 @@ describe("a task list", () => {
     assert.deepEqual((await page.run(boxes)).checked, ["true", "true"]);
     await page.click(before.x, before.y);
     await page.until(first, false);
+    assert.deepEqual(fingerprint(file), bytes);
+  });
+});
+
+describe("frontmatter", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-frontmatter-"));
+  const file = join(folder, "front.md");
+  writeFileSync(file, "---\ntitle: Notes\ntags: [a, b]\n---\n\n# Front\n\nText.\n");
+  const bytes = fingerprint(file);
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelector(".pg-h1"));
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  test("folds away, and the status line's indicator opens its fields", async () => {
+    const text = () => document.querySelector(".cm-content").textContent;
+    assert.doesNotMatch(await page.run(text), /title:/);
+    const at = await page.until(() => {
+      const button = document.querySelector(".status-frontmatter");
+      if (!button || button.hidden) return null;
+      const box = button.getBoundingClientRect();
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    });
+    await page.click(at.x, at.y);
+    // The panel loads the yaml package as it first opens, so this also finds it under the CSP.
+    const listed = await page.until(() => {
+      const terms = [...document.querySelectorAll(".pg-front-fields dt, .pg-front-fields dd")];
+      return terms.map((term) => term.textContent).join(" ");
+    });
+    assert.equal(listed, "title Notes tags a, b");
+    await page.press(Key.Control, Key.Shift, "M");
+    assert.ok(await page.until(() => !document.querySelector(".pg-front-panel")));
     assert.deepEqual(fingerprint(file), bytes);
   });
 });

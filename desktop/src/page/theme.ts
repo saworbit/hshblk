@@ -193,6 +193,29 @@ export const pageTheme = EditorView.theme({
     fontSize: "0.8rem",
   },
   ".cm-panels input, .cm-panels button": { font: "inherit" },
+
+  // The frontmatter panel: the fields as a list, or the YAML as written.
+  ".pg-front-panel": { padding: "0.5rem 1rem", maxHeight: "40vh", overflowY: "auto" },
+  ".pg-front-head": { display: "flex", alignItems: "center", gap: "1em" },
+  ".pg-front-title": { color: "var(--muted)", marginRight: "auto" },
+  ".pg-front-head button": {
+    color: "var(--ink)",
+    background: "none",
+    border: "1px solid var(--rule)",
+    borderRadius: "4px",
+    padding: "0.1em 0.6em",
+    cursor: "pointer",
+  },
+  ".pg-front-fields": {
+    display: "grid",
+    gridTemplateColumns: "max-content 1fr",
+    gap: "0.25em 1.5em",
+    margin: "0.5rem 0 0",
+  },
+  ".pg-front-fields dt": { color: "var(--muted)" },
+  ".pg-front-fields dd": { margin: "0", overflowWrap: "anywhere" },
+  ".pg-front-block": { whiteSpace: "pre-wrap" },
+  ".pg-front-yaml": { margin: "0.5rem 0 0", whiteSpace: "pre-wrap", overflowWrap: "anywhere" },
   ".cm-searchMatch": { backgroundColor: "color-mix(in oklab, var(--accent) 18%, transparent)" },
 
   // Print is the whole page, not a window's worth of it: no scroller, and no height to fill.

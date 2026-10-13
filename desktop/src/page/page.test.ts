@@ -1,13 +1,22 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { ensureSyntaxTree } from "@codemirror/language";
-import { EditorState, RangeSet } from "@codemirror/state";
+import { EditorState, RangeSet, type StateCommand } from "@codemirror/state";
 import { showTooltip, type DecorationSet } from "@codemirror/view";
 import { filePath, isLocal } from "./assets.ts";
 import { markdown } from "./dialect.ts";
 import { around, modClickOpens, showFrameLink } from "./links.ts";
 import { scan, scanNow } from "./blocks.ts";
-import { foldAll, page, paint, printing, toggleDetailsAtCaret, toggleTaskAtCaret } from "./page.ts";
+import {
+  foldAll,
+  page,
+  paint,
+  printing,
+  sourceShown,
+  toggleDetailsAtCaret,
+  toggleSource,
+  toggleTaskAtCaret,
+} from "./page.ts";
 import { headingAt, headings } from "./references.ts";
 import {
   HtmlWidget,
@@ -590,14 +599,54 @@ describe("a task list", () => {
   });
 });
 
+describe("the source", () => {
+  const doc = [
+    "---\ntitle: x\n---",
+    "# Title",
+    "Some **bold**, a [link](https://x.y), and ![an image](a.png).",
+    "| a |\n|---|\n| b |",
+    "<p>Raw</p>",
+    "- [ ] task",
+    "<details>\n<summary>More</summary>",
+    "Body.",
+    "</details>",
+    "[x]: /y",
+    "---",
+  ].join("\n\n");
+  const run = (command: StateCommand, state: EditorState): EditorState | null => {
+    let next: EditorState | null = null;
+    command({ state, dispatch: (tr) => (next = tr.state) });
+    return next;
+  };
+
+  it("shows every construct as written, links and blocks too, until the same key hides it", () => {
+    const shown = run(toggleSource, open(doc))!;
+    assert.equal(visible(shown), doc);
+    assert.equal(sourceShown(shown), true);
+    const hidden = run(toggleSource, shown)!;
+    assert.equal(visible(hidden), visible(open(doc)));
+    assert.equal(sourceShown(hidden), false);
+    assert.equal(hidden.doc.toString(), doc);
+  });
+
+  it("leaves Enter to the keymap while it shows, since nothing Enter changes would show", () => {
+    const shown = run(toggleSource, open(doc))!;
+    assert.equal(run(toggleDetailsAtCaret, select(shown, doc.indexOf("<summary>"))), null);
+    assert.equal(run(toggleTaskAtCaret, select(shown, doc.indexOf("task"))), null);
+  });
+});
+
 describe("frontmatter", () => {
   const front = "---\ntitle: Notes\ntags: [a, b]\n[x]: /y\n---";
   const quiet = "pg-code-block pg-frontmatter";
 
-  it("shows as a quiet block of its source, and anchors and defines nothing", () => {
+  it("folds away, a quiet block of its source where the keys reach it, and anchors nothing", () => {
     const doc = `${front}\n\n# Heading\n\n[x]`;
     const state = open(doc);
-    assert.equal(visible(state), `${front}\n\nHeading\n\n[x]`);
+    // The status line's indicator and the panel show it.
+    assert.equal(visible(state), "\n\nHeading\n\n[x]");
+    assert.equal(visible(select(state, doc.indexOf("tags"))), `${front}\n\nHeading\n\n[x]`);
+    assert.equal(visible(click(state, doc.indexOf("tags"))), "\n\nHeading\n\n[x]");
     assert.deepEqual(lineClasses(state, styles).slice(0, 7), [
       quiet,
       quiet,
@@ -613,7 +662,8 @@ describe("frontmatter", () => {
   it("holds a blank line, and closes at ... too", () => {
     const doc = "---\ntitle: x\n\ntags: y\n...\n\nAfter";
     const state = open(doc);
-    assert.equal(visible(state), doc);
+    assert.equal(visible(state), "\n\nAfter");
+    assert.equal(visible(select(state, doc.indexOf("tags"))), doc);
     assert.deepEqual(lineClasses(state, styles), [quiet, quiet, quiet, quiet, quiet, "", ""]);
   });
 

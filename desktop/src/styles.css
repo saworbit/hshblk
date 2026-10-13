@@ -61,6 +61,31 @@ body {
 .status-reason {
   color: var(--accent);
 }
+/* It pulses once, when it first shows, and not at all for a reader who asks for less motion. */
+.status-frontmatter {
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  animation: status-found 1.6s ease-out 1;
+}
+@keyframes status-found {
+  0%,
+  50% {
+    opacity: 0.25;
+  }
+  25%,
+  100% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .status-frontmatter {
+    animation: none;
+  }
+}
 
 .welcome {
   margin: auto;

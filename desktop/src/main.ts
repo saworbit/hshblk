@@ -1,7 +1,11 @@
 import "./styles.css";
 import { openSearchPanel } from "@codemirror/search";
+import type { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { frontmatterPanel, frontmatterText, toggleFrontmatter } from "./page/frontmatter.ts";
+import { sourceShown, toggleSource } from "./page/page.ts";
 import { createSurface, printPage } from "./surface.ts";
 
 type Opened = { name: string; modified: number | null; readOnlyReason: string | null };
@@ -37,13 +41,21 @@ if (handle) {
     nonce: nonce && !nonce.startsWith("__TAURI") ? nonce : undefined,
     // A link that does not open says why, in the status line.
     openLink: (url) => void invoke("open_url", { url }).catch((error) => say(status, `${error}`)),
+    extensions: EditorView.updateListener.of((update) => reflect(status, update.state)),
   });
+  reflect(status, view.state);
+  status
+    .querySelector(".status-frontmatter")
+    ?.addEventListener("click", () => toggleFrontmatter(view));
   // The window's keys work wherever focus is: the page, the find box, or nothing at all.
   // CodeMirror goes first, and a key it took is not taken again.
   const keys: Record<string, () => void> = {
     o: pick,
     p: () => void printPage(view),
     f: () => openSearchPanel(view),
+    "/": () => toggleSource(view),
+    // Shift and M.
+    M: () => toggleFrontmatter(view),
   };
   document.addEventListener("keydown", (event) => {
     const run = keys[event.key];
@@ -73,9 +85,33 @@ function statusLine(opened: Opened): HTMLElement {
     });
     line.append(element("span", "", `Modified ${when}`));
   }
+  // Shown only for a file with frontmatter, which folds away on the page.
+  const front = element("button", "status-frontmatter", "Frontmatter");
+  front.setAttribute("type", "button");
+  front.title = `Show the frontmatter (${mac ? "⌘⇧M" : "Ctrl+Shift+M"})`;
+  front.hidden = true;
+  line.append(front);
   line.append(element("span", "", "Read only. Copy and find work on the source."));
+  const source = element(
+    "span",
+    "status-source",
+    `Showing the source. ${mac ? "⌘/" : "Ctrl+/"} hides it.`,
+  );
+  source.hidden = true;
+  line.append(source);
   if (opened.readOnlyReason) line.append(element("span", "status-reason", opened.readOnlyReason));
   return line;
+}
+
+/** What the status line says of the page: its frontmatter, and whether the source shows. */
+function reflect(line: HTMLElement, state: EditorState): void {
+  const front = line.querySelector<HTMLElement>(".status-frontmatter");
+  if (front) {
+    front.hidden = frontmatterText(state) === null;
+    front.setAttribute("aria-expanded", String(state.field(frontmatterPanel).open));
+  }
+  const source = line.querySelector<HTMLElement>(".status-source");
+  if (source) source.hidden = !sourceShown(state);
 }
 
 /** Says in the status line what went wrong, until something else does. */

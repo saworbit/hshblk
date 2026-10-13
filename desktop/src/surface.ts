@@ -5,6 +5,7 @@ import { EditorView, type KeyBinding, keymap } from "@codemirror/view";
 import { assetUrl, type AssetUrl } from "./page/assets.ts";
 import { completeParse, finishParse } from "./page/complete.ts";
 import { markdown } from "./page/dialect.ts";
+import { closeFrontmatter, frontmatter } from "./page/frontmatter.ts";
 import {
   cursorLineOnto,
   foldAll,
@@ -34,8 +35,8 @@ const lineUp = cursorLineOnto(false);
 /**
  * Movement and selection. The state is read-only, so the editing commands here do nothing.
  * Enter on a <details>'s tags opens or closes it, and in a task item's text ticks or unticks its
- * box. Up and Down stop on a drawn block, and so do Ctrl+N and Ctrl+P, which CodeMirror binds to
- * them on macOS.
+ * box. Escape closes the frontmatter panel. Up and Down stop on a drawn block, and so do Ctrl+N
+ * and Ctrl+P, which CodeMirror binds to them on macOS.
  */
 export const pageKeys: readonly KeyBinding[] = [
   { key: "Enter", run: toggleDetailsAtCaret },
@@ -44,6 +45,7 @@ export const pageKeys: readonly KeyBinding[] = [
   { key: "ArrowUp", run: lineUp },
   { mac: "Ctrl-n", run: lineDown },
   { mac: "Ctrl-p", run: lineUp },
+  { key: "Escape", run: closeFrontmatter },
   ...searchKeymap,
   ...standardKeymap,
 ];
@@ -69,6 +71,7 @@ export function createSurface(
         clickPastLineEnd,
         modClickOpens,
         summaryToggles,
+        frontmatter,
         options.openLink ? linkOpener.of(options.openLink) : [],
         assetUrl.of(options.assets),
         EditorState.readOnly.of(true),
