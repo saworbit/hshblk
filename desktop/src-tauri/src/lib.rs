@@ -127,7 +127,21 @@ fn opens(url: &str) -> bool {
     })
 }
 
+/// The variable that turns WebKitGTK's DMA-BUF renderer off.
+const DMABUF: &str = "WEBKIT_DISABLE_DMABUF_RENDERER";
+
+/// #143: where the GPU has no working driver, as in a VM, WebKitGTK's DMA-BUF renderer gives the
+/// page no animation frames, and the page stops after its first paint. Its older path still uses
+/// the GPU. So it is off unless the user set the variable, which `0` turns back on.
+fn dmabuf_off(set: Option<std::ffi::OsString>) -> bool {
+    set.is_none()
+}
+
 pub fn run() {
+    // Before WebKitGTK starts, and before the app starts any thread.
+    if cfg!(target_os = "linux") && dmabuf_off(std::env::var_os(DMABUF)) {
+        std::env::set_var(DMABUF, "1");
+    }
     tauri::Builder::default()
         // First, so a second launch hands its files to this process before anything else starts.
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
@@ -183,6 +197,14 @@ fn on_run_event(_app: &tauri::AppHandle, _event: RunEvent) {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn turns_the_dmabuf_renderer_off_unless_the_user_set_it() {
+        assert!(dmabuf_off(None));
+        // Set either way, the user's word stands: `0` keeps the renderer on.
+        assert!(!dmabuf_off(Some("0".into())));
+        assert!(!dmabuf_off(Some("1".into())));
+    }
 
     #[test]
     fn opens_web_and_mail_addresses_in_any_case() {
