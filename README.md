@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/logo/svg/mark-dark.svg">
+  <img src="brand/logo/svg/mark.svg" width="80" height="80" alt="">
+</picture>
+
 # Hash Block
 
 A page for a markdown file. Double-click one and it opens in a window of its own, typeset, not in a browser. The characters stay in the file. Nothing here writes them back.
