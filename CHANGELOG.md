@@ -75,3 +75,6 @@
 - Docs: macOS ships unsigned until there is an Apple Developer ID. (#28)
 - Docs: desktop.md's file layout names the frontmatter panel and the macOS File menu. milestone-one.md says why a WebDriver session cannot open a file on Windows.
 - Docs: Linux updates wait for a Flatpak against the GNOME runtime. Tauri's updater updates only an AppImage there, and its AppImage bundles WebKitGTK, which hld.md §10 rules out, so the Linux packages stay `.deb` and `.rpm`. (#136)
+- Desktop: on a file with frontmatter the caret starts on the first line after it, so the first Right or End leaves it folded. It started inside it, and the first key opened it. (#137)
+- Desktop: print leaves out the find box and the frontmatter panel, as it leaves out the status line. They printed at the top of the first page. (#138)
+- Repo: `desktop/package.json` asks for npm 11.11 or later. An older npm dropped the `libc` fields of the lockfile's Linux packages, and rewrote lines no change asked for. (#139)

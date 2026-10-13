@@ -180,7 +180,7 @@ function listing(root) {
  * place the caret, which opens the title's syntax, then the print keys. GTK's dialog is answered
  * with its first printer, which with no others is Print to File, into the app's folder.
  */
-async function printByKeyboard(file) {
+async function printByKeyboard(file, keys = ["Right", "ctrl+p"]) {
   const child = spawn(app, [file], { cwd: work, stdio: ["ignore", "ignore", "pipe"] });
   let said = "";
   child.stderr.on("data", (chunk) => (said = (said + chunk).slice(-4000)));
@@ -200,7 +200,7 @@ async function printByKeyboard(file) {
     let dialog = null;
     for (const until = Date.now() + 60_000; !dialog && Date.now() < until;) {
       await run("xdotool", ["windowfocus", "--sync", window]);
-      await run("xdotool", ["key", "Right", "ctrl+p"]);
+      await run("xdotool", ["key", ...keys]);
       dialog = await find(["--onlyvisible", "--name", "^Print$"], 3000).catch(() => null);
     }
     if (!dialog) throw new Error("the print keys opened no dialog");
@@ -1060,8 +1060,15 @@ describe("frontmatter", () => {
     await gone();
   });
 
+  const text = () => document.querySelector(".cm-content").textContent;
+
+  test("stays folded when the first keys move the caret", async () => {
+    await page.press(Key.ArrowRight);
+    await page.press(Key.End);
+    assert.doesNotMatch(await page.run(text), /title:/);
+  });
+
   test("folds away, and the status line's indicator opens its fields", async () => {
-    const text = () => document.querySelector(".cm-content").textContent;
     assert.doesNotMatch(await page.run(text), /title:/);
     const at = await page.until(() => {
       const button = document.querySelector(".status-frontmatter");
@@ -1264,6 +1271,12 @@ ${FILLER}
     assert.match(printed, /Near frame body\./);
     assert.match(printed, /Far frame text\./);
     assert.match(printed, /Far frame body\./);
+  });
+
+  test("leaves the find box out, as it is for the screen", async () => {
+    const printed = await printByKeyboard(file, ["Right", "ctrl+f", "ctrl+p"]);
+    assert.match(printed, /^Notes$/m);
+    assert.doesNotMatch(printed, /match case|by word|regexp/);
   });
 });
 

@@ -219,8 +219,10 @@ export const pageTheme = EditorView.theme({
   ".cm-searchMatch": { backgroundColor: "color-mix(in oklab, var(--accent) 18%, transparent)" },
 
   // Print is the whole page, not a window's worth of it: no scroller, and no height to fill.
+  // The find box and the frontmatter panel are for the screen, as the status line is.
   "@media print": {
     "&": { display: "block" },
     ".cm-scroller": { overflow: "visible" },
+    ".cm-panels": { display: "none" },
   },
 });

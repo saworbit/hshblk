@@ -11,6 +11,7 @@ import {
   foldAll,
   page,
   printing,
+  startOfPage,
   toggleDetailsAtCaret,
   toggleTaskAtCaret,
 } from "./page/page.ts";
@@ -59,31 +60,32 @@ export function createSurface(
   text: string,
   options: SurfaceOptions,
 ): EditorView {
-  return new EditorView({
-    parent,
-    state: EditorState.create({
-      doc: text,
-      extensions: [
-        markdown,
-        page,
-        completeParse,
-        pageTheme,
-        clickPastLineEnd,
-        modClickOpens,
-        summaryToggles,
-        frontmatter,
-        options.openLink ? linkOpener.of(options.openLink) : [],
-        assetUrl.of(options.assets),
-        EditorState.readOnly.of(true),
-        EditorView.lineWrapping,
-        EditorView.contentAttributes.of({ "aria-label": "Document", spellcheck: "false" }),
-        search({ top: true }),
-        keymap.of(pageKeys),
-        options.nonce ? EditorView.cspNonce.of(options.nonce) : [],
-        options.extensions ?? [],
-      ],
-    }),
+  const state = EditorState.create({
+    doc: text,
+    extensions: [
+      markdown,
+      page,
+      completeParse,
+      pageTheme,
+      clickPastLineEnd,
+      modClickOpens,
+      summaryToggles,
+      frontmatter,
+      options.openLink ? linkOpener.of(options.openLink) : [],
+      assetUrl.of(options.assets),
+      EditorState.readOnly.of(true),
+      EditorView.lineWrapping,
+      EditorView.contentAttributes.of({ "aria-label": "Document", spellcheck: "false" }),
+      search({ top: true }),
+      keymap.of(pageKeys),
+      options.nonce ? EditorView.cspNonce.of(options.nonce) : [],
+      options.extensions ?? [],
+    ],
   });
+  // The caret starts after the frontmatter, so the first key does not open it. Placing it is
+  // not the reader's selection, so it opens nothing.
+  const start = state.update({ selection: { anchor: startOfPage(state) } }).state;
+  return new EditorView({ parent, state: start });
 }
 
 /** How long print waits for the HTML blocks to load, so one that never loads cannot hold it up. */
