@@ -38,6 +38,9 @@ pub struct Document {
     pub path: PathBuf,
     /// The repository the file is in, or its own folder when it is in none. Assets stay inside it.
     pub scope: PathBuf,
+    /// Whether only the files directly in the scope count, not its folders. A loose file's scope
+    /// is flat at the home folder or above it, so it cannot show all of the home.
+    pub flat: bool,
     /// The file's own name, which is all of its path the page is told.
     pub name: String,
     /// When the file was last modified, as it was read, in milliseconds since 1970.
@@ -216,8 +219,10 @@ fn read(path: &Path) -> Result<Document, OpenError> {
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_else(|| path.clone());
+    let (scope, flat) = scope_of(&folder, home().as_deref());
     Ok(Document {
-        scope: repository(&folder, home().as_deref()).unwrap_or_else(|| folder.clone()),
+        scope,
+        flat,
         name: path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -242,6 +247,19 @@ fn repository(folder: &Path, home: Option<&Path>) -> Option<PathBuf> {
         .find(|dir| dir.join(".git").exists())
         .filter(|root| home.is_none_or(|home| !home.starts_with(root)))
         .map(Path::to_path_buf)
+}
+
+/// docs/hld.md §6: a document's scope, and whether it is flat. A loose file's scope is its own
+/// folder. When that folder is the home directory or above it, only the files beside the
+/// document count, so a file saved straight into `~` cannot show all of the home.
+fn scope_of(folder: &Path, home: Option<&Path>) -> (PathBuf, bool) {
+    match repository(folder, home) {
+        Some(root) => (root, false),
+        None => (
+            folder.to_path_buf(),
+            home.is_some_and(|home| home.starts_with(folder)),
+        ),
+    }
 }
 
 /// The user's home directory, with symlinks resolved as a document's path is.
@@ -378,6 +396,22 @@ mod tests {
             repository(&home.join("Downloads"), None),
             Some(home.clone())
         );
+    }
+
+    #[test]
+    fn flattens_a_loose_files_scope_at_the_home_directory_or_above_it() {
+        // A file saved straight into the home, or above it, shows only what is beside it.
+        let root = tempfile::tempdir().unwrap();
+        let tmp = fs::canonicalize(root.path()).unwrap();
+        fs::create_dir_all(tmp.join("home/Downloads")).unwrap();
+        fs::create_dir_all(tmp.join("home/code/.git")).unwrap();
+        let home = tmp.join("home");
+        let scope = |folder: &Path| scope_of(folder, Some(&home));
+        assert_eq!(scope(&home), (home.clone(), true));
+        assert_eq!(scope(&tmp), (tmp.clone(), true));
+        let downloads = home.join("Downloads");
+        assert_eq!(scope(&downloads), (downloads.clone(), false));
+        assert_eq!(scope(&home.join("code")), (home.join("code"), false));
     }
 
     #[test]

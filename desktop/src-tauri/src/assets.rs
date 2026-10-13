@@ -127,7 +127,13 @@ pub fn resolve(document: &Document, reference: &str) -> Result<PathBuf, Refusal>
     }
     // Symlinks and junctions resolve before the scope is checked, so neither can leave it.
     let file = fs::canonicalize(base.join(relative)).map_err(|_| Refusal::Missing)?;
-    if !file.starts_with(&document.scope) {
+    // A flat scope holds only the files directly in it, beside the document.
+    let inside = if document.flat {
+        file.parent() == Some(document.scope.as_path())
+    } else {
+        file.starts_with(&document.scope)
+    };
+    if !inside {
         return Err(Refusal::OutsideScope);
     }
     let metadata = fs::metadata(&file).map_err(|_| Refusal::Missing)?;
@@ -214,6 +220,7 @@ fn after_doctype(bytes: &[u8]) -> &[u8] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::documents::Facts;
     use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
@@ -333,6 +340,41 @@ mod tests {
             Err(refusal)
         );
         assert_eq!(ask(&fixture, "file:secret.png"), Err(Refusal::NotRelative));
+    }
+
+    #[test]
+    fn serves_only_the_images_beside_a_document_whose_scope_is_flat() {
+        // home/x.md beside a.png, with Pictures/b.png below, as a file saved straight into ~.
+        let root = tempfile::tempdir().unwrap();
+        let home = fs::canonicalize(root.path()).unwrap();
+        fs::create_dir_all(home.join("Pictures")).unwrap();
+        fs::write(home.join("a.png"), PNG).unwrap();
+        fs::write(home.join("Pictures/b.png"), PNG).unwrap();
+        let (facts, text) = Facts::read(b"x");
+        let flat = Document {
+            path: home.join("x.md"),
+            scope: home.clone(),
+            flat: true,
+            name: "x.md".into(),
+            modified: None,
+            text,
+            facts,
+        };
+        for beside in ["a.png", "/a.png", "Pictures/../a.png"] {
+            assert_eq!(resolve(&flat, beside), Ok(home.join("a.png")), "{beside}");
+        }
+        for below in ["Pictures/b.png", "/Pictures/b.png"] {
+            assert_eq!(resolve(&flat, below), Err(Refusal::OutsideScope), "{below}");
+        }
+        // A scope that is not flat holds its folders too.
+        let deep = Document {
+            flat: false,
+            ..flat
+        };
+        assert_eq!(
+            resolve(&deep, "Pictures/b.png"),
+            Ok(home.join("Pictures").join("b.png"))
+        );
     }
 
     #[cfg(unix)]

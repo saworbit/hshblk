@@ -14,7 +14,7 @@ In the desktop app:
 
 - Script from the file runs.
 - The app fetches anything from the network because of the file.
-- The page reads a file outside the document's repository, or a file that is not an image, through an image reference.
+- The page reads a file outside the document's scope, or a file that is not an image, through an image reference. The scope is the document's repository, or its folder when it has none. At the home folder or above, it is only the files beside the document.
 - The page learns a filesystem path.
 - The file, or anything else, is written.
 

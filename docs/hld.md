@@ -195,8 +195,8 @@ No general filesystem command. No path argument from the webview. The capability
 
 Asset and link scope:
 
-- The scope root is the enclosing git repository, found by walking up from the document to a `.git` entry. With no repository, it is the document directory. A `.git` at the user's home directory or above it does not count, so with dotfiles kept in `~/.git`, a loose file's scope is still its own folder.
-- The target, with symlinks and junctions resolved, must sit under the scope root. `../` is allowed inside it. A reference with one leading `/` starts at the scope root, as GitHub reads it in a repository. It never names the filesystem's root, and two leading slashes name a host, which is remote.
+- The scope root is the enclosing git repository, found by walking up from the document to a `.git` entry. With no repository, it is the document directory. A `.git` at the user's home directory or above it does not count, so with dotfiles kept in `~/.git`, a loose file's scope is still its own folder. When that folder is the home directory or above it, the scope is flat: only the files directly in it, not its folders, so a file saved straight into `~` cannot show all of the home.
+- The target, with symlinks and junctions resolved, must sit under the scope root, or directly in it when the scope is flat. `../` is allowed inside it. A reference with one leading `/` starts at the scope root, as GitHub reads it in a repository. It never names the filesystem's root, and two leading slashes name a host, which is remote.
 - Assets are regular files of an image type by magic bytes (PNG, JPEG, GIF, WebP, AVIF; SVG by content), at most 20 MB. That excludes devices, FIFOs, and `/dev/zero`.
 - Reading outside the document's folder gives an attacker nothing under this threat model. No script runs and nothing leaves the machine, and a hostile image would ship inside the repository anyway.
 
