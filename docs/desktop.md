@@ -14,7 +14,7 @@ The Desktop workflow builds the packages on every push to `main`. Open the lates
 
 There is no AppImage: Tauri's bundles WebKitGTK, which [hld.md](hld.md) §10 rules out. None is signed yet ([hld.md](hld.md) §12, question 1), and macOS ships unsigned until there is an Apple Developer ID. The first time, macOS will not open it: in **System Settings**, **Privacy & Security**, choose **Open Anyway**. Windows SmartScreen warns too: **More info**, then **Run anyway**.
 
-On Linux the app uses the system's WebKitGTK, which the package depends on. It is not bundled, so it gets the distribution's security updates ([hld.md](hld.md) §10).
+On Linux the app uses the system's WebKitGTK, which the package depends on. It is not bundled, so it gets the distribution's security updates ([hld.md](hld.md) §10). The app turns off WebKitGTK's DMA-BUF renderer, unless `WEBKIT_DISABLE_DMABUF_RENDERER` is already set. Where the GPU has no working driver, as in a VM, that renderer gives the page no animation frames, and the page stops after its first paint. Its older path still uses the GPU. To keep the DMA-BUF renderer, start the app with `WEBKIT_DISABLE_DMABUF_RENDERER=0`.
 
 ### If it takes 30 seconds to open, on Linux
 

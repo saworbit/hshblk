@@ -36,8 +36,8 @@ Later the same day, row 3 failed in some runs with "no caret" on its second link
 
 Run: 2026-10-13, for #22, in a VM, not on bare metal: Ubuntu 24.04.5 LTS desktop in VirtualBox 7.2.14, a GNOME Wayland session, IBus 1.5.29, WebKitGTK 2.52.6. The GPU is VirtualBox's VMSVGA with 3D off, and EGL has no DRI screen. Debug build of 7bb1290, whose page code main still has then.
 
-- **The window painted once, then stopped.** Under WebKitGTK's default DMA-BUF renderer the page got no animation frames: `requestAnimationFrame` ran 0 times a second. CodeMirror measures and draws on them, so the page kept its first paint. The gate failed on its first case, since the plain line, below a long wrapped paragraph, was never drawn. With `WEBKIT_DISABLE_DMABUF_RENDERER=1` it ran 60 times a second. What the app does about it is #143.
-- **The gate: 26 of 26,** with that variable set, through the same pointer input as under Xvfb.
+- **The window painted once, then stopped.** Under WebKitGTK's default DMA-BUF renderer the page got no animation frames: `requestAnimationFrame` ran 0 times a second. CodeMirror measures and draws on them, so the page kept its first paint. The gate failed on its first case, since the plain line, below a long wrapped paragraph, was never drawn. With `WEBKIT_DISABLE_DMABUF_RENDERER=1` it ran 60 times a second. Since #143 the app sets that itself unless the variable is set, and the gate passed 26 of 26 with nothing set.
+- **The gate: 26 of 26,** through the same pointer input as under Xvfb, first with the variable set by hand, then with the app's own default.
 - **IME, by hand.** Keystrokes went into the VM from the host, through IBus as a reader's do. With the caret inside `**bold words**`, its marks opened by the keys, IBus composed é from Ctrl+Shift+U, `e9`, and Space. The caret and the opened marks held through the composition, and the read-only page kept nothing. IBus showed its preedit in a popup, not inline, about 90 px below and 40 px right of the caret. So the caret's place reached the input method off by that much.
 - **Not settled here:** a real GPU. #22 stays open for that.
 
