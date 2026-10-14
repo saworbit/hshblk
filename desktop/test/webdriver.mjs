@@ -10,6 +10,7 @@ const ROOT = "http://127.0.0.1:4444";
 export const Key = {
   Control: "\uE009",
   Shift: "\uE008",
+  Tab: "\uE004",
   Enter: "\uE007",
   Escape: "\uE00C",
   End: "\uE010",

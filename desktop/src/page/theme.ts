@@ -266,6 +266,14 @@ export const pageTheme = EditorView.theme({
   ".pg-front-block": { whiteSpace: "pre-wrap" },
   ".pg-front-yaml": { margin: "0.5rem 0 0", whiteSpace: "pre-wrap", overflowWrap: "anywhere" },
   ".cm-searchMatch": { backgroundColor: "color-mix(in oklab, var(--accent) 18%, transparent)" },
+  // The match the selection is on stands out from the rest (#159).
+  ".cm-searchMatch.cm-searchMatch-selected": {
+    backgroundColor: "color-mix(in oklab, var(--accent) 45%, transparent)",
+    outline: "1px solid var(--accent)",
+  },
+  // It selected one match, not all: the page keeps one selection (#202).
+  ".cm-search button[name=select]": { display: "none" },
+  ".pg-find-count": { color: "var(--muted)", fontSize: "0.9em", margin: "0 0.5em" },
 
   // Print is the whole page, not a window's worth of it: no scroller, and no height to fill.
   // The find box and the frontmatter panel are for the screen, as the status line is.

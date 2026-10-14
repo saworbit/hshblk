@@ -87,6 +87,14 @@ body {
   }
 }
 
+/* Where keyboard focus is, on any of the app's own controls, by day and by night. The engine's
+   ring was near black, and did not show on the night's paper (#163). */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .welcome {
   margin: auto;
   text-align: center;
