@@ -51,7 +51,7 @@ Each file opens in a window of its own. A second file opens a second window in t
 | `Ctrl+0` (`⌘0`) | Put the text back to its own size |
 | `Ctrl+W` (`⌘W`) | Close the window. On macOS, so does File > Close Window |
 | `Ctrl+A`, `Ctrl+C` | Select and copy, as source |
-| `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading it names |
+| `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading or HTML anchor it names |
 | `Enter` | Open or close a `<details>`, with the caret on its tags. Tick or untick a task box, with the caret in its text |
 
 - Dropping a file on a window opens it in a new window. A file that is already open brings its window to the front instead. `Ctrl+O` starts in the folder of the window's document. A file that is not text, such as an image, does not open, and the message names it.

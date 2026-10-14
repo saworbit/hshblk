@@ -140,13 +140,56 @@ describe("the page", () => {
     styles(state).between(0, state.doc.length, (_from, _to, decoration) => {
       if (decoration.spec.attributes?.title) titles.push(decoration.spec.attributes.title);
     });
-    assert.deepEqual(titles, ["https://x.y", "/ridge"]);
+    // A link with a title shows it; one with none shows its address (#229).
+    assert.deepEqual(titles, ["T", "/ridge"]);
   });
 
   it("draws the page around a link with no words, which shows nothing, as GitHub's does", () => {
     // #151: an empty mark threw, and CodeMirror dropped the plugin that draws the page.
     const state = open("# Title\n\n[](https://x.y) after.\n\n> - [ ] [](https://x.y) *quoted*");
     assert.equal(visible(state), "Title\n\n after.\n\n- [box]  quoted");
+  });
+
+  it("shows a link's or an image's title on hover, its own or its definition's", () => {
+    // #229: a link's tooltip was its address, and an image had none.
+    const doc =
+      "[own](https://x.y \"Own title\") [ref][r] [bare](https://z.w) ![pic](a.png 'Pic title')\n\n" +
+      '| [cell](https://c.d "Cell title") |\n|---|\n| x |\n\n[r]: /ridge (Ref \\"title\\")';
+    const state = open(doc);
+    const titles: string[] = [];
+    let image: ImageWidget | undefined;
+    let table: TableModel | undefined;
+    for (const set of [styles(state), shown(state)]) {
+      set.between(0, state.doc.length, (_from, _to, decoration) => {
+        if (decoration.spec.attributes?.title) titles.push(decoration.spec.attributes.title);
+        if (decoration.spec.widget instanceof ImageWidget) image = decoration.spec.widget;
+        if (decoration.spec.widget instanceof TableWidget) table = decoration.spec.widget.table;
+      });
+    }
+    // A link with no title keeps its address as its tooltip.
+    assert.deepEqual(titles, ["Own title", 'Ref "title"', "https://z.w"]);
+    assert.equal(image?.title, "Pic title");
+    assert.deepEqual(table?.head[0], [
+      {
+        kind: "link",
+        href: "https://c.d",
+        title: "Cell title",
+        children: [{ kind: "text", text: "cell" }],
+      },
+    ]);
+  });
+
+  it("goes to an id or a name in the document's HTML, as to a heading", () => {
+    // #228: READMEs mark places with <a id> and <a name>, and link to them.
+    const doc =
+      '[To it](#custom-anchor)\n\n## Section\n\n<a id="custom-anchor"></a>\nText after.\n\n' +
+      '<div name=\'block\'>x</div>\n\n```\n<a id="code"></a>\n```\n\n<a name="section"></a>';
+    const state = open(doc);
+    assert.equal(headingAt(state, "#custom-anchor"), doc.indexOf('<a id="custom'));
+    assert.equal(headingAt(state, "#block"), doc.indexOf("<div"));
+    // Code is not HTML, and a heading's anchor comes first.
+    assert.equal(headingAt(state, "#code"), undefined);
+    assert.equal(headingAt(state, "#section"), doc.indexOf("## Section"));
   });
 
   it("names each heading by the anchor GitHub gives it", () => {
@@ -466,7 +509,9 @@ describe("drawing near the viewport", () => {
       "# Title *x*\n\n> - # Deep\n>\n> [r]: /ridge\n\nSome **bold** [ref][r].\n\n| a |\n|---|\n| b |",
     );
     const { blocks, shown } = state.field(page);
-    assert.deepEqual(Object.fromEntries(blocks.definitions), { R: "/ridge" });
+    assert.deepEqual(Object.fromEntries(blocks.definitions), {
+      R: { href: "/ridge", title: null },
+    });
     assert.deepEqual([...blocks.anchors.keys()], ["title-x", "deep"]);
     const kept: string[] = [];
     shown.between(0, state.doc.length, (from, to, decoration) => {

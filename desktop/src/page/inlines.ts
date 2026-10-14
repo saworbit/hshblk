@@ -1,7 +1,7 @@
 import type { Text } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
 import { decodeHTML } from "entities";
-import { autolinkHref, destination, type Definitions } from "./references.ts";
+import { autolinkHref, destination, titleOf, type Definitions } from "./references.ts";
 
 /**
  * Inline content as plain data, for the places the page draws instead of decorating the
@@ -11,7 +11,7 @@ export type Inline =
   | { kind: "text"; text: string }
   | { kind: "emphasis" | "strong" | "strikethrough"; children: Inline[] }
   | { kind: "code"; text: string }
-  | { kind: "link"; href: string; children: Inline[] };
+  | { kind: "link"; href: string; title?: string; children: Inline[] };
 
 /** Syntax, not content. These characters never paint. */
 const MARKS = new Set(["EmphasisMark", "CodeMark", "LinkMark", "StrikethroughMark", "QuoteMark"]);
@@ -92,9 +92,9 @@ function inline(doc: Text, definitions: Definitions, node: SyntaxNode): Inline[]
           text(doc.sliceString(close.from, node.to)),
         ];
       }
-      return node.name === "Image"
-        ? [text(plainText(words))]
-        : [{ kind: "link", href, children: words }];
+      if (node.name === "Image") return [text(plainText(words))];
+      const title = titleOf(doc, node, definitions);
+      return [{ kind: "link", href, ...(title ? { title } : {}), children: words }];
     }
     case "Autolink": {
       const url = node.getChild("URL");

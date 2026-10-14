@@ -2,8 +2,11 @@ import { type EditorState, Facet, type Text } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
 import { decodeHTML } from "entities";
 
+/** A link reference definition: where it points, and its title, if it gives one. */
+export type Definition = { href: string; title: string | null };
+
 /** Link reference definitions, by label. The first definition of a label wins. */
-export type Definitions = Map<string, string>;
+export type Definitions = Map<string, Definition>;
 
 /** Adds a definition, a LinkReference node, unless its label is already defined. */
 export function define(definitions: Definitions, doc: Text, node: SyntaxNode): void {
@@ -11,7 +14,10 @@ export function define(definitions: Definitions, doc: Text, node: SyntaxNode): v
   const url = node.getChild("URL");
   const name = label ? normalize(doc.sliceString(label.from + 1, label.to - 1)) : "";
   if (name && !definitions.has(name)) {
-    definitions.set(name, url ? unwrap(doc.sliceString(url.from, url.to)) : "");
+    definitions.set(name, {
+      href: url ? unwrap(doc.sliceString(url.from, url.to)) : "",
+      title: titleIn(doc, node),
+    });
   }
 }
 
@@ -20,19 +26,41 @@ export function define(definitions: Definitions, doc: Text, node: SyntaxNode): v
  * escapes and entities resolved. Null is a reference with no definition, which is not a link.
  */
 export function destination(doc: Text, node: SyntaxNode, definitions: Definitions): string | null {
-  const marks = node.getChildren("LinkMark");
-  if (marks.some((mark) => doc.sliceString(mark.from, mark.to) === "(")) {
+  if (inline(doc, node)) {
     const url = node.getChild("URL");
     return url ? unwrap(doc.sliceString(url.from, url.to)) : "";
   }
-  // `[text][label]` names its definition. `[text][]` and `[text]` are named by their text.
-  const [open, close] = marks;
+  return definitionOf(doc, node, definitions)?.href ?? null;
+}
+
+/** A Link's or Image's title: its own, after its address, or its definition's (#229). */
+export function titleOf(doc: Text, node: SyntaxNode, definitions: Definitions): string | null {
+  if (inline(doc, node)) return titleIn(doc, node);
+  return definitionOf(doc, node, definitions)?.title ?? null;
+}
+
+/** Whether a Link or Image gives its address in parentheses after it, not by a definition. */
+function inline(doc: Text, node: SyntaxNode): boolean {
+  return node.getChildren("LinkMark").some((mark) => doc.sliceString(mark.from, mark.to) === "(");
+}
+
+/** The definition a reference names. `[text][label]` names it by label, `[text]` by its text. */
+function definitionOf(doc: Text, node: SyntaxNode, definitions: Definitions) {
+  const [open, close] = node.getChildren("LinkMark");
   const reference = node.getChild("LinkLabel");
   const label =
     reference && reference.to - reference.from > 2
       ? doc.sliceString(reference.from + 1, reference.to - 1)
       : doc.sliceString(open.to, close.from);
-  return definitions.get(normalize(label)) ?? null;
+  return definitions.get(normalize(label));
+}
+
+/** A node's title, without its quotes or parentheses, its escapes and entities resolved. */
+function titleIn(doc: Text, node: SyntaxNode): string | null {
+  const title = node.getChild("LinkTitle");
+  if (!title) return null;
+  const words = doc.sliceString(title.from + 1, title.to - 1);
+  return words.replace(ESCAPED, (match, escaped?: string) => escaped ?? decodeHTML(match));
 }
 
 /** An autolink's address. An email autolink's is `mailto:` and the address, as CommonMark says. */

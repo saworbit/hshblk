@@ -35,17 +35,23 @@ export class ImageWidget extends WidgetType {
   readonly reference: string;
   readonly alt: string;
   readonly inline: boolean;
+  /** What a hover shows, as on GitHub (#229). */
+  readonly title: string | null;
 
-  constructor(reference: string, alt: string, inline: boolean) {
+  constructor(reference: string, alt: string, inline: boolean, title: string | null = null) {
     super();
     this.reference = reference;
     this.alt = alt;
     this.inline = inline;
+    this.title = title;
   }
 
   eq(other: ImageWidget): boolean {
     return (
-      other.reference === this.reference && other.alt === this.alt && other.inline === this.inline
+      other.reference === this.reference &&
+      other.alt === this.alt &&
+      other.inline === this.inline &&
+      other.title === this.title
     );
   }
 
@@ -60,6 +66,7 @@ export class ImageWidget extends WidgetType {
     const image = frame.appendChild(document.createElement("img"));
     image.className = "pg-image";
     image.alt = this.alt;
+    if (this.title) image.title = this.title;
     image.addEventListener("error", () =>
       image.replaceWith(placeholder("Image not shown", this.alt, this.inline)),
     );
@@ -598,7 +605,7 @@ function paint(inline: Inline): Node {
       return element("s", "pg-strike", inline.children.map(paint));
     case "link": {
       const link = element("span", "pg-link", inline.children.map(paint));
-      link.title = inline.href;
+      link.title = inline.title ?? inline.href;
       link.dataset.href = inline.href;
       return link;
     }
