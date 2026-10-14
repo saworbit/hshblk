@@ -10,7 +10,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { Text } from "@codemirror/state";
-import { filePath } from "../../src/page/assets.ts";
+import { filePath, isLocal } from "../../src/page/assets.ts";
 import { scanNow } from "../../src/page/blocks.ts";
 import { dialect } from "../../src/page/dialect.ts";
 import { destination } from "../../src/page/references.ts";
@@ -103,8 +103,9 @@ function survey(root: string): Survey {
 /** Where an image points, read as the app reads it: after one leading slash, from the scope's root. */
 function classify(scope: string, file: string, reference: string | null): keyof Survey["images"] {
   if (reference === null || reference === "") return "unresolved";
-  if (/^([a-z][a-z0-9+.-]*:|\/\/)/i.test(reference)) return "remote";
   const path = filePath(reference);
+  // The app's own check, so the gate and the app agree on a backslash too (#259).
+  if (!isLocal(path)) return "remote";
   const fromRoot = path.startsWith("/");
   const target = resolve(fromRoot ? scope : dirname(file), path.replace(/^\//, ""));
   if (target !== scope && !target.startsWith(scope + sep)) return "outside";

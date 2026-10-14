@@ -9,6 +9,7 @@ import { sourceShown, toggleSource } from "./page/page.ts";
 import { setTextSize, stepSize, textSize } from "./page/size.ts";
 import { createSurface, printPage } from "./surface.ts";
 import glyph from "../../brand/logo/svg/glyph-current.svg?raw";
+import { element } from "./page/dom.ts";
 
 type Opened = { name: string; modified: number | null; readOnlyReason: string | null };
 
@@ -181,11 +182,4 @@ function mark(): Element {
   const svg = new DOMParser().parseFromString(glyph, "image/svg+xml").documentElement;
   svg.classList.add("welcome-mark");
   return document.adoptNode(svg);
-}
-
-function element(tag: string, className: string, text?: string): HTMLElement {
-  const el = document.createElement(tag);
-  if (className) el.className = className;
-  if (text) el.textContent = text;
-  return el;
 }

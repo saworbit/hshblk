@@ -1,4 +1,4 @@
-import { Facet } from "@codemirror/state";
+import { type EditorState, Facet } from "@codemirror/state";
 
 /** Turns an image's file, relative to the document, into a URL the page may load, or null. */
 export type AssetUrl = (file: string) => string | null;
@@ -6,6 +6,15 @@ export type AssetUrl = (file: string) => string | null;
 export const assetUrl = Facet.define<AssetUrl, AssetUrl>({
   combine: (values) => values[0] ?? (() => null),
 });
+
+/**
+ * The URL an image's reference loads from, through the resource channel, or null when it names no
+ * file in the repository. One rule for a markdown image, an `<img>`, and a picture's source (#256).
+ */
+export function imageUrl(state: EditorState, reference: string): string | null {
+  const file = filePath(reference);
+  return isLocal(file) ? state.facet(assetUrl)(file) : null;
+}
 
 /**
  * The file an image's destination names. A destination is a URL, so `screen%20shot.png` names
