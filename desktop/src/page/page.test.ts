@@ -125,6 +125,14 @@ describe("the page", () => {
     assert.equal(visible(open("*a* **b** ~~c~~ `d` ~e~")), "a b c d ~e~");
   });
 
+  it("hides the space at each end of a code span that CommonMark strips, with its marks", () => {
+    // #210: one space comes off each end when both have one and the span is not all spaces.
+    const doc = "`` a `tick` inside `` and `` ` `` and ` ` and `  x  ` and ` y`";
+    const state = open(doc);
+    assert.equal(visible(state), "a `tick` inside and ` and   and  x  and  y");
+    assert.equal(visible(select(state, doc.indexOf("tick"))).slice(0, 21), "`` a `tick` inside ``");
+  });
+
   it("shows a link's words, and leaves an unresolved reference as written", () => {
     const state = open('[up](https://x.y "T") [ref][r] [gone][nowhere]\n\n[r]: /ridge');
     assert.equal(visible(state), "up ref [gone][nowhere]\n\n");
@@ -297,7 +305,7 @@ describe("the page", () => {
 
   it("hides a quote's marks on every line of what it holds, code and raw HTML included", () => {
     assert.equal(visible(open("> ```\n> code\n> ```")), "```\ncode\n```");
-    assert.equal(visible(open(">     indented\n>     code")), "    indented\n    code");
+    assert.equal(visible(open(">     indented\n>     code")), "indented\ncode");
     const html = "> <p>\n> quoted\n> </p>";
     assert.equal(visible(select(open(html), html.indexOf("quoted"))), "<p>\n> quoted\n</p>");
   });
@@ -344,6 +352,36 @@ describe("the page", () => {
       "pg-code-block",
       "pg-code-block pg-fence",
     ]);
+  });
+
+  it("hides an indented code block's indent, so its text starts where a fenced block's does", () => {
+    // #216: the four columns are syntax. Each line's shows while the selection is on it.
+    const doc =
+      "```\nfenced\n```\n\n    indented\n      deeper\n\n>     quoted\n>     two\n\n\tTabbed";
+    const state = open(doc);
+    assert.equal(visible(state), "```\nfenced\n```\n\nindented\n  deeper\n\nquoted\ntwo\n\nTabbed");
+    assert.equal(
+      visible(select(state, doc.indexOf("deeper"))),
+      "```\nfenced\n```\n\nindented\n      deeper\n\nquoted\ntwo\n\nTabbed",
+    );
+    const inQuote = visible(select(state, doc.indexOf("two")));
+    assert.match(inQuote, /\nquoted\n>     two\n/);
+  });
+
+  it("folds away an HTML comment in a line, with a space beside it, and anchors none", () => {
+    // #224: a comment is written not to be seen. A selection in it shows it.
+    const doc =
+      "Inline <!-- hidden --> here.\n\n# Head <!-- note -->\n\n| a |\n|---|\n| x <!-- y -->z |";
+    const state = open(doc);
+    assert.equal(visible(state), "Inline here.\n\nHead\n\n[table 1 rows]");
+    assert.equal(visible(select(state, doc.indexOf("hidden"))).split("\n")[0], doc.split("\n")[0]);
+    assert.deepEqual([...state.field(page).blocks.anchors.keys()], ["head"]);
+    let cell: unknown;
+    shown(state).between(0, doc.length, (_from, _to, decoration) => {
+      if (decoration.spec.widget instanceof TableWidget)
+        cell = decoration.spec.widget.table.rows[0];
+    });
+    assert.deepEqual(cell, [[{ kind: "text", text: "x z" }]]);
   });
 
   it("draws a raw HTML block in a frame, without a quote's marks, and its source when selected", () => {
@@ -704,6 +742,16 @@ describe("frontmatter", () => {
     assert.equal(visible(open("Text\n\n---\ntitle: x\n---")), "Text\n\n\ntitle: x\n");
     assert.equal(visible(open("---\ntitle: never closed")), "\ntitle: never closed");
     assert.equal(open("---\ntitle: never closed").field(page).blocks.frontmatter, null);
+  });
+
+  it("is not a --- with a blank line after it, which is a rule, as Pandoc reads it", () => {
+    // #196: the page lost everything up to the next rule.
+    const doc = "---\n\n# Opens with a rule\n\nNot YAML.\n\n---\n\nAfter";
+    const state = open(doc);
+    assert.equal(state.field(page).blocks.frontmatter, null);
+    assert.equal(visible(state), "\n\nOpens with a rule\n\nNot YAML.\n\n\n\nAfter");
+    assert.deepEqual([...state.field(page).blocks.anchors.keys()], ["opens-with-a-rule"]);
+    assert.equal(startOfPage(state), 0);
   });
 });
 
