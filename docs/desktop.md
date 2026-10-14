@@ -88,7 +88,7 @@ npx tauri build --no-bundle      # the app alone: src-tauri/target/release/hshbl
 3. The Desktop workflow checks that the tag names the version in all three, runs every test, builds the packages on each system, and puts them in a draft release with notes from the merged pull requests. A second run on the same tag replaces the draft's packages.
 4. Read the draft under **Releases**, and publish it by hand.
 
-The macOS app is signed and notarized when the repository has these secrets. Without them it is built unsigned, as on `main`:
+The macOS app is signed and notarized when the repository has these secrets. Without them it is signed ad hoc, as on `main`, which seals the bundle but names no developer, so a reader still allows it once with **Open Anyway**:
 
 | Secret | Holds |
 |---|---|

@@ -166,7 +166,9 @@ jobs:
         run: npx tauri build
       # A release is signed and notarized when its secrets are set (docs/desktop.md, Releasing).
       # tauri build signs whenever a variable is set, even to nothing, so each one without a
-      # value is unset, and none is kept for a build of main.
+      # value is unset, and none is kept for a build of main. Without a certificate the bundle
+      # is signed ad hoc. The linker signs only the binary, which seals nothing else in the
+      # bundle, so `codesign --verify` failed and Gatekeeper refused a downloaded copy.
       - name: Build the packages, signed for a release
         if: runner.os == 'macOS'
         env:
@@ -179,6 +181,7 @@ jobs:
           for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
             if [[ "$GITHUB_REF" != refs/tags/v* || -z "${!name}" ]]; then unset "$name"; fi
           done
+          if [[ -z "${APPLE_CERTIFICATE:-}" ]]; then export APPLE_SIGNING_IDENTITY=-; fi
           npx tauri build
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
