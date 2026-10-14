@@ -47,6 +47,9 @@ Each file opens in a window of its own. A second file opens a second window in t
 | `Ctrl+/` (`⌘/`) | Show all the syntax, or hide it again |
 | `Ctrl+Shift+M` (`⌘⇧M`) | Show or hide the frontmatter's panel |
 | `Ctrl+P` (`⌘P`) | Print the whole page. On macOS, so does File > Print |
+| `Ctrl+=`, `Ctrl+-` (`⌘=`, `⌘-`) | Make the text bigger or smaller |
+| `Ctrl+0` (`⌘0`) | Put the text back to its own size |
+| `Ctrl+W` (`⌘W`) | Close the window. On macOS, so does File > Close Window |
 | `Ctrl+A`, `Ctrl+C` | Select and copy, as source |
 | `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading it names |
 | `Enter` | Open or close a `<details>`, with the caret on its tags. Tick or untick a task box, with the caret in its text |
@@ -55,6 +58,8 @@ Each file opens in a window of its own. A second file opens a second window in t
 - On macOS, the menu bar's File menu has Open, with ⌘O, above Tauri's own items, and Print, with ⌘P, below them. Edit keeps Tauri's Copy and Select All, and ends with Find, with ⌘F. Each new window opens a step down and right of the one before. Linux and Windows have no menu bar, which would sit above the page in every window.
 - Move the caret into a construct with the keys, or find in it, and its syntax shows, so `**bold**` reads as written. A click places the caret and opens nothing, so the text holds still under the pointer. A link never unfolds: its address shows in a popover under it, with **Open** for web and mail addresses. A find match in the address shows there, marked.
 - Copy and find work on the source, hidden syntax included. The status line says so, after the file's name and when it was last modified.
+- The page has no right-click menu, and `F5` and `Ctrl+R` do nothing. A window shows the file as it was read, so a reload would bring back the same text and lose the reader's place. The find box's fields keep their menu, for paste.
+- The text size the keys set is the window's, until it closes. Print is at the page's own size.
 - Images load when they are inside the document's repository: the enclosing git repository, or the file's folder when there is none. A repository at the home folder or above it does not count, so dotfiles kept in `~/.git` do not open the whole home. A file directly in the home folder shows only the images beside it, not those in folders below. A path that starts with `/` starts at that root, as on GitHub. Nothing loads from the network.
 - A raw HTML block is drawn in a frame that runs no script. Its images load from inside the repository, as a markdown image does, and it fetches nothing else. A click on a link in it shows its address, and Ctrl or ⌘ and a click opens it, as on the page. A click on a summary opens its details, and print shows every block with its details open. Its text cannot be selected: copy works on the source. Inline HTML shows as source, but for a comment, which folds away. No script in a document runs.
 - YAML frontmatter at the top of a file folds away, not drawn as a rule and a heading. A `---` on the first line with a blank line after it is a rule, not frontmatter. The status line says it is there, with a pulse when it first shows. A click on it, or `Ctrl+Shift+M`, opens a panel that lists its fields, with the raw YAML a click away. YAML the panel cannot list shows raw. The caret starts after it, so the first key leaves it folded. The keys and find show its source where they reach it, as a quiet monospace block.
@@ -120,7 +125,7 @@ The app has no updater, by choice ([hld.md](hld.md) §12, question 1). It makes 
 | `desktop/src-tauri/src/documents.rs` | Opening a file: its facts, its scope, its handle. |
 | `desktop/src-tauri/src/assets.rs` | The resource channel for images. |
 | `desktop/src-tauri/src/windows.rs` | Where files come from (the command line, a double-click, the dialog, a drop) and the window each gets, and where it opens on macOS. |
-| `desktop/src-tauri/src/lib.rs` | The six commands the page may call, and the app, with its menu bar on macOS. |
+| `desktop/src-tauri/src/lib.rs` | The seven commands the page may call, and the app, with its menu bar on macOS. |
 | `desktop/src-tauri/linux/hshblk.desktop` | The Linux desktop entry, which passes the double-clicked file. |
 | `desktop/src-tauri/icons/` | The app icon: [`brand/app-icon/`](../brand/app-icon/), file for file. 16 and 32 px are a drawing of their own, so it is copied, never regenerated with `tauri icon`. |
 | `desktop/src/main.ts` | The window: open, print, the status line, and the welcome. |

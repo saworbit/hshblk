@@ -187,6 +187,15 @@ async fn print_page(window: WebviewWindow) -> Result<(), String> {
         .map_err(|error| format!("The page could not print: {error}."))
 }
 
+/// Closes the window, for Ctrl+W on Linux and Windows (#166). macOS's menu bar has Close Window.
+/// The page has no permission of Tauri's own, so it asks for this one by name.
+#[tauri::command]
+fn close_window(window: WebviewWindow) -> Result<(), String> {
+    window
+        .close()
+        .map_err(|error| format!("The window could not close: {error}."))
+}
+
 /// Web and mail addresses. A scheme is case-insensitive, RFC 3986 §3.1, as the page's check is.
 fn opens(url: &str) -> bool {
     ["http://", "https://", "mailto:"].iter().any(|scheme| {
@@ -232,7 +241,8 @@ pub fn run() {
             pick_document,
             open_url,
             print_page,
-            watch_menu
+            watch_menu,
+            close_window
         ])
         .on_window_event(windows::on_event)
         .on_menu_event(on_menu_event)

@@ -18,6 +18,9 @@ Packages for Linux, macOS, and Windows come from the Desktop workflow on `main`.
 | `Ctrl+/` (`⌘/`) | Show all the syntax, or hide it again |
 | `Ctrl+Shift+M` (`⌘⇧M`) | Show or hide the frontmatter's panel |
 | `Ctrl+P` (`⌘P`) | Print the whole page. On macOS, so does File > Print |
+| `Ctrl+=`, `Ctrl+-` (`⌘=`, `⌘-`) | Make the text bigger or smaller |
+| `Ctrl+0` (`⌘0`) | Put the text back to its own size |
+| `Ctrl+W` (`⌘W`) | Close the window. On macOS, so does File > Close Window |
 | `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading it names |
 | `Enter` | Open or close a `<details>`, with the caret on its tags. Tick or untick a task box, with the caret in its text |
 

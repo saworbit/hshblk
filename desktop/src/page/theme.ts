@@ -13,11 +13,14 @@ const hangs = Object.fromEntries(
   ]),
 );
 
+/** The reader's text size, a share of the page's own, which setTextSize sets (#164). */
+const SIZE = "var(--pg-size, 1)";
+
 /**
  * A quote inside a quote draws a rule for each level past the first, whose rule is its border.
  * The step is the page's text size, not the line's, so the rules stay put beside a heading or code.
  */
-const step = "1.125rem";
+const step = `calc(1.125rem * ${SIZE})`;
 const quotes = Object.fromEntries(
   Array.from({ length: QUOTE_LIMIT - 1 }, (_, i) => i + 2).map((depth) => {
     const rules = Array.from({ length: depth - 1 }, (_, i) => i + 1);
@@ -43,11 +46,15 @@ const quotes = Object.fromEntries(
 export const pageTheme = EditorView.theme({
   "&": { flex: "1", minHeight: "0", backgroundColor: "var(--paper)", color: "var(--ink)" },
   "&.cm-focused": { outline: "none" },
-  ".cm-scroller": { fontFamily: "var(--serif)", fontSize: "1.125rem", lineHeight: "1.7" },
+  ".cm-scroller": {
+    fontFamily: "var(--serif)",
+    fontSize: `calc(1.125rem * ${SIZE})`,
+    lineHeight: "1.7",
+  },
   ".cm-content": {
     boxSizing: "border-box",
     width: "100%",
-    maxWidth: "44rem",
+    maxWidth: `calc(44rem * ${SIZE})`,
     margin: "0 auto",
     padding: "3rem 1.5rem 6rem",
     caretColor: "var(--accent)",
@@ -262,8 +269,9 @@ export const pageTheme = EditorView.theme({
 
   // Print is the whole page, not a window's worth of it: no scroller, and no height to fill.
   // The find box and the frontmatter panel are for the screen, as the status line is.
+  // Print is at the page's own size, whatever the reader set for the screen.
   "@media print": {
-    "&": { display: "block" },
+    "&": { display: "block", "--pg-size": "1 !important" },
     ".cm-scroller": { overflow: "visible" },
     ".cm-panels": { display: "none" },
   },
