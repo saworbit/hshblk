@@ -62,6 +62,8 @@ pub enum LineEndings {
     None,
     Lf,
     Crlf,
+    /// A lone CR ends every line, as in an old Mac file.
+    Cr,
     Mixed,
 }
 
@@ -103,6 +105,10 @@ impl Facts {
                 line_endings: LineEndings::Mixed,
                 ..
             } => Some("The file mixes line endings."),
+            Self {
+                line_endings: LineEndings::Cr,
+                ..
+            } => Some("The file ends its lines with CR alone."),
             _ => None,
         }
     }
@@ -142,7 +148,8 @@ fn utf16(bytes: &[u8], unit: fn([u8; 2]) -> u16) -> String {
         .collect()
 }
 
-/// A lone CR counts as mixed: CodeMirror would split on it, and nothing else in the file does.
+/// A lone CR beside another ending counts as mixed: CodeMirror would split on it, and nothing
+/// else in the file does. A file that ends every line so is said to, not to mix them (#172).
 fn line_endings(text: &str) -> LineEndings {
     let crlf = text.matches("\r\n").count();
     let cr = text.matches('\r').count() - crlf;
@@ -151,6 +158,7 @@ fn line_endings(text: &str) -> LineEndings {
         (0, 0, 0) => LineEndings::None,
         (_, 0, 0) => LineEndings::Lf,
         (0, _, 0) => LineEndings::Crlf,
+        (0, 0, _) => LineEndings::Cr,
         _ => LineEndings::Mixed,
     }
 }
@@ -160,16 +168,47 @@ pub enum OpenError {
     Unreadable(std::io::Error),
     NotAFile,
     TooLarge,
+    NotText,
 }
 
-impl fmt::Display for OpenError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl OpenError {
+    /// What the user is told. It names the file, since one launch may name several (#160).
+    pub fn message(&self, name: &str) -> String {
         match self {
-            Self::Unreadable(error) => write!(f, "The file could not be read: {error}."),
-            Self::NotAFile => f.write_str("That is not a file."),
-            Self::TooLarge => f.write_str("The file is larger than 64 MB."),
+            Self::Unreadable(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                format!("{name} was not found.")
+            }
+            Self::Unreadable(error) => format!("{name} could not be read: {}.", reason(error)),
+            Self::NotAFile => format!("{name} is not a file."),
+            Self::TooLarge => format!("{name} is larger than 64 MB."),
+            Self::NotText => format!("{name} is not a text file."),
         }
     }
+}
+
+/// The system's words for an error, without Rust's "(os error 5)" or a full stop of their own.
+fn reason(error: &std::io::Error) -> String {
+    let text = error.to_string();
+    let text = match text.rfind(" (os error ") {
+        Some(at) if text.ends_with(')') => &text[..at],
+        _ => &text,
+    };
+    let text = text.trim_end_matches('.');
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) => first.to_lowercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
+/// #206: bytes that are plainly not text. An image the resource channel knows by its bytes, or
+/// NUL bytes in what is not UTF-8 or marked UTF-16, as in an archive or a PDF. A text file with
+/// an odd extension still opens, and so does UTF-16 with no mark, which passes as UTF-8.
+fn is_binary(bytes: &[u8]) -> bool {
+    let image = crate::assets::image_type(bytes).is_some_and(|kind| kind != "image/svg+xml");
+    let utf16 = bytes.starts_with(b"\xFF\xFE") || bytes.starts_with(b"\xFE\xFF");
+    let utf8 = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
+    image || (bytes.contains(&0) && !utf16 && std::str::from_utf8(utf8).is_err())
 }
 
 /// Every open document, by handle. One process holds them all.
@@ -186,6 +225,17 @@ impl Documents {
             .expect("documents lock")
             .insert(handle.clone(), Arc::clone(&document));
         Ok((handle, document))
+    }
+
+    /// The handle of the open document at `path`, so a file opened again goes to its window (#174).
+    pub fn find(&self, path: &Path) -> Option<String> {
+        let path = fs::canonicalize(path).ok()?;
+        self.0
+            .lock()
+            .expect("documents lock")
+            .iter()
+            .find(|(_, document)| document.path == path)
+            .map(|(handle, _)| handle.to_string())
     }
 
     pub fn get(&self, handle: &str) -> Option<Arc<Document>> {
@@ -214,6 +264,9 @@ fn read(path: &Path) -> Result<Document, OpenError> {
         return Err(OpenError::TooLarge);
     }
     let bytes = fs::read(&path).map_err(OpenError::Unreadable)?;
+    if is_binary(&bytes) {
+        return Err(OpenError::NotText);
+    }
     let (facts, text) = Facts::read(&bytes);
     let folder = path
         .parent()
@@ -312,6 +365,87 @@ mod tests {
         assert_eq!(endings(b"a\r\nb\r\n"), LineEndings::Crlf);
         assert_eq!(endings(b"a\r\nb\n"), LineEndings::Mixed);
         assert_eq!(endings(b"a\rb\n"), LineEndings::Mixed);
+        assert_eq!(endings(b"a\rb\r\n"), LineEndings::Mixed);
+    }
+
+    #[test]
+    fn says_a_file_ends_its_lines_with_cr_alone_not_that_it_mixes_them() {
+        // #172: an old Mac file. It stays read-only, since CodeMirror would join it with LF.
+        let (facts, _) = Facts::read(b"# a\rb\r");
+        assert_eq!(facts.line_endings, LineEndings::Cr);
+        assert_eq!(
+            facts.read_only_reason(),
+            Some("The file ends its lines with CR alone.")
+        );
+    }
+
+    #[test]
+    fn names_the_file_in_each_refusal_without_the_os_error_code() {
+        // #160: one launch may name several files, so each message says which.
+        let missing = std::io::Error::from(std::io::ErrorKind::NotFound);
+        assert_eq!(
+            OpenError::Unreadable(missing).message("gone.md"),
+            "gone.md was not found."
+        );
+        let denied = std::io::Error::from_raw_os_error(if cfg!(windows) { 5 } else { 13 });
+        let message = OpenError::Unreadable(denied).message("locked.md");
+        assert!(
+            message.starts_with("locked.md could not be read: "),
+            "{message}"
+        );
+        assert!(
+            !message.contains("os error") && !message.ends_with(".."),
+            "{message}"
+        );
+        assert_eq!(OpenError::NotAFile.message("docs"), "docs is not a file.");
+        assert_eq!(
+            OpenError::TooLarge.message("huge.md"),
+            "huge.md is larger than 64 MB."
+        );
+        assert_eq!(
+            OpenError::NotText.message("icon.png"),
+            "icon.png is not a text file."
+        );
+    }
+
+    #[test]
+    fn refuses_bytes_that_are_plainly_not_text() {
+        // #206: an image, an archive, or a PDF opened a page of replacement characters.
+        assert!(is_binary(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR"));
+        assert!(is_binary(b"GIF89a"));
+        assert!(is_binary(b"PK\x03\x04\x14\0\0\0\x08\0\xb7\xac"));
+        assert!(is_binary(b"%PDF-1.7\n\xe2\xe3\xcf\xd3\n1 0 obj\0"));
+        // Text in any encoding the page shows still opens: SVG, Windows-1252, and UTF-16.
+        assert!(!is_binary(b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>"));
+        assert!(!is_binary(b"caf\xe9 au lait"));
+        assert!(!is_binary(b"\xFF\xFE#\0 \0a\0"));
+        assert!(!is_binary(b"#\0 \0a\0"));
+        assert!(!is_binary(b"\xEF\xBB\xBF# a\n"));
+        assert!(!is_binary(b""));
+
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("icon.md"), b"\x89PNG\r\n\x1a\n\0\0").unwrap();
+        assert!(matches!(
+            Documents::default().open(&root.path().join("icon.md")),
+            Err(OpenError::NotText)
+        ));
+    }
+
+    #[test]
+    fn finds_an_open_document_by_its_path_however_it_is_written() {
+        // #174: a file opened again goes to the window it has.
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir_all(root.path().join("docs")).unwrap();
+        fs::write(root.path().join("docs/notes.md"), "# Notes\n").unwrap();
+        fs::write(root.path().join("other.md"), "x").unwrap();
+        let documents = Documents::default();
+        let (handle, _) = documents.open(&root.path().join("docs/notes.md")).unwrap();
+        let again = root.path().join("docs/../docs/notes.md");
+        assert_eq!(documents.find(&again), Some(handle.to_string()));
+        assert_eq!(documents.find(&root.path().join("other.md")), None);
+        assert_eq!(documents.find(&root.path().join("gone.md")), None);
+        documents.close(&handle.to_string());
+        assert_eq!(documents.find(&again), None);
     }
 
     #[test]

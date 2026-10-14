@@ -51,7 +51,7 @@ Each file opens in a window of its own. A second file opens a second window in t
 | `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading it names |
 | `Enter` | Open or close a `<details>`, with the caret on its tags. Tick or untick a task box, with the caret in its text |
 
-- Dropping a file on a window opens it in a new window.
+- Dropping a file on a window opens it in a new window. A file that is already open brings its window to the front instead. `Ctrl+O` starts in the folder of the window's document. A file that is not text, such as an image, does not open, and the message names it.
 - On macOS, the menu bar's File menu has Open, with ⌘O, above Tauri's own items, and Print, with ⌘P, below them. Edit keeps Tauri's Copy and Select All, and ends with Find, with ⌘F. Each new window opens a step down and right of the one before. Linux and Windows have no menu bar, which would sit above the page in every window.
 - Move the caret into a construct with the keys, or find in it, and its syntax shows, so `**bold**` reads as written. A click places the caret and opens nothing, so the text holds still under the pointer. A link never unfolds: its address shows in a popover under it, with **Open** for web and mail addresses. A find match in the address shows there, marked.
 - Copy and find work on the source, hidden syntax included. The status line says so, after the file's name and when it was last modified.
