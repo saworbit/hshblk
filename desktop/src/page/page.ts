@@ -24,7 +24,7 @@ import { type Blocks, scanNow } from "./blocks.ts";
 import { pageTree, wholeBlocks } from "./complete.ts";
 import { inlinesOf, plainText } from "./inlines.ts";
 import { addressTooltip, linkAt, linkSpan } from "./links.ts";
-import { destination, headings, type Definitions } from "./references.ts";
+import { destination, headings, titleOf, type Definitions } from "./references.ts";
 import {
   ImageWidget,
   SummaryWidget,
@@ -445,7 +445,9 @@ class Painter {
         if (reference === null) return;
         const [open, close] = node.getChildren("LinkMark");
         const alt = plainText(inlinesOf(this.doc, this.definitions, node, open.to, close.from));
-        this.#hide(fold, node.from, node.to, new ImageWidget(reference, alt, !this.#alone(node)));
+        const title = titleOf(this.doc, node, this.definitions);
+        const image = new ImageWidget(reference, alt, !this.#alone(node), title);
+        this.#hide(fold, node.from, node.to, image);
         return false;
       }
       case "Autolink":
@@ -572,9 +574,11 @@ class Painter {
     const link = linkSpan(this.doc, this.definitions, node);
     if (!link) return;
     const { href } = link;
+    // A hover shows the link's title, as on GitHub, or its address when it has none (#229).
+    const title = (node.name === "Link" && titleOf(this.doc, node, this.definitions)) || href;
     if (link.from < link.to) {
       this.#style(
-        Decoration.mark({ class: "pg-link", attributes: { title: href, "data-href": href } }),
+        Decoration.mark({ class: "pg-link", attributes: { title, "data-href": href } }),
         link.from,
         link.to,
       );

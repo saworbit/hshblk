@@ -127,3 +127,5 @@
 - Desktop: the find box has no "all" button, which selected only one match, since the page keeps one selection. `Ctrl+Shift+L` and `Ctrl+D`, which did the same, are gone too. (#202)
 - Desktop: keyboard focus on the app's buttons and fields shows as a ring in the accent colour. The engine's ring did not show on the night's paper. (#163)
 - Desktop: a file that starts with an HTML block opens at its top. It opened scrolled past the block by the block's height. (#152)
+- Desktop: a hover over a link shows its title, its own or its definition's, and a hover over an image shows its title, as on GitHub. A link with no title still shows its address. (#229)
+- Desktop: a link to `#name` goes to an `id` or a `name` in the document's HTML, such as `<a id="top"></a>`, when no heading has that anchor. Its popover offers Go to. (#228)

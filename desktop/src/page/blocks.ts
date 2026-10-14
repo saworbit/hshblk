@@ -94,6 +94,9 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
     if (words) anchors.set(anchorOf(words, anchors), heading.from);
     yield;
   }
+  // #228: an id or a name in the document's HTML is a place a link can go, after the headings.
+  for (const [from, name] of htmlAnchors(doc, tree))
+    if (!anchors.has(name)) anchors.set(name, from);
   const details = pairDetails(doc, drawn);
   // A details' own tags are drawn by the page, not in frames.
   const tags = new Set(details.flatMap(({ head, tail }) => [head.source.from, tail.source.from]));
@@ -129,6 +132,25 @@ function frontmatter(doc: Text): Span | null {
     if (/^(---|\.\.\.)[ \t]*$/.test(line.text)) return { from: 0, to: line.to };
   }
   return null;
+}
+
+/** An opening tag's `id` or `name`, its value quoted either way or bare. */
+const ANCHOR = /<[A-Za-z][^<>]*?\s(?:id|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
+
+/**
+ * The ids and names the document's HTML gives, with where each tag starts: `<a id="top">` and
+ * `<a name="install">`, inline or in a block, as READMEs mark places. In code they are not HTML.
+ */
+function htmlAnchors(doc: Text, tree: Tree): [number, string][] {
+  const found: [number, string][] = [];
+  for (const match of doc.toString().matchAll(ANCHOR)) {
+    const name = match[1] ?? match[2] ?? match[3];
+    const node = tree.resolveInner(match.index, 1);
+    if (name && (node.name === "HTMLTag" || node.name === "HTMLBlock")) {
+      found.push([match.index, name]);
+    }
+  }
+  return found;
 }
 
 /** The scan without pauses, for a tree small enough to read at once. */
