@@ -1,5 +1,5 @@
 import { standardKeymap } from "@codemirror/commands";
-import { search, searchKeymap } from "@codemirror/search";
+import { search, searchKeymap, searchPanelOpen } from "@codemirror/search";
 import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, type KeyBinding, keymap } from "@codemirror/view";
 import { assetUrl, type AssetUrl } from "./page/assets.ts";
@@ -52,6 +52,20 @@ export const pageKeys: readonly KeyBinding[] = [
 ];
 
 /**
+ * Find's fields hold search terms, not prose, so WebKit corrects nothing in them. On macOS it
+ * offered "Word" for `word` (#188). CodeMirror makes the panel afresh each time it opens.
+ */
+const plainFindFields = EditorView.updateListener.of((update) => {
+  if (!searchPanelOpen(update.state) || searchPanelOpen(update.startState)) return;
+  const fields = update.view.dom.querySelectorAll<HTMLInputElement>(".cm-search .cm-textfield");
+  for (const field of fields) {
+    field.spellcheck = false;
+    field.setAttribute("autocorrect", "off");
+    field.setAttribute("autocapitalize", "off");
+  }
+});
+
+/**
  * docs/hld.md milestone one: the editor surface, with editing commands disabled. The caret
  * and the selection stay, so a reader can open the syntax under them, copy, and find.
  */
@@ -77,6 +91,7 @@ export function createSurface(
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({ "aria-label": "Document", spellcheck: "false" }),
       search({ top: true }),
+      plainFindFields,
       keymap.of(pageKeys),
       options.nonce ? EditorView.cspNonce.of(options.nonce) : [],
       options.extensions ?? [],

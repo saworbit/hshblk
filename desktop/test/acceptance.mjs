@@ -110,6 +110,8 @@ A [reference link][far] defined at the end.
 const fenced = true;
 \`\`\`
 
+---
+
 | Left | Right |
 |:-----|------:|
 | a    | b     |
@@ -344,6 +346,13 @@ describe("the window's keys, wherever focus is", () => {
     await page.run(() => document.activeElement.blur());
     await page.press(Key.Control, "f");
     assert.equal(await page.until(() => document.activeElement?.name), "search");
+    // #188: a search term is not prose, so nothing corrects it.
+    const field = await page.run(() => {
+      const input = document.activeElement;
+      const attribute = (name) => input.getAttribute(name);
+      return [input.spellcheck, attribute("autocorrect"), attribute("autocapitalize")];
+    });
+    assert.deepEqual(field, [false, "off", "off"]);
   });
 
   test("Ctrl+/ shows all the syntax from the find box, and says so, until it goes again", async () => {
@@ -413,6 +422,11 @@ describe("one open document", () => {
     assert.equal((await page.run(texts, ".pg-list-mark")).length, 3);
     assert.ok((await page.run(texts, ".pg-code-block")).includes("const fenced = true;"));
     assert.deepEqual(await page.run(texts, ".pg-table th"), ["Left", "Right"]);
+    // #187: the rule's line holds only its hidden marks, and still has a height to draw in.
+    const rule = await page.run(
+      () => document.querySelector(".pg-rule")?.getBoundingClientRect().height,
+    );
+    assert.ok(rule > 0, `the rule's line is ${rule} px tall`);
     const align = await page.run(
       () => document.querySelectorAll(".pg-table td")[1].style.textAlign,
     );
@@ -504,9 +518,12 @@ describe("one open document", () => {
     assert.deepEqual([script.scripts, script.ran, script.height], [1, null, 0]);
     assert.equal(block.text, "Raw HTML block");
     assert.ok(block.height > 10, `the frame is ${block.height}px tall`);
-    // A click on the block's onclick runs nothing either.
+    // A click on the block's onclick runs nothing either. The block comes into view first: where
+    // the scroll above leaves it depends on the height of every line before it.
     const at = await page.run(() => {
-      const box = document.querySelectorAll("iframe.pg-html")[1].getBoundingClientRect();
+      const frame = document.querySelectorAll("iframe.pg-html")[1];
+      frame.scrollIntoView({ block: "center" });
+      const box = frame.getBoundingClientRect();
       return { x: box.x + 20, y: box.y + box.height / 2 };
     });
     await page.click(at.x, at.y);

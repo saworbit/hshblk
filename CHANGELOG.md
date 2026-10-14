@@ -93,3 +93,5 @@
 - Desktop: find's field and buttons take the page's colours. By night they kept CodeMirror's light faces under the page's light ink, so next, previous, and all could not be read. (#179)
 - Desktop: a quote inside a quote has a rule of its own for each level, up to six, so its nesting shows. Every level drew the same single rule. (#180)
 - Desktop: on macOS a file that starts the app opens in its window alone. The open-file event comes before setup, which then saw no file on the command line and put a welcome window in front of it. (#186)
+- Desktop: a thematic break draws its line. The line held only its hidden marks, so it had no height and drew nothing, since the page was first drawn. The acceptance suite now checks one. (#187)
+- Desktop: find's fields correct nothing. On macOS, typing `word` offered "Word". Autocorrect, autocapitalize, and spellcheck are off in them. (#188)
