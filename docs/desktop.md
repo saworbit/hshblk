@@ -132,7 +132,7 @@ The app has no updater, by choice ([hld.md](hld.md) §12, question 1). It makes 
 | `desktop/src-tauri/icons/` | The app icon: [`brand/app-icon/`](../brand/app-icon/), file for file. 16 and 32 px are a drawing of their own, so it is copied, never regenerated with `tauri icon`. |
 | `desktop/src/main.ts` | The window: open, print, the status line, and the welcome, which names the version. |
 | `desktop/src/surface.ts` | The CodeMirror surface, with editing turned off. |
-| `desktop/src/page/` | The page: the dialect, its decorations, links, images, tables, the frontmatter panel, find's count, the text size, the whole-document parse, and the theme. |
+| `desktop/src/page/` | The page: the dialect, its decorations, links, images, tables, the frontmatter panel, find's count, the text size, each line's direction, the whole-document parse, and the theme. |
 | `desktop/scripts/` | What CI runs: the unit tests' runner, which fails when no test file matches, the licence check, and the check that a release tag names the version. |
 
 ## Tests

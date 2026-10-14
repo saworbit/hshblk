@@ -64,7 +64,8 @@ function pageBy(direction: 1 | -1): Command {
  * Movement and selection. The state is read-only, so the editing commands here do nothing.
  * Enter on a <details>'s tags opens or closes it, and in a task item's text ticks or unticks its
  * box. Escape closes the frontmatter panel. Up and Down stop on a drawn block, and so do Ctrl+N
- * and Ctrl+P, which CodeMirror binds to them on macOS.
+ * and Ctrl+P, which CodeMirror binds to them on macOS. PageDown, PageUp, and Space page by the
+ * window less a line. Find's keys that would select several matches are left out.
  */
 export const pageKeys: readonly KeyBinding[] = [
   { key: "Enter", run: toggleDetailsAtCaret },

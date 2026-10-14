@@ -151,3 +151,4 @@
 - Desktop: a markdown image, an `<img>`, and a picture's source turn a reference into a URL through one function, and an image that cannot load is one chip, made the same way on the page and in a frame. (#256, #257)
 - Desktop: the shell, the frontmatter panel, and the widgets build their elements with one helper. (#258)
 - CI: the corpus gate tells a local image from a remote one with the app's own check, so the two agree on a reference that starts with a backslash. (#259)
+- Docs: hld.md §7 puts Ctrl+N and Ctrl+P back beside Up and Down, which the notes on paging, text direction, and contrast themes had split. desktop.md's page row names each line's direction, and the page's keymap says what it does with PageDown, Space, and find's keys.
