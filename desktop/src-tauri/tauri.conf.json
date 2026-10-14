@@ -46,6 +46,7 @@
       "deb": { "desktopTemplate": "linux/hshblk.desktop" },
       "rpm": { "desktopTemplate": "linux/hshblk.desktop" }
     },
+    "macOS": { "minimumSystemVersion": "11.0" },
     "fileAssociations": [
       {
         "ext": ["md", "markdown"],

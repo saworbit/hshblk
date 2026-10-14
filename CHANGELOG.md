@@ -89,3 +89,4 @@
 - Docs: milestone-one.md records the double-click and the drop on Windows, run by hand on the named machine. All of macOS is still to run. (#20)
 - Docs: the app has no updater, by choice. hld.md §12 and desktop.md say why: the webview's fixes come from the OS, and a signed updater needs a key kept for good and a network request at launch. Releases go to GitHub Releases, and later to winget and a Homebrew tap. (#28)
 - Docs: milestone-one.md no longer calls §12's question on the named machine open, and no longer lists the Windows drop as not run.
+- CI: without a Developer ID, the macOS package is signed ad hoc as a whole, so its bundle is sealed and `codesign --verify` passes. Only the binary was signed, and Gatekeeper refused a downloaded copy before Open Anyway could allow it. Its Info.plist names macOS 11, the oldest it runs on, not 10.13. (#178)
