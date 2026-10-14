@@ -286,9 +286,12 @@ pub fn run() {
 #[cfg(target_os = "macos")]
 fn on_run_event(app: &tauri::AppHandle, event: RunEvent) {
     if let RunEvent::Opened { urls } = event {
-        for path in urls.iter().filter_map(|url| url.to_file_path().ok()) {
-            windows::open(app, &path);
-        }
+        // Every file Finder hands over at once, with one message for those that do not open (#260).
+        let paths: Vec<_> = urls
+            .iter()
+            .filter_map(|url| url.to_file_path().ok())
+            .collect();
+        windows::open_all(app, &paths);
     }
 }
 

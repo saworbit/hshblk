@@ -145,3 +145,6 @@
 - Desktop: an image alone in a list item stays beside its marker, as on GitHub. It dropped below it. (#214)
 - Desktop: under a Windows contrast theme, a thematic break and each level of a quote keep their rules, in the theme's colours, and a code or HTML block has a rule at its side. The theme dropped the backgrounds and shadows that drew them. (#233)
 - Desktop: a printed page has no header or footer from WebView2, which put the date, the file's name, and `tauri.localhost` on every sheet. The page prints with no margin of its own where its padding can repeat on each sheet, and the padding is the margin. WebKit keeps its margins. (#245)
+- Desktop: a drop, or a Finder open, of several files says once what did not open, as a launch and the Open dialog do. Each refusal was a dialog of its own. (#260)
+- Desktop: a document's 64 MB cap and an image's 20 MB cap are on what is read, from the handle whose size was checked, so a file that grows while it is read is refused, not read whole. (#262)
+- Desktop: the find box counts its matches once a search and a text, and finds the current one among them as the selection moves. Every caret move walked the whole file again, half a second at 8 MB. A text over a million characters is not counted. (#263)

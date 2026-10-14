@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::UNIX_EPOCH;
@@ -295,7 +296,10 @@ fn read(path: &Path) -> Result<Document, OpenError> {
     if metadata.len() > MAX_DOCUMENT_BYTES {
         return Err(OpenError::TooLarge);
     }
-    let bytes = fs::read(&path).map_err(OpenError::Unreadable)?;
+    let file = fs::File::open(&path).map_err(OpenError::Unreadable)?;
+    let bytes = read_capped(file, MAX_DOCUMENT_BYTES)
+        .map_err(OpenError::Unreadable)?
+        .ok_or(OpenError::TooLarge)?;
     if is_binary(&bytes) {
         return Err(OpenError::NotText);
     }
@@ -321,6 +325,14 @@ fn read(path: &Path) -> Result<Document, OpenError> {
         facts,
         path,
     })
+}
+
+/// Reads at most `cap` bytes, or none when there are more. The cap is on what is read, not on a
+/// size taken before, which a file still being written outgrows (#262).
+pub fn read_capped(reader: impl Read, cap: u64) -> io::Result<Option<Vec<u8>>> {
+    let mut bytes = Vec::new();
+    reader.take(cap + 1).read_to_end(&mut bytes)?;
+    Ok((bytes.len() as u64 <= cap).then_some(bytes))
 }
 
 /// docs/hld.md §6: the enclosing git repository, found by walking up to a `.git` entry. One at
@@ -601,6 +613,18 @@ mod tests {
         let downloads = home.join("Downloads");
         assert_eq!(scope(&downloads), (downloads.clone(), false));
         assert_eq!(scope(&home.join("code")), (home.join("code"), false));
+    }
+
+    #[test]
+    fn reads_no_more_than_its_cap_whatever_the_size_was_before() {
+        // #262: a file still being written passed the check at its old size and was read whole.
+        let growing = std::io::Read::chain(&b"0123456789"[..], std::io::repeat(b'x'));
+        assert!(read_capped(growing, 64).unwrap().is_none());
+        assert_eq!(
+            read_capped(&b"0123456789"[..], 10).unwrap().as_deref(),
+            Some(&b"0123456789"[..])
+        );
+        assert!(read_capped(&b"0123456789"[..], 9).unwrap().is_none());
     }
 
     #[test]

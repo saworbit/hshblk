@@ -93,13 +93,6 @@ fn files_in(argv: &[String], cwd: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-/// Opens a file in a new window, or says why it cannot.
-pub fn open(app: &AppHandle, path: &Path) {
-    if let Err(message) = show(app, path) {
-        refuse(app, &message);
-    }
-}
-
 /// Shows a file: in the window it has, if it is open, or else in a new one. An empty window, if
 /// there is one, gives way to it.
 fn show(app: &AppHandle, path: &Path) -> Result<(), String> {
@@ -311,20 +304,24 @@ fn is_the_app(url: &Url) -> bool {
 
 /// Drops open their files, and a closed window lets its document go.
 pub fn on_event(window: &Window, event: &WindowEvent) {
+    let paths = dropped(event);
+    if !paths.is_empty() {
+        open_all(window.app_handle(), paths);
+    }
+    if let WindowEvent::Destroyed = event {
+        if let Some(handle) = handle_of(window.label()) {
+            window.state::<Documents>().close(handle);
+            retitle(window.app_handle());
+        }
+        window.state::<MenuChannels>().forget(window.label());
+    }
+}
+
+/// The files a drop names, together, so one message says which did not open (#260).
+fn dropped(event: &WindowEvent) -> &[PathBuf] {
     match event {
-        WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => {
-            for path in paths {
-                open(window.app_handle(), path);
-            }
-        }
-        WindowEvent::Destroyed => {
-            if let Some(handle) = handle_of(window.label()) {
-                window.state::<Documents>().close(handle);
-                retitle(window.app_handle());
-            }
-            window.state::<MenuChannels>().forget(window.label());
-        }
-        _ => {}
+        WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => paths,
+        _ => &[],
     }
 }
 
@@ -488,6 +485,18 @@ mod tests {
                 format!("README.md · two{sep}docs")
             ]
         );
+    }
+
+    #[test]
+    fn takes_every_file_a_drop_names_at_once() {
+        // #260: each file of a drop was opened alone, with a message of its own for each refusal.
+        let paths = vec![PathBuf::from("/a/one.md"), PathBuf::from("/a/two.png")];
+        let drop = WindowEvent::DragDrop(DragDropEvent::Drop {
+            paths: paths.clone(),
+            position: tauri::PhysicalPosition::new(0.0, 0.0),
+        });
+        assert_eq!(dropped(&drop), paths);
+        assert!(dropped(&WindowEvent::Focused(true)).is_empty());
     }
 
     #[test]

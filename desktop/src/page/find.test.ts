@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { search, SearchQuery, setSearchQuery } from "@codemirror/search";
+import { getSearchQuery, search, SearchQuery, setSearchQuery } from "@codemirror/search";
 import { EditorSelection, EditorState } from "@codemirror/state";
-import { countText, findExtras, matchCount } from "./find.ts";
+import { COUNT_TEXT_LIMIT, countText, findExtras, matchCount } from "./find.ts";
 
 const doc = "one two one three one";
 
@@ -32,6 +32,38 @@ describe("find", () => {
     assert.equal(countText(matchCount(searched(""))), "");
     // Past the limit it says only that there are more.
     assert.equal(countText(matchCount(searched("one"), 2)), "2+ matches");
+  });
+
+  it("counts once a search and a text, not again each time the selection moves", () => {
+    // #263: every caret move with find open walked the whole file again.
+    const state = searched("one");
+    const query = getSearchQuery(state);
+    const walk = query.getCursor.bind(query);
+    let walks = 0;
+    Object.assign(query, {
+      getCursor: (...args: Parameters<typeof walk>) => {
+        walks += 1;
+        return walk(...args);
+      },
+    });
+    assert.equal(countText(matchCount(state)), "3 matches");
+    const second = doc.indexOf("one", 1);
+    const moved = state.update({ selection: { anchor: second, head: second + 3 } }).state;
+    assert.equal(countText(matchCount(moved)), "2 of 3");
+    assert.equal(
+      countText(matchCount(moved.update({ selection: { anchor: 0 } }).state)),
+      "3 matches",
+    );
+    assert.equal(walks, 1);
+  });
+
+  it("does not count in a text too long to count at once", () => {
+    const long = EditorState.create({
+      doc: "one ".repeat(COUNT_TEXT_LIMIT / 4 + 1),
+      extensions: [search(), findExtras],
+    });
+    const state = long.update({ effects: setSearchQuery.of(new SearchQuery({ search: "one" })) });
+    assert.equal(matchCount(state.state), null);
   });
 
   it("leaves no old match selected when the words change to ones not in the file", () => {
