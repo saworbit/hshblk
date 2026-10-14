@@ -95,3 +95,4 @@
 - Desktop: on macOS a file that starts the app opens in its window alone. The open-file event comes before setup, which then saw no file on the command line and put a welcome window in front of it. (#186)
 - Desktop: a thematic break draws its line. The line held only its hidden marks, so it had no height and drew nothing, since the page was first drawn. The acceptance suite now checks one. (#187)
 - Desktop: find's fields correct nothing. On macOS, typing `word` offered "Word". Autocorrect, autocapitalize, and spellcheck are off in them. (#188)
+- Docs: milestone-one.md records item 7 on macOS, run in Finder on a Mac mini with macOS 27: a double-click, a second file, a drop, and the welcome window giving way, once #186 was fixed. It also notes that Cmd+P prints nothing there (#191). (#20)
