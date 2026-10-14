@@ -91,3 +91,4 @@
 - Docs: milestone-one.md no longer calls §12's question on the named machine open, and no longer lists the Windows drop as not run.
 - CI: without a Developer ID, the macOS package is signed ad hoc as a whole, so its bundle is sealed and `codesign --verify` passes. Only the binary was signed, and Gatekeeper refused a downloaded copy before Open Anyway could allow it. Its Info.plist names macOS 11, the oldest it runs on, not 10.13. (#178)
 - Desktop: find's field and buttons take the page's colours. By night they kept CodeMirror's light faces under the page's light ink, so next, previous, and all could not be read. (#179)
+- Desktop: a quote inside a quote has a rule of its own for each level, up to six, so its nesting shows. Every level drew the same single rule. (#180)

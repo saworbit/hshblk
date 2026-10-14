@@ -73,6 +73,9 @@ type Painted = {
 /** The widest hanging indent, in columns. A list item indented further does not hang. */
 export const HANG_LIMIT = 24;
 
+/** The deepest quote with a rule of its own. A quote nested further draws as this one. */
+export const QUOTE_LIMIT = 6;
+
 /** Folds all the syntax again, as on arrival, until the reader next places a selection. */
 export const foldAll = StateEffect.define<null>();
 
@@ -456,9 +459,17 @@ class Painter {
       case "HardBreak":
         if (this.#slice(node).startsWith("\\")) this.#hide(fold, node.from, node.from + 1);
         return false;
-      case "Blockquote":
-        this.#lines(node.from, node.to, "pg-quote");
+      case "Blockquote": {
+        // The outer quote marks every line. A quote inside it adds its level, which draws a rule.
+        let depth = 1;
+        for (let up = node.parent; up; up = up.parent) if (up.name === "Blockquote") depth++;
+        this.#lines(
+          node.from,
+          node.to,
+          depth > 1 ? `pg-quote-${Math.min(depth, QUOTE_LIMIT)}` : "pg-quote",
+        );
         return;
+      }
       case "QuoteMark":
         this.#quoteMark(node);
         return false;
