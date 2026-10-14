@@ -570,8 +570,10 @@ describe("one open document", () => {
     const frames = () =>
       page.until(() => {
         const frames = [...document.querySelectorAll("iframe.pg-html")];
+        // The frame's own HTML, not the blank document it starts on.
         const loaded = (f) =>
-          f.contentDocument?.readyState === "complete" &&
+          f.contentDocument?.URL === "about:srcdoc" &&
+          f.contentDocument.readyState === "complete" &&
           [...f.contentDocument.images].every((image) => image.complete);
         if (frames.length < 3 || !frames.every(loaded)) return null;
         return frames.map((frame) => ({
