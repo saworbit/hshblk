@@ -11,7 +11,8 @@ export type Inline =
   | { kind: "text"; text: string }
   | { kind: "emphasis" | "strong" | "strikethrough"; children: Inline[] }
   | { kind: "code"; text: string }
-  | { kind: "link"; href: string; title?: string; children: Inline[] };
+  | { kind: "link"; href: string; title?: string; children: Inline[] }
+  | { kind: "image"; reference: string; alt: string; title?: string };
 
 /** Syntax, not content. These characters never paint. */
 const MARKS = new Set(["EmphasisMark", "CodeMark", "LinkMark", "StrikethroughMark", "QuoteMark"]);
@@ -45,7 +46,13 @@ export function unescapePipes(inlines: Inline[]): Inline[] {
 
 export function plainText(inlines: Inline[]): string {
   return inlines
-    .map((inline) => ("text" in inline ? inline.text : plainText(inline.children)))
+    .map((inline) =>
+      inline.kind === "image"
+        ? inline.alt
+        : "text" in inline
+          ? inline.text
+          : plainText(inline.children),
+    )
     .join("")
     .replace(/\s+/g, " ")
     .trim();
@@ -92,9 +99,13 @@ function inline(doc: Text, definitions: Definitions, node: SyntaxNode): Inline[]
           text(doc.sliceString(close.from, node.to)),
         ];
       }
-      if (node.name === "Image") return [text(plainText(words))];
       const title = titleOf(doc, node, definitions);
-      return [{ kind: "link", href, ...(title ? { title } : {}), children: words }];
+      const titled = title ? { title } : {};
+      // An image in a table cell is drawn there as on the page (#155).
+      if (node.name === "Image") {
+        return [{ kind: "image", reference: href, alt: plainText(words), ...titled }];
+      }
+      return [{ kind: "link", href, ...titled, children: words }];
     }
     case "Autolink": {
       const url = node.getChild("URL");

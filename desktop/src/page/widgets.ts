@@ -56,27 +56,40 @@ export class ImageWidget extends WidgetType {
   }
 
   toDOM(view: EditorView): HTMLElement {
-    const file = filePath(this.reference);
-    const url = isLocal(file) ? view.state.facet(assetUrl)(file) : null;
-    if (!url) return placeholder("Image not loaded", this.alt, this.inline);
-    // CodeMirror puts back a widget's own element if it goes, but leaves what is inside it alone.
-    // So a refused image gives way to its placeholder inside a frame that stays.
-    const frame = document.createElement("span");
-    frame.className = this.inline ? "pg-figure-inline" : "pg-figure";
-    const image = frame.appendChild(document.createElement("img"));
-    image.className = "pg-image";
-    image.alt = this.alt;
-    if (this.title) image.title = this.title;
-    image.addEventListener("error", () =>
-      image.replaceWith(placeholder("Image not shown", this.alt, this.inline)),
-    );
-    image.src = url;
-    return frame;
+    return imageNode(view, this.reference, this.alt, this.inline, this.title);
   }
 
   ignoreEvent(): boolean {
     return false;
   }
+}
+
+/**
+ * An image, through the resource channel when it is in the repository, or the page's placeholder
+ * for it. CodeMirror puts back a widget's own element if it goes, but leaves what is inside it
+ * alone. So a refused image gives way to its placeholder inside a frame that stays.
+ */
+function imageNode(
+  view: EditorView,
+  reference: string,
+  alt: string,
+  inline: boolean,
+  title: string | null = null,
+): HTMLElement {
+  const file = filePath(reference);
+  const url = isLocal(file) ? view.state.facet(assetUrl)(file) : null;
+  if (!url) return placeholder("Image not loaded", alt, inline);
+  const frame = document.createElement("span");
+  frame.className = inline ? "pg-figure-inline" : "pg-figure";
+  const image = frame.appendChild(document.createElement("img"));
+  image.className = "pg-image";
+  image.alt = alt;
+  if (title) image.title = title;
+  image.addEventListener("error", () =>
+    image.replaceWith(placeholder("Image not shown", alt, inline)),
+  );
+  image.src = url;
+  return frame;
 }
 
 /** A GFM table, drawn until the keys or find enter it and open its source. */
@@ -94,12 +107,13 @@ export class TableWidget extends WidgetType {
     return other.#key === this.#key;
   }
 
-  toDOM(): HTMLElement {
+  toDOM(view: EditorView): HTMLElement {
     const wrap = document.createElement("div");
     wrap.className = "pg-table";
     const table = wrap.appendChild(document.createElement("table"));
     if (this.table.head.length > 0) {
       row(
+        view,
         table.appendChild(document.createElement("thead")),
         "th",
         this.table.head,
@@ -107,7 +121,7 @@ export class TableWidget extends WidgetType {
       );
     }
     const body = table.appendChild(document.createElement("tbody"));
-    for (const cells of this.table.rows) row(body, "td", cells, this.table.align);
+    for (const cells of this.table.rows) row(view, body, "td", cells, this.table.align);
     return wrap;
   }
 
@@ -533,6 +547,16 @@ function prepared(html: string, view: EditorView): string {
     /src|href|poster|background|tabindex|contenteditable|<(input|textarea|select|button|summary)\b/i;
   if (!acts.test(html)) return html;
   const parsed = new DOMParser().parseFromString(html, "text/html");
+  // #171: a picture's source that names one file in the repository, as a README's dark-mode mark
+  // does, asks the resource channel for it, as an <img src> does. The engine picks it by its
+  // media query. Every other srcset goes.
+  const sources = new Map<Element, string>();
+  for (const source of parsed.querySelectorAll("picture > source[srcset]")) {
+    const one = /^\s*(\S+?)(?:\s+1x)?\s*$/.exec(source.getAttribute("srcset") ?? "");
+    const file = one ? filePath(one[1]) : "";
+    const url = one && isLocal(file) ? view.state.facet(assetUrl)(file) : null;
+    if (url) sources.set(source, url);
+  }
   for (const element of parsed.querySelectorAll("*")) {
     for (const name of ["srcset", "poster", "background"]) element.removeAttribute(name);
     const tag = element.localName;
@@ -561,6 +585,7 @@ function prepared(html: string, view: EditorView): string {
     chip.title = `Image not loaded · ${alt || "untitled"}`;
     image.replaceWith(chip);
   }
+  for (const [source, url] of sources) source.setAttribute("srcset", url);
   // The parser puts what may lead a document, such as a <meta>, in its head. The frame has it all.
   return parsed.head.innerHTML + parsed.body.innerHTML;
 }
@@ -582,29 +607,38 @@ function pageRules(): string {
   return [...document.styleSheets].map((sheet) => copy(sheet.cssRules)).join("\n");
 }
 
-function row(parent: HTMLElement, tag: "th" | "td", cells: Inline[][], align: Align[]): void {
+function row(
+  view: EditorView,
+  parent: HTMLElement,
+  tag: "th" | "td",
+  cells: Inline[][],
+  align: Align[],
+): void {
   const tr = parent.appendChild(document.createElement("tr"));
   cells.forEach((cell, i) => {
     const td = tr.appendChild(document.createElement(tag));
     if (align[i]) td.style.textAlign = align[i];
-    td.append(...cell.map(paint));
+    td.append(...cell.map((inline) => paint(view, inline)));
   });
 }
 
-function paint(inline: Inline): Node {
+function paint(view: EditorView, inline: Inline): Node {
+  const all = (inlines: Inline[]) => inlines.map((child) => paint(view, child));
   switch (inline.kind) {
     case "text":
       return document.createTextNode(inline.text);
     case "code":
       return element("code", "pg-code", [document.createTextNode(inline.text)]);
     case "emphasis":
-      return element("em", "", inline.children.map(paint));
+      return element("em", "", all(inline.children));
     case "strong":
-      return element("strong", "", inline.children.map(paint));
+      return element("strong", "", all(inline.children));
     case "strikethrough":
-      return element("s", "pg-strike", inline.children.map(paint));
+      return element("s", "pg-strike", all(inline.children));
+    case "image":
+      return imageNode(view, inline.reference, inline.alt, true, inline.title);
     case "link": {
-      const link = element("span", "pg-link", inline.children.map(paint));
+      const link = element("span", "pg-link", all(inline.children));
       link.title = inline.title ?? inline.href;
       link.dataset.href = inline.href;
       return link;
