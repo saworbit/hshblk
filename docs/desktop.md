@@ -55,7 +55,7 @@ Each file opens in a window of its own. A second file opens a second window in t
 | `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading or HTML anchor it names |
 | `Enter` | Open or close a `<details>`, with the caret on its tags. Tick or untick a task box, with the caret in its text |
 
-- Dropping a file on a window opens it in a new window. A file that is already open brings its window to the front instead. `Ctrl+O` starts in the folder of the window's document. A file that is not text, such as an image, does not open, and the message names it.
+- Dropping a file on a window opens it in a new window. A file that is already open brings its window to the front instead. `Ctrl+O` starts in the folder of the window's document, offers every file after the markdown ones on Linux and Windows, and takes several at once. Two windows of files with the same name add the folder to their titles. A file that is not text, such as an image, does not open, and the message names it.
 - On macOS, the menu bar's File menu has Open, with ⌘O, above Tauri's own items, and Print, with ⌘P, below them. Edit keeps Tauri's Copy and Select All, and ends with Find, with ⌘F. Each new window opens a step down and right of the one before. Linux and Windows have no menu bar, which would sit above the page in every window.
 - Move the caret into a construct with the keys, or find in it, and its syntax shows, so `**bold**` reads as written. A click places the caret and opens nothing, so the text holds still under the pointer. A link never unfolds: its address shows in a popover under it, with **Open** for web and mail addresses. A find match in the address shows there, marked.
 - Copy and find work on the source, hidden syntax included. The status line says so, after the file's name and when it was last modified. The find box says how many matches there are and which one is current, and marks that one apart from the rest.
@@ -130,7 +130,7 @@ The app has no updater, by choice ([hld.md](hld.md) §12, question 1). It makes 
 | `desktop/src-tauri/src/lib.rs` | The seven commands the page may call, and the app, with its menu bar on macOS. |
 | `desktop/src-tauri/linux/hshblk.desktop` | The Linux desktop entry, which passes the double-clicked file. |
 | `desktop/src-tauri/icons/` | The app icon: [`brand/app-icon/`](../brand/app-icon/), file for file. 16 and 32 px are a drawing of their own, so it is copied, never regenerated with `tauri icon`. |
-| `desktop/src/main.ts` | The window: open, print, the status line, and the welcome. |
+| `desktop/src/main.ts` | The window: open, print, the status line, and the welcome, which names the version. |
 | `desktop/src/surface.ts` | The CodeMirror surface, with editing turned off. |
 | `desktop/src/page/` | The page: the dialect, its decorations, links, images, tables, the frontmatter panel, find's count, the text size, the whole-document parse, and the theme. |
 | `desktop/scripts/` | What CI runs: the unit tests' runner, which fails when no test file matches, the licence check, and the check that a release tag names the version. |

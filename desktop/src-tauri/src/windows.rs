@@ -44,16 +44,29 @@ pub enum Launch {
 /// What did not open is said after every window the launch opens, so none covers it (#160).
 pub fn open_arguments(app: &AppHandle, argv: &[String], cwd: &Path, launch: Launch) {
     let files = files_in(argv, cwd);
-    let refused: Vec<String> = files
-        .iter()
-        .filter_map(|file| show(app, file).err())
-        .collect();
+    let refused = show_all(app, &files);
     if wants_empty(launch, files.len(), app.webview_windows().len()) {
         empty(app);
     }
     if !refused.is_empty() {
         refuse(app, &refused.join("\n"));
     }
+}
+
+/// Opens each file, as the Open dialog's several do, and says once what did not open.
+pub fn open_all(app: &AppHandle, files: &[PathBuf]) {
+    let refused = show_all(app, files);
+    if !refused.is_empty() {
+        refuse(app, &refused.join("\n"));
+    }
+}
+
+/// Shows each file, and says why each that did not open did not.
+fn show_all(app: &AppHandle, files: &[PathBuf]) -> Vec<String> {
+    files
+        .iter()
+        .filter_map(|file| show(app, file).err())
+        .collect()
 }
 
 /// Whether a launch needs the empty window. The app quits when its last window closes, so with
@@ -116,6 +129,7 @@ fn show(app: &AppHandle, path: &Path) -> Result<(), String> {
         _ => next_place(app),
     };
     build(app, &format!("{DOCUMENT}{handle}"), &document.name, place);
+    retitle(app);
     if let Some(window) = waiting {
         let _ = window.close();
     }
@@ -230,6 +244,64 @@ fn build(app: &AppHandle, label: &str, title: &str, place: Option<Place>) {
     }
 }
 
+/// A document window's title: its file's name, and, when another window shows a file of the same
+/// name, as many of its folders as tell them apart, so the taskbar can (#167). Rust holds the
+/// paths, so the page still never sees one.
+fn titles(files: &[(String, PathBuf)]) -> Vec<String> {
+    let folders = |path: &Path| -> Vec<String> {
+        let parent = path.parent().unwrap_or(path);
+        let parts = parent
+            .components()
+            .map(|part| part.as_os_str().to_string_lossy().into_owned());
+        parts.collect::<Vec<_>>().into_iter().rev().collect()
+    };
+    files
+        .iter()
+        .map(|(name, path)| {
+            let others: Vec<Vec<String>> = files
+                .iter()
+                .filter(|(other, at)| other == name && at != path)
+                .map(|(_, at)| folders(at))
+                .collect();
+            if others.is_empty() {
+                return name.clone();
+            }
+            let mine = folders(path);
+            let depth = (1..=mine.len())
+                .find(|&depth| {
+                    others
+                        .iter()
+                        .all(|other| other.get(..depth) != mine.get(..depth))
+                })
+                .unwrap_or(mine.len());
+            let shown: Vec<&str> = mine[..depth].iter().rev().map(String::as_str).collect();
+            format!("{name} · {}", shown.join(std::path::MAIN_SEPARATOR_STR))
+        })
+        .collect()
+}
+
+/// Gives each document window its title again, after one opens or closes.
+fn retitle(app: &AppHandle) {
+    let documents = app.state::<Documents>();
+    let shown: Vec<(WebviewWindow, String, PathBuf)> = app
+        .webview_windows()
+        .into_values()
+        .filter_map(|window| {
+            let document = documents.get(handle_of(window.label())?)?;
+            Some((window, document.name.clone(), document.path.clone()))
+        })
+        .collect();
+    let files: Vec<(String, PathBuf)> = shown
+        .iter()
+        .map(|(_, name, path)| (name.clone(), path.clone()))
+        .collect();
+    for ((window, _, _), title) in shown.iter().zip(titles(&files)) {
+        if let Err(error) = window.set_title(&title) {
+            eprintln!("A window's title could not change: {error}");
+        }
+    }
+}
+
 fn is_the_app(url: &Url) -> bool {
     url.as_str() == "about:srcdoc"
         || url.scheme() == "tauri"
@@ -248,6 +320,7 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
         WindowEvent::Destroyed => {
             if let Some(handle) = handle_of(window.label()) {
                 window.state::<Documents>().close(handle);
+                retitle(window.app_handle());
             }
             window.state::<MenuChannels>().forget(window.label());
         }
@@ -389,6 +462,32 @@ mod tests {
         );
         // The welcome window shows no document, so the dialog starts where the system says.
         assert_eq!(folder_of(&documents, "empty-0"), None);
+    }
+
+    #[test]
+    fn names_the_folder_when_two_windows_show_files_of_one_name() {
+        // #167: three windows of README.md showed three README.md on the taskbar.
+        let sep = std::path::MAIN_SEPARATOR_STR;
+        let file = |name: &str, path: &str| (name.to_owned(), PathBuf::from(path));
+        assert_eq!(
+            titles(&[
+                file("README.md", "/a/hshblk/README.md"),
+                file("README.md", "/b/other/README.md"),
+                file("notes.md", "/a/hshblk/notes.md"),
+            ]),
+            ["README.md · hshblk", "README.md · other", "notes.md"]
+        );
+        // As many folders as tell them apart.
+        assert_eq!(
+            titles(&[
+                file("README.md", "/x/one/docs/README.md"),
+                file("README.md", "/x/two/docs/README.md"),
+            ]),
+            [
+                format!("README.md · one{sep}docs"),
+                format!("README.md · two{sep}docs")
+            ]
+        );
     }
 
     #[test]

@@ -112,13 +112,15 @@ if (handle) {
 
 function statusLine(opened: Opened): HTMLElement {
   const line = element("footer", "status");
-  line.append(element("span", "status-name", opened.name));
+  const name = line.appendChild(element("span", "status-name", opened.name));
+  // A long name ends in an ellipsis, and its tooltip has all of it (#162).
+  name.title = opened.name;
   if (opened.modified !== null) {
     const when = new Date(opened.modified).toLocaleString(undefined, {
       dateStyle: "medium",
       timeStyle: "short",
     });
-    line.append(element("span", "", `Modified ${when}`));
+    line.append(element("span", "status-modified", `Modified ${when}`));
   }
   // Shown only for a file with frontmatter, which folds away on the page.
   const front = element("button", "status-frontmatter", "Frontmatter");
@@ -126,7 +128,7 @@ function statusLine(opened: Opened): HTMLElement {
   front.title = `Show the frontmatter (${mac ? "⌘⇧M" : "Ctrl+Shift+M"})`;
   front.hidden = true;
   line.append(front);
-  line.append(element("span", "", "Read only. Copy and find work on the source."));
+  line.append(element("span", "status-note", "Read only. Copy and find work on the source."));
   const source = element(
     "span",
     "status-source",
@@ -161,7 +163,13 @@ function welcome(): HTMLElement {
   const box = element("section", "welcome");
   const open = element("button", "welcome-open", "Open a markdown file");
   open.addEventListener("click", pick);
-  box.append(mark(), open, element("p", "welcome-hint", "or drop one on this window"));
+  box.append(
+    mark(),
+    open,
+    element("p", "welcome-hint", "or drop one on this window"),
+    // Which one is running, for a bug report or the release page. There is no updater (#238).
+    element("p", "welcome-version", `Version ${__VERSION__}`),
+  );
   return box;
 }
 
