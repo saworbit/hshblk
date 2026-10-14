@@ -97,3 +97,4 @@
 - Desktop: find's fields correct nothing. On macOS, typing `word` offered "Word". Autocorrect, autocapitalize, and spellcheck are off in them. (#188)
 - Docs: milestone-one.md records item 7 on macOS, run in Finder on a Mac mini with macOS 27: a double-click, a second file, a drop, and the welcome window giving way, once #186 was fixed. It also notes that Cmd+P prints nothing there (#191). (#20)
 - Desktop: Cmd+P prints on macOS. WKWebView ignores `window.print()`, so there the page asks Rust, through a new `print_page` command, to open WebKit's print panel. The page still lays itself out for print first and goes back when the panel closes. (#191)
+- Docs: milestone-one.md says Cmd+P prints on macOS now, through Rust. (#191)
