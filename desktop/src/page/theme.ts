@@ -193,6 +193,16 @@ export const pageTheme = EditorView.theme({
     fontSize: "0.8rem",
   },
   ".cm-panels input, .cm-panels button": { font: "inherit" },
+  // CodeMirror's field and buttons are light, and took the page's ink by night (#179).
+  ".cm-panels .cm-textfield, .cm-panels .cm-button": {
+    color: "var(--ink)",
+    backgroundColor: "var(--paper)",
+    backgroundImage: "none",
+    border: "1px solid var(--rule)",
+    borderRadius: "4px",
+  },
+  ".cm-panels .cm-button": { backgroundColor: "var(--code)", cursor: "pointer" },
+  ".cm-panels .cm-button:active": { backgroundImage: "none", borderColor: "var(--muted)" },
 
   // The frontmatter panel: the fields as a list, or the YAML as written.
   ".pg-front-panel": { padding: "0.5rem 1rem", maxHeight: "40vh", overflowY: "auto" },
