@@ -108,3 +108,8 @@
 - Desktop: an indented code block hides its four columns of indent, so its text starts where a fenced block's does. The keys and find show the indent of the line they reach. (#216)
 - Desktop: an HTML comment in a line folds away with the space before it, on the page, in a table, and in a heading's anchor. The keys and find show it. (#224)
 - Desktop: a ticked task box shows its tick in every list item. The tick took the line's hanging indent and drew left of its box. (#158)
+- Desktop: a file that does not open is named in the message, without the system's error code, such as "huge.md is larger than 64 MB." The message shows after the windows the same launch opens, over the last of them, where a window it opened used to cover it. (#160)
+- Desktop: a file whose bytes are an image, an archive, or a PDF does not open, and the message says it is not a text file. It opened as a page of replacement characters. (#206)
+- Desktop: a file that ends every line with CR alone says so in the status line, not that it mixes line endings. It still opens read-only. (#172)
+- Desktop: opening a file that is already open, however its path is written, brings its window to the front rather than opening a second. (#174)
+- Desktop: the Open dialog starts in the folder of the window's document. (#168)

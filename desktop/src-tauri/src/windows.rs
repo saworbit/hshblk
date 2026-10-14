@@ -14,7 +14,8 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use crate::documents::Documents;
 use crate::MenuChannels;
 
-/// What the open dialog offers. A dropped or double-clicked file of any kind is still tried.
+/// What the open dialog offers. A dropped or double-clicked file of any kind is still tried, but
+/// one whose bytes are plainly not text is refused (#206).
 pub const EXTENSIONS: &[&str] = &["md", "markdown", "mdown", "mkd", "txt"];
 
 const EMPTY: &str = "empty-";
@@ -25,6 +26,13 @@ pub fn handle_of(label: &str) -> Option<&str> {
     label.strip_prefix(DOCUMENT)
 }
 
+/// The folder of the document a window shows, where its Open dialog starts, so the file beside
+/// the one being read is a click away (#168). The path stays in Rust.
+pub fn folder_of(documents: &Documents, label: &str) -> Option<PathBuf> {
+    let document = documents.get(handle_of(label)?)?;
+    document.path.parent().map(Path::to_path_buf)
+}
+
 /// Where a command line came from: the app's own launch, or a second one that handed it over.
 #[derive(Clone, Copy, PartialEq)]
 pub enum Launch {
@@ -33,13 +41,18 @@ pub enum Launch {
 }
 
 /// Opens each file named on a command line, and an empty window when the launch shows nothing.
+/// What did not open is said after every window the launch opens, so none covers it (#160).
 pub fn open_arguments(app: &AppHandle, argv: &[String], cwd: &Path, launch: Launch) {
     let files = files_in(argv, cwd);
-    for file in &files {
-        open(app, file);
-    }
+    let refused: Vec<String> = files
+        .iter()
+        .filter_map(|file| show(app, file).err())
+        .collect();
     if wants_empty(launch, files.len(), app.webview_windows().len()) {
         empty(app);
+    }
+    if !refused.is_empty() {
+        refuse(app, &refused.join("\n"));
     }
 }
 
@@ -67,12 +80,32 @@ fn files_in(argv: &[String], cwd: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-/// Opens a file in a new window. An empty window, if there is one, gives way to it.
+/// Opens a file in a new window, or says why it cannot.
 pub fn open(app: &AppHandle, path: &Path) {
-    let (handle, document) = match app.state::<Documents>().open(path) {
-        Ok(opened) => opened,
-        Err(error) => return refuse(app, &error.to_string()),
-    };
+    if let Err(message) = show(app, path) {
+        refuse(app, &message);
+    }
+}
+
+/// Shows a file: in the window it has, if it is open, or else in a new one. An empty window, if
+/// there is one, gives way to it.
+fn show(app: &AppHandle, path: &Path) -> Result<(), String> {
+    let documents = app.state::<Documents>();
+    // #174: a second window on one file is two copies of the page, easy to mix up.
+    let open = documents
+        .find(path)
+        .and_then(|handle| app.get_webview_window(&format!("{DOCUMENT}{handle}")));
+    if let Some(window) = open {
+        let _ = window.unminimize();
+        if let Err(error) = window.set_focus() {
+            eprintln!("A window could not take the focus: {error}");
+        }
+        return Ok(());
+    }
+    let (handle, document) = documents.open(path).map_err(|error| {
+        let name = path.file_name().unwrap_or(path.as_os_str());
+        error.message(&name.to_string_lossy())
+    })?;
     let waiting = app
         .webview_windows()
         .into_values()
@@ -86,6 +119,7 @@ pub fn open(app: &AppHandle, path: &Path) {
     if let Some(window) = waiting {
         let _ = window.close();
     }
+    Ok(())
 }
 
 fn empty(app: &AppHandle) {
@@ -221,12 +255,18 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
     }
 }
 
+/// Says what did not open, over the window opened last, so it shows in front of it (#160).
 fn refuse(app: &AppHandle, message: &str) {
-    app.dialog()
+    let mut dialog = app
+        .dialog()
         .message(message)
         .title("Hash Block")
-        .kind(MessageDialogKind::Error)
-        .show(|_| {});
+        .kind(MessageDialogKind::Error);
+    let last = LAST.lock().expect("last window lock").clone();
+    if let Some(window) = last.and_then(|label| app.get_webview_window(&label)) {
+        dialog = dialog.parent(&window);
+    }
+    dialog.show(|_| {});
 }
 
 #[cfg(test)]
@@ -334,6 +374,21 @@ mod tests {
         // #186: on macOS the file that started the app is open before setup reads argv.
         assert!(!wants_empty(Launch::First, 0, 1));
         assert!(!wants_empty(Launch::First, 1, 1));
+    }
+
+    #[test]
+    fn starts_the_open_dialog_in_the_folder_of_the_windows_document() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("docs")).unwrap();
+        std::fs::write(root.path().join("docs/notes.md"), "x").unwrap();
+        let documents = Documents::default();
+        let (handle, _) = documents.open(&root.path().join("docs/notes.md")).unwrap();
+        assert_eq!(
+            folder_of(&documents, &format!("{DOCUMENT}{handle}")),
+            Some(std::fs::canonicalize(root.path().join("docs")).unwrap())
+        );
+        // The welcome window shows no document, so the dialog starts where the system says.
+        assert_eq!(folder_of(&documents, "empty-0"), None);
     }
 
     #[test]

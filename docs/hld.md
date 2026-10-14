@@ -133,7 +133,8 @@ CodeMirror does not provide no-op identity by default. It splits on LF, CRLF, an
 | NUL bytes | Open read-only. UTF-16 without a BOM can pass as valid UTF-8, and NUL is how it shows. |
 | Uniform LF or CRLF | Preserved by recording the separator and configuring CodeMirror to it. |
 | Pasted, dropped, or composed text | Line breaks become the recorded separator before the transaction applies: a `clipboardInputFilter` for paste, a transaction filter for drop and IME. Without it, a Mac clipboard pasted into a CRLF file writes a bare LF, and the file opens read-only next time. |
-| Mixed or lone CR | Open read-only until an explicit "normalize line endings" command. Silent repair is a failed no-op. |
+| Mixed or lone CR | Open read-only until an explicit "normalize line endings" command. Silent repair is a failed no-op. A file that ends every line with CR alone is said to, not to mix them. |
+| Not text | Bytes that are an image the resource channel knows, or that hold NUL bytes and are neither UTF-8 nor marked UTF-16, as an archive or a PDF does, do not open. The message names the file. A text file with an odd extension still opens. |
 | Untouched bytes | Identical, because on every file this table lets you save, encoding the string reproduces the bytes it was decoded from. |
 | User edit | A transaction annotated as user input, a formatting command, list continuation we wrote, or paste. Stock CodeMirror Markdown keymap is out of contract: its Enter and Backspace rewrite lines the user did not touch. Those commands are replaced before typing is enabled. |
 | External change | Disk hash differs from the handle. Save refuses. The user chooses reload or save-as. Overwrite is not the default. |
@@ -176,7 +177,9 @@ Entry points. Each mints a handle in Rust:
 - `pick() -> handle`. Rust runs the native dialog. The dialog plugin's JavaScript `open()` is not used, because it returns a path to the webview.
 - Drop. Rust handles the window's drag-drop event and emits a handle. Tauri's frontend drag-drop event carries `paths: string[]`, so it is turned off.
 
-A second file, by double-click or by `app file.md`, goes to the app that is already running and opens in a new window there. One process holds every handle.
+A second file, by double-click or by `app file.md`, goes to the app that is already running and opens in a new window there. One process holds every handle. A file that is already open, however its path is written, brings its window to the front instead, so one file never has two pages. `pick()` starts in the folder of the window's document, which Rust knows and the page does not.
+
+A file that does not open is named in what the user is told, without the system's error code, and the message shows after the windows the same launch opens, over the last of them, so none covers it.
 
 IPC, milestone one:
 

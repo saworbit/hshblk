@@ -69,6 +69,9 @@ fn pick(app: &AppHandle, parent: Option<&WebviewWindow>) {
         .add_filter("Markdown", windows::EXTENSIONS);
     if let Some(parent) = parent {
         dialog = dialog.set_parent(parent);
+        if let Some(folder) = windows::folder_of(&app.state::<Documents>(), parent.label()) {
+            dialog = dialog.set_directory(folder);
+        }
     }
     let app = app.clone();
     dialog.pick_file(move |picked| {
