@@ -140,9 +140,19 @@ export class SummaryWidget extends WidgetType {
     summary.className = this.open ? "pg-summary pg-summary-open" : "pg-summary";
     summary.setAttribute("role", "button");
     summary.setAttribute("aria-expanded", String(this.open));
-    // Its words, as a browser shows them. A parsed document runs nothing and fetches nothing.
-    const words = new DOMParser().parseFromString(this.summary, "text/html").body.textContent;
-    summary.textContent = words?.replace(/\s+/g, " ").trim() || "Details";
+    // Its words, as a browser shows them, in the faces the page has: bold, italic, and code
+    // (#232). A parsed document runs nothing and fetches nothing.
+    const parsed = new DOMParser().parseFromString(this.summary, "text/html").body;
+    if (parsed.textContent?.trim()) summary.append(...faced(parsed));
+    else summary.textContent = "Details";
+    // White space reads as a browser reads it (theme.ts), with none at either end.
+    const texts: Text[] = [];
+    const walk = document.createTreeWalker(summary, NodeFilter.SHOW_TEXT);
+    while (walk.nextNode()) texts.push(walk.currentNode as Text);
+    if (texts.length > 0) {
+      texts[0].data = texts[0].data.trimStart();
+      texts[texts.length - 1].data = texts[texts.length - 1].data.trimEnd();
+    }
     // The press would move the caret first. Opening the details leaves it where it was.
     summary.addEventListener("mousedown", (event) => event.preventDefault());
     summary.addEventListener("click", () =>
@@ -150,6 +160,30 @@ export class SummaryWidget extends WidgetType {
     );
     return summary;
   }
+}
+
+/** The faces a summary keeps, as the page's own classes, so they look as on the page. */
+const FACES: Record<string, [string, string]> = {
+  b: ["strong", "pg-strong"],
+  strong: ["strong", "pg-strong"],
+  i: ["em", "pg-em"],
+  em: ["em", "pg-em"],
+  code: ["code", "pg-code"],
+  kbd: ["kbd", "pg-code"],
+};
+
+/** A parsed summary's words, made afresh, with its faces and nothing else of its markup. */
+function faced(parent: Node): Node[] {
+  return [...parent.childNodes].flatMap((node): Node[] => {
+    if (node.nodeType === Node.TEXT_NODE) return [document.createTextNode(node.textContent ?? "")];
+    if (!(node instanceof Element)) return [];
+    const face = FACES[node.localName];
+    if (!face) return faced(node);
+    const element = document.createElement(face[0]);
+    element.className = face[1];
+    element.append(...faced(node));
+    return [element];
+  });
 }
 
 /** Ticks or unticks, on the page only, the task box whose marker starts here. */
@@ -228,6 +262,8 @@ export class HtmlWidget extends WidgetType {
     // No allow-scripts, so nothing in the frame runs. The same origin lets the page measure it.
     frame.setAttribute("sandbox", "allow-same-origin");
     frame.title = "HTML";
+    // Tab passes it by, as it passes the page's other drawn blocks (#165).
+    frame.tabIndex = -1;
     const height = htmlHeights.get(this.html);
     if (height !== undefined) frame.style.height = `${height}px`;
     frame.srcdoc = framed(this.html, view);
@@ -249,11 +285,10 @@ export class HtmlWidget extends WidgetType {
     const root = frame.contentDocument?.documentElement;
     if (!body || !root) return;
     // The page's size is read once it shows. The first frames are made before it does.
-    const text = getComputedStyle(view.contentDOM);
-    body.style.fontSize = text.fontSize;
-    body.style.lineHeight = text.lineHeight;
+    matchPage(frame, view);
     const fit = () => {
-      const height = Math.ceil(root.getBoundingClientRect().height);
+      // What spills out of the body counts too, so the frame never scrolls (#227).
+      const height = Math.ceil(Math.max(root.getBoundingClientRect().height, body.scrollHeight));
       htmlHeights.set(this.html, height);
       if (frame.style.height === `${height}px`) return;
       frame.style.height = `${height}px`;
@@ -265,6 +300,24 @@ export class HtmlWidget extends WidgetType {
     fitting.set(frame, observer);
     fits.set(frame, fit);
   }
+}
+
+/**
+ * Gives a frame the page's text size, and its line height as the page's ratio, not a length, so a
+ * heading in the frame takes a line of its own size, not the page's, and is not cut off (#227).
+ */
+function matchPage(frame: HTMLIFrameElement, view: EditorView): void {
+  const body = frame.contentDocument?.body;
+  if (!body) return;
+  const text = getComputedStyle(view.contentDOM);
+  const ratio = parseFloat(text.lineHeight) / parseFloat(text.fontSize);
+  body.style.fontSize = text.fontSize;
+  body.style.lineHeight = Number.isFinite(ratio) ? ratio.toFixed(3) : "normal";
+}
+
+/** Gives every drawn frame the page's text size again, after the reader changed it. */
+export function matchFrames(view: EditorView): void {
+  for (const frame of frames(view)) matchPage(frame, view);
 }
 
 /**
@@ -421,20 +474,37 @@ function framed(html: string, view: EditorView): string {
   const nonce = view.state.facet(EditorView.cspNonce);
   const styles = nonce ? `'nonce-${nonce}'` : "'none'";
   const policy = `default-src 'none'; img-src ${IMAGES}; style-src ${styles}; font-src 'self'; base-uri 'none'; form-action 'none'`;
-  // The blank lines around the block space it, as they space the page's paragraphs.
+  // The blank lines around the block space it, as they space the page's paragraphs. A table,
+  // a heading, and a summary are drawn as the page draws its own (#226, #227, #170). A frame in
+  // the HTML loads nothing, so it draws nothing, as on GitHub, and an image that cannot load is
+  // the page's chip of its words.
   const faces = `html, body { margin: 0; background: transparent; }
+html { overflow-y: hidden; }
 body > :first-child { margin-top: 0; }
 body > :last-child { margin-bottom: 0; }
 body { color: var(--ink); font-family: var(--serif); overflow-wrap: break-word; }
 a { color: var(--accent); }
 code, kbd, pre, samp { font-family: var(--mono); font-size: 0.86em; }
-img { max-width: 100%; }`;
+img { max-width: 100%; }
+h1, h2, h3, h4, h5, h6 { font-weight: 560; line-height: 1.3; }
+table { border-collapse: collapse; font-size: 0.95em; }
+th, td { padding: 0.4em 1em 0.4em 0; border-bottom: 1px solid var(--rule); }
+th { font-weight: 560; }
+th:not([align]) { text-align: left; }
+iframe, embed, object { display: none; }
+summary { cursor: pointer; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "▸"; display: inline-block; width: 1.2em; }
+details[open] > summary::before { content: "▾"; }
+.pg-image-chip { display: inline-block; padding: 0 0.4em; border: 1px solid var(--rule);
+  border-radius: 4px; background: var(--code); color: var(--muted); font-size: 0.85em;
+  line-height: 1.5; }`;
   return (
     '<!doctype html><html><head><meta charset="utf-8">' +
     `<meta http-equiv="Content-Security-Policy" content="${policy}">` +
     '<meta http-equiv="x-dns-prefetch-control" content="off">' +
     `<style nonce="${nonce}">${pageRules()}${faces}</style>` +
-    `</head><body>${withImages(html, view)}</body></html>`
+    `</head><body>${prepared(html, view)}</body></html>`
   );
 }
 
@@ -443,11 +513,15 @@ img { max-width: 100%; }`;
  * it. An `<img src>` that names a file in the repository asks for it as a markdown image does, and
  * the channel checks it the same way. Any other src goes, and every other place an image can be
  * named: a srcset, a poster, a background, and an href on anything but a link, such as an SVG
- * `<image>`. So the frame asks for nothing the page did not name. The parser loads and runs none
- * of the HTML.
+ * `<image>`. So the frame asks for nothing the page did not name. An image left with nothing to
+ * load is the page's chip of its words, not the engine's broken image (#170). Nothing in the frame
+ * takes the keyboard: the keys reach its details and links through the page, and a form's field
+ * takes no typing on a read-only page (#165). The parser loads and runs none of the HTML.
  */
-function withImages(html: string, view: EditorView): string {
-  if (!/src|href|poster|background/i.test(html)) return html;
+function prepared(html: string, view: EditorView): string {
+  const acts =
+    /src|href|poster|background|tabindex|contenteditable|<(input|textarea|select|button|summary)\b/i;
+  if (!acts.test(html)) return html;
   const parsed = new DOMParser().parseFromString(html, "text/html");
   for (const element of parsed.querySelectorAll("*")) {
     for (const name of ["srcset", "poster", "background"]) element.removeAttribute(name);
@@ -457,12 +531,25 @@ function withImages(html: string, view: EditorView): string {
       element.removeAttribute("href");
       element.removeAttributeNS(XLINK, "href");
     }
+    element.removeAttribute("contenteditable");
+    if (element.matches("a[href], area[href], summary, [tabindex]")) {
+      element.setAttribute("tabindex", "-1");
+    }
+    if (element.matches("input, textarea, select, button")) element.setAttribute("disabled", "");
   }
   for (const image of parsed.querySelectorAll("img")) {
     const file = filePath(image.getAttribute("src")?.trim() ?? "");
     const url = isLocal(file) ? view.state.facet(assetUrl)(file) : null;
-    if (url) image.setAttribute("src", url);
-    else image.removeAttribute("src");
+    if (url) {
+      image.setAttribute("src", url);
+      continue;
+    }
+    const alt = image.getAttribute("alt") ?? "";
+    const chip = parsed.createElement("span");
+    chip.className = "pg-image-chip";
+    chip.textContent = alt || "untitled";
+    chip.title = `Image not loaded · ${alt || "untitled"}`;
+    image.replaceWith(chip);
   }
   // The parser puts what may lead a document, such as a <meta>, in its head. The frame has it all.
   return parsed.head.innerHTML + parsed.body.innerHTML;

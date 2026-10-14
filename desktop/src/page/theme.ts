@@ -172,7 +172,7 @@ export const pageTheme = EditorView.theme({
     lineHeight: "1",
     textAlign: "center",
   },
-  ".pg-summary": { cursor: "pointer", padding: "0.3em 0" },
+  ".pg-summary": { cursor: "pointer", padding: "0.3em 0", whiteSpace: "normal" },
   ".pg-summary::before": { content: '"▸"', display: "inline-block", width: "1.2em" },
   ".pg-summary-open::before": { content: '"▾"' },
   ".pg-table": { overflowX: "auto", padding: "0.6em 0" },
