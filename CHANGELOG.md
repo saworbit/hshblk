@@ -144,3 +144,4 @@
 - Desktop: a code block or a quote in a list item starts where the item's text starts, its background and its rule included. Both ran from the page's edge, out past the marker. The indent that puts them in the item folds away a line at a time. (#213)
 - Desktop: an image alone in a list item stays beside its marker, as on GitHub. It dropped below it. (#214)
 - Desktop: under a Windows contrast theme, a thematic break and each level of a quote keep their rules, in the theme's colours, and a code or HTML block has a rule at its side. The theme dropped the backgrounds and shadows that drew them. (#233)
+- Desktop: a printed page has no header or footer from WebView2, which put the date, the file's name, and `tauri.localhost` on every sheet. The page prints with no margin of its own where its padding can repeat on each sheet, and the padding is the margin. WebKit keeps its margins. (#245)
