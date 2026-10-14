@@ -22,16 +22,30 @@ pub fn handle_of(label: &str) -> Option<&str> {
     label.strip_prefix(DOCUMENT)
 }
 
-/// Opens each file named on a command line, or an empty window when none opens.
-pub fn open_arguments(app: &AppHandle, argv: &[String], cwd: &Path) {
+/// Where a command line came from: the app's own launch, or a second one that handed it over.
+#[derive(Clone, Copy, PartialEq)]
+pub enum Launch {
+    First,
+    Again,
+}
+
+/// Opens each file named on a command line, and an empty window when the launch shows nothing.
+pub fn open_arguments(app: &AppHandle, argv: &[String], cwd: &Path, launch: Launch) {
     let files = files_in(argv, cwd);
     for file in &files {
         open(app, file);
     }
-    // The app quits when its last window closes, so with none open it would run on unseen.
-    if files.is_empty() || app.webview_windows().is_empty() {
+    if wants_empty(launch, files.len(), app.webview_windows().len()) {
         empty(app);
     }
+}
+
+/// Whether a launch needs the empty window. The app quits when its last window closes, so with
+/// none open it would run on unseen. A second launch with no file asks for a window. The first
+/// may have one open already: on macOS the file that starts the app comes as an open-file event,
+/// which AppKit sends before Tauri runs setup (#186).
+fn wants_empty(launch: Launch, files: usize, windows: usize) -> bool {
+    windows == 0 || (files == 0 && launch == Launch::Again)
 }
 
 fn files_in(argv: &[String], cwd: &Path) -> Vec<PathBuf> {
@@ -156,6 +170,19 @@ mod tests {
         );
         assert!(files_in(&["hshblk".into(), "--".into()], Path::new("/work")).is_empty());
         assert!(files_in(&[], Path::new("/work")).is_empty());
+    }
+
+    #[test]
+    fn opens_an_empty_window_only_when_a_launch_shows_nothing() {
+        // With no window open the app would run on unseen, whichever launch it is.
+        assert!(wants_empty(Launch::First, 0, 0));
+        assert!(wants_empty(Launch::Again, 2, 0));
+        // A second launch with no file asks for a window.
+        assert!(wants_empty(Launch::Again, 0, 3));
+        assert!(!wants_empty(Launch::Again, 1, 3));
+        // #186: on macOS the file that started the app is open before setup reads argv.
+        assert!(!wants_empty(Launch::First, 0, 1));
+        assert!(!wants_empty(Launch::First, 1, 1));
     }
 
     #[test]
