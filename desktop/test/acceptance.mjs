@@ -1234,7 +1234,11 @@ describe("find", () => {
     await page.keys("one");
     assert.equal(await page.until(said), "4 matches");
     await page.press(Key.Enter);
-    assert.equal(await page.until(() => /of/.test(said() ?? "") && said()), "1 of 4");
+    const current = () => {
+      const words = document.querySelector(".pg-find-count")?.textContent;
+      return / of /.test(words ?? "") && words;
+    };
+    assert.equal(await page.until(current), "1 of 4");
     const look = await page.until(() => {
       const current = document.querySelector(".cm-searchMatch-selected");
       const other = document.querySelector(".cm-searchMatch:not(.cm-searchMatch-selected)");
@@ -1251,7 +1255,8 @@ describe("find", () => {
   test("says when there is no match, and leaves no old match selected", async () => {
     await page.run(() => document.activeElement.select());
     await page.keys("zzqq");
-    assert.equal(await page.until(() => said() === "No matches" && said()), "No matches");
+    const none = () => document.querySelector(".pg-find-count")?.textContent === "No matches";
+    assert.ok(await page.until(none));
     // The page has the focus back, and its selection is the editor's.
     await page.press(Key.Escape);
     await page.until(() => document.activeElement?.classList.contains("cm-content"));
@@ -1521,10 +1526,11 @@ ${Array.from({ length: 60 }, (_, n) => `Paragraph ${n}, long enough for the page
     page = await launch(app, [file]);
     drawn = await page.until(() => {
       const frames = [...document.querySelectorAll("iframe.pg-html")];
-      // Loaded, and sized to what it holds, which the page does once it has loaded.
+      // Its HTML loaded, and the frame sized to it in pixels. Until then it is a line tall, in em.
       const ready = (frame) =>
-        frame.contentDocument?.readyState === "complete" &&
-        frame.getBoundingClientRect().height > 0;
+        frame.contentDocument?.URL === "about:srcdoc" &&
+        frame.contentDocument.readyState === "complete" &&
+        frame.style.height.endsWith("px");
       if (frames.length < 5 || !frames.every(ready)) return null;
       return frames.map((frame) => {
         const doc = frame.contentDocument;
