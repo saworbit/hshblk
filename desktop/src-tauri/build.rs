@@ -7,6 +7,7 @@ fn main() {
         "open_url",
         "print_page",
         "watch_menu",
+        "close_window",
     ]);
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest))
         .expect("the Tauri build step runs");

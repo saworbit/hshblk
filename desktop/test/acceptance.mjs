@@ -396,6 +396,81 @@ describe("the window's keys, wherever focus is", () => {
     });
     assert.match(text, /Some bold words\./);
   });
+
+  test("Ctrl+= and Ctrl+- change the text size, and Ctrl+0 puts it back", async () => {
+    // #164: there was no way to change it.
+    const size = () =>
+      parseFloat(getComputedStyle(document.querySelector(".cm-scroller")).fontSize);
+    const own = await page.run(size);
+    await page.press(Key.Control, "=");
+    const bigger = await page.until((own) => {
+      const now = parseFloat(getComputedStyle(document.querySelector(".cm-scroller")).fontSize);
+      return now > own && now;
+    }, own);
+    await page.press(Key.Control, "-");
+    await page.press(Key.Control, "-");
+    const smaller = await page.until((own) => {
+      const now = parseFloat(getComputedStyle(document.querySelector(".cm-scroller")).fontSize);
+      return now < own && now;
+    }, own);
+    await page.press(Key.Control, "0");
+    await page.until(
+      (own) =>
+        parseFloat(getComputedStyle(document.querySelector(".cm-scroller")).fontSize) === own,
+      own,
+    );
+    assert.ok(bigger > own && smaller < own, `${smaller} < ${own} < ${bigger}`);
+  });
+
+  test("F5, Ctrl+R, and a right-click do nothing, but the find box's fields keep their menu", async () => {
+    // #161: reload brought back the text as it was read. #244: the menu was the browser's.
+    await page.press(Key.Control, "f");
+    await page.until(() => document.querySelector(".cm-search input"));
+    const prevented = await page.run(() => {
+      const fire = (target, event) => {
+        target.dispatchEvent(event);
+        return event.defaultPrevented;
+      };
+      const key = (init) =>
+        fire(
+          document.body,
+          new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }),
+        );
+      const menu = (target) =>
+        fire(target, new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      return [
+        key({ key: "F5" }),
+        key({ key: "r", ctrlKey: true }),
+        menu(document.querySelector(".cm-content")),
+        menu(document.querySelector(".status")),
+        menu(document.querySelector(".cm-search input")),
+      ];
+    });
+    assert.deepEqual(prevented, [true, true, true, true, false]);
+  });
+});
+
+describe("closing a window", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-close-"));
+  const file = join(folder, "close.md");
+  writeFileSync(file, "# Close\n");
+
+  test(
+    "Ctrl+W closes it, and the app quits with its last window",
+    { timeout: 30_000 },
+    async () => {
+      // #166: only the title bar's button or Alt+F4 closed one.
+      const page = await launch(app, [file]);
+      try {
+        await page.until(() => document.querySelector(".pg-h1"));
+        await page.press(Key.Control, "w");
+        await gone();
+      } finally {
+        await page.close().catch(() => {});
+        await gone();
+      }
+    },
+  );
 });
 
 describe("one open document", () => {

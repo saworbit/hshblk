@@ -113,3 +113,7 @@
 - Desktop: a file that ends every line with CR alone says so in the status line, not that it mixes line endings. It still opens read-only. (#172)
 - Desktop: opening a file that is already open, however its path is written, brings its window to the front rather than opening a second. (#174)
 - Desktop: the Open dialog starts in the folder of the window's document. (#168)
+- Desktop: `Ctrl+=` and `Ctrl+-` (`⌘=` and `⌘-` on macOS) make the page's text bigger or smaller, with its column and indents, and `Ctrl+0` puts it back. Print stays at the page's own size. (#164)
+- Desktop: `Ctrl+W` closes the window on Linux and Windows, through a new `close_window` command. macOS has File > Close Window. (#166)
+- Desktop: `F5` and `Ctrl+R` no longer reload a window, which brought back the text as it was read and lost the reader's place. (#161)
+- Desktop: a right-click on the page opens no menu. WebView2's offered Save as, a Print that skipped the page's preparation, and Refresh. The find box's fields keep theirs, for paste. (#244)

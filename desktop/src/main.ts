@@ -6,6 +6,7 @@ import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { frontmatterPanel, frontmatterText, toggleFrontmatter } from "./page/frontmatter.ts";
 import { sourceShown, toggleSource } from "./page/page.ts";
+import { setTextSize, stepSize, textSize } from "./page/size.ts";
 import { createSurface, printPage } from "./surface.ts";
 import glyph from "../../brand/logo/svg/glyph-current.svg?raw";
 
@@ -18,11 +19,24 @@ const nonce = document.querySelector<HTMLMetaElement>('meta[name="style-nonce"]'
 const handle = getCurrentWindow().label.match(/^doc-([0-9a-f]+)$/)?.[1];
 
 const pick = () => void invoke("pick_document");
+const close = () => void invoke("close_window");
 
 // The window's keys take ⌘ on macOS and Ctrl elsewhere, as the README's key table has them. On
 // macOS, Ctrl and those letters are CodeMirror's Emacs keys, even where they have nothing to move.
 const mac = /Mac/.test(navigator.platform);
 const command = (event: KeyboardEvent) => (mac ? event.metaKey : event.ctrlKey);
+
+// The webview's reload keys and right-click menu are a browser's. Reload brought back the text
+// Rust read when the window opened, and the menu's Save as and Print were not the app's (#161,
+// #244). The find box's fields keep their menu, for paste.
+document.addEventListener("keydown", (event) => {
+  if (event.key === "F5" || (command(event) && event.key.toLowerCase() === "r")) {
+    event.preventDefault();
+  }
+});
+document.addEventListener("contextmenu", (event) => {
+  if (!(event.target instanceof HTMLInputElement)) event.preventDefault();
+});
 
 if (handle) {
   // The text comes as bytes, which cross faster than a long string as JSON. As Rust holds it:
@@ -54,14 +68,20 @@ if (handle) {
       say(status, `${error}`),
     );
   const find = () => openSearchPanel(view);
+  const size = (step: -1 | 0 | 1) => setTextSize(view, stepSize(textSize(view), step));
   // The window's keys work wherever focus is: the page, the find box, or nothing at all.
   // CodeMirror goes first, and a key it took is not taken again.
   const keys: Record<string, () => void> = {
-    // On macOS, ⌘O, ⌘P, and ⌘F are the menu bar's (lib.rs), so the page leaves them be.
-    ...(mac ? {} : { o: pick, p: print, f: find }),
+    // On macOS, ⌘O, ⌘P, ⌘F, and ⌘W are the menu bar's (lib.rs), so the page leaves them be.
+    ...(mac ? {} : { o: pick, p: print, f: find, w: close }),
     "/": () => toggleSource(view),
     // Shift and M.
     M: () => toggleFrontmatter(view),
+    // The text size (#164). Shift and = is +, as on the numeric keypad.
+    "=": () => size(1),
+    "+": () => size(1),
+    "-": () => size(-1),
+    "0": () => size(0),
   };
   document.addEventListener("keydown", (event) => {
     const run = keys[event.key];
@@ -82,9 +102,10 @@ if (handle) {
 } else {
   root.append(welcome());
   document.addEventListener("keydown", (event) => {
-    if (!mac && command(event) && event.key === "o") {
+    const run = mac ? undefined : { o: pick, w: close }[event.key];
+    if (run && command(event)) {
       event.preventDefault();
-      pick();
+      run();
     }
   });
 }

@@ -188,6 +188,7 @@ IPC, milestone one:
 - `open_url(url)`. `http`, `https`, and `mailto` only, opened in the system browser. A click on a link never navigates the webview.
 - `print_page()`. The window's print panel, which Rust opens on macOS, where WKWebView ignores `window.print()`. The page lays itself out for print first, and goes back on `afterprint`.
 - `watch_menu(channel)`. On macOS, the menu bar's Find and Print are the page's to do, and the page takes no events, so it hands Rust a channel for them.
+- `close_window()`. Ctrl+W on Linux and Windows. macOS's menu bar has Close Window. The page has no permission of Tauri's own to close its window with.
 
 IPC, editor milestone:
 
