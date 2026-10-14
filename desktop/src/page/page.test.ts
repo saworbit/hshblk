@@ -233,6 +233,43 @@ describe("the page", () => {
     assert.equal(visible(open("Mail <me@x.y> or <https://x.y>.")), "Mail me@x.y or https://x.y.");
   });
 
+  it("cuts an image's long address short when its syntax opens, and when all of it shows", () => {
+    // #204: an embedded image's base64 opened as one line held the window for seconds.
+    const data = `data:image/png;base64,${"A".repeat(5000)}`;
+    const doc = `Before.\n\n![embedded](${data})\n\nAfter.`;
+    const state = open(doc);
+    assert.equal(visible(state).split("\n")[2], `[image ${data} · embedded]`);
+    const opened = visible(select(state, doc.indexOf("embedded"))).split("\n")[2];
+    assert.match(opened, /^!\[embedded\]\(data:image\/png;base64,A+…\)$/);
+    assert.ok(opened.length < 80, `${opened.length} characters`);
+    let sourced = state;
+    toggleSource({ state, dispatch: (tr) => (sourced = tr.state) });
+    const source = visible(sourced).split("\n")[2];
+    assert.ok(source.length < 80, `${source.length} characters`);
+    // A short address opens whole.
+    const short = "Text.\n\n![s](a.png)";
+    assert.equal(visible(select(open(short), short.indexOf("s]"))).split("\n")[2], "![s](a.png)");
+  });
+
+  it("draws an image in a table cell as an image, not its words", () => {
+    // #155: a README's grid of screenshots or badges showed as a row of alternative text.
+    const state = open(
+      "| ![m](img/mark.png) | beside |\n|---|---|\n| [![b](b.svg)](https://x.y) | y |",
+    );
+    let model: TableModel | undefined;
+    shown(state).between(0, state.doc.length, (_from, _to, decoration) => {
+      if (decoration.spec.widget instanceof TableWidget) model = decoration.spec.widget.table;
+    });
+    assert.deepEqual(model?.head[0], [{ kind: "image", reference: "img/mark.png", alt: "m" }]);
+    assert.deepEqual(model?.rows[0][0], [
+      {
+        kind: "link",
+        href: "https://x.y",
+        children: [{ kind: "image", reference: "b.svg", alt: "b" }],
+      },
+    ]);
+  });
+
   it("points an email autolink at mailto:, on the page and in a table", () => {
     const state = open("Mail <me@x.y> or <https://x.y>.\n\n| a |\n|---|\n| <cell@x.y> |");
     const hrefs: string[] = [];

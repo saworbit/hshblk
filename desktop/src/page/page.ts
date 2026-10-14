@@ -76,6 +76,10 @@ export const HANG_LIMIT = 24;
 /** The deepest quote with a rule of its own. A quote nested further draws as this one. */
 export const QUOTE_LIMIT = 6;
 
+/** How long an image's address may be before it opens cut short, and how much of it shows (#204). */
+const ADDRESS_LIMIT = 200;
+const ADDRESS_KEPT = 40;
+
 /** Folds all the syntax again, as on arrival, until the reader next places a selection. */
 export const foldAll = StateEffect.define<null>();
 
@@ -448,6 +452,7 @@ class Painter {
         const title = titleOf(this.doc, node, this.definitions);
         const image = new ImageWidget(reference, alt, !this.#alone(node), title);
         this.#hide(fold, node.from, node.to, image);
+        this.#cutAddress(node);
         return false;
       }
       case "Autolink":
@@ -646,6 +651,19 @@ class Painter {
   /** Hides syntax for good, wherever the selection goes, unless the source shows. */
   #conceal(from: number, to: number): void {
     if (from < to && !this.source) this.#replace(this.#styles, from, to);
+  }
+
+  /**
+   * #204: an image's address too long to read, as an embedded data: image's is, shows its start
+   * and an ellipsis when its syntax opens, with the keys, find, or Ctrl+/. Drawn whole, 2 MB of
+   * base64 held the window for seconds. Copy still takes it all.
+   */
+  #cutAddress(image: SyntaxNode): void {
+    const url = image.getChild("URL");
+    if (!url || url.to - url.from <= ADDRESS_LIMIT) return;
+    const line = this.doc.lineAt(url.from);
+    const from = url.from + ADDRESS_KEPT;
+    this.#replace(this.#styles, from, Math.min(url.to, line.to), undefined, new TextWidget("…"));
   }
 
   /**

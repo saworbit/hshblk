@@ -1518,9 +1518,16 @@ A markdown body.
 
 </details>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="dark.png">
+  <img src="light.png" alt="mark">
+</picture>
+
 ${Array.from({ length: 60 }, (_, n) => `Paragraph ${n}, long enough for the page to scroll.`).join("\n\n")}
 `,
   );
+  writeFileSync(join(folder, "dark.png"), PNG);
+  writeFileSync(join(folder, "light.png"), PNG);
   let page;
   let drawn;
 
@@ -1533,7 +1540,7 @@ ${Array.from({ length: 60 }, (_, n) => `Paragraph ${n}, long enough for the page
         frame.contentDocument?.URL === "about:srcdoc" &&
         frame.contentDocument.readyState === "complete" &&
         frame.style.height.endsWith("px");
-      if (frames.length < 5 || !frames.every(ready)) return null;
+      if (frames.length < 6 || !frames.every(ready)) return null;
       return frames.map((frame) => {
         const doc = frame.contentDocument;
         const style = (el, pseudo) => frame.contentWindow.getComputedStyle(el, pseudo);
@@ -1557,6 +1564,9 @@ ${Array.from({ length: 60 }, (_, n) => `Paragraph ${n}, long enough for the page
                 : "left",
           ]),
           fields: [...doc.querySelectorAll("input, button")].map((field) => field.disabled),
+          sources: [...doc.querySelectorAll("source")].map((source) =>
+            source.getAttribute("srcset"),
+          ),
           links: [...doc.querySelectorAll("a, summary")].map((el) => el.tabIndex),
           inner: [...doc.querySelectorAll("iframe")].map((inner) => style(inner).display),
           marker: [...doc.querySelectorAll("summary")].map((el) => style(el, "::before").content),
@@ -1574,6 +1584,12 @@ ${Array.from({ length: 60 }, (_, n) => `Paragraph ${n}, long enough for the page
     // It does so as it next measures, after the frames have their heights.
     await sleep(500);
     assert.equal(await page.run(() => document.querySelector(".cm-scroller").scrollTop), 0);
+  });
+
+  test("a picture keeps a source in the repository, for the engine to pick by its media", () => {
+    // #171: every srcset was dropped, so a README's dark-mode mark never showed.
+    assert.equal(drawn[5].sources.length, 1);
+    assert.match(drawn[5].sources[0], /dark\.png$/);
   });
 
   test("a heading in one is not cut off, and no frame scrolls", () => {
@@ -1698,6 +1714,36 @@ describe("reading", () => {
     await turn(" ");
     await turn(Key.Shift, " ");
     await turn(Key.PageUp);
+  });
+});
+
+describe("a table's images", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-cells-"));
+  const file = join(folder, "cells.md");
+  writeFileSync(
+    file,
+    "| ![dot](dot.png) | beside |\n|---|---|\n| ![remote](https://example.com/r.png) | x |\n",
+  );
+  writeFileSync(join(folder, "dot.png"), PNG);
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelector(".pg-table"));
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  test("an image in a cell shows from the repository, and a remote one is a chip", async () => {
+    // #155: a cell showed an image's words, so a README's grid of badges was a row of text.
+    const seen = await page.until(() => {
+      const image = document.querySelector(".pg-table img.pg-image");
+      const chip = document.querySelector(".pg-table .pg-image-chip");
+      return image?.complete && chip && [image.naturalWidth > 0, chip.textContent];
+    });
+    assert.deepEqual(seen, [true, "remote"]);
   });
 });
 

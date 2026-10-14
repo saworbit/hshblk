@@ -132,3 +132,7 @@
 - Desktop: an Arabic or Hebrew line reads right to left, aligned right, with its punctuation in place, and a list item or a quote in one hangs from the right. Each line takes its direction from its first letter. (#198)
 - Desktop: `PageDown` and `PageUp` scroll by the window less a line, so the last line of one page is the first of the next. They skipped a line a page, and more past a table. (#197)
 - Desktop: `Space` pages down and `Shift+Space` pages up, as in a browser. (#234)
+- Desktop: an animated AVIF, a BMP, and an ICO show, from the repository, as other images do. The resource channel knew them by their first bytes and refused them. (#230)
+- Desktop: a `<picture>` in an HTML block shows the `<source>` its media query picks, such as a README's dark-mode mark, when its `srcset` names one file in the repository. Every `srcset` was dropped. (#171)
+- Desktop: an image in a table cell shows, from the repository, or is the page's chip of its words. A cell showed only its words. (#155)
+- Desktop: an image's address over 200 characters, as an embedded `data:` image's is, opens cut short to its first 40 and an ellipsis. Opening 2 MB of base64 held the window for seconds. (#204)

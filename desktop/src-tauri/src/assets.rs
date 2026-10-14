@@ -157,8 +157,15 @@ pub fn image_type(bytes: &[u8]) -> Option<&'static str> {
         Some("image/gif")
     } else if starts(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
         Some("image/webp")
-    } else if bytes.get(4..12) == Some(b"ftypavif") {
+    } else if matches!(bytes.get(4..12), Some(b"ftypavif" | b"ftypavis")) {
+        // `avis` is an animated AVIF's brand (#230).
         Some("image/avif")
+    } else if starts(b"BM") && bytes.get(6..10) == Some(b"\0\0\0\0") {
+        // A bitmap's two reserved fields are zero, which text that starts with BM is not.
+        Some("image/bmp")
+    } else if starts(b"\0\0\x01\0") && bytes.get(4..6).is_some_and(|count| count != b"\0\0") {
+        // An icon file names how many images it holds, at least one.
+        Some("image/x-icon")
     } else if is_svg(bytes) {
         Some("image/svg+xml")
     } else {
@@ -442,6 +449,21 @@ mod tests {
             Some("image/svg+xml")
         );
         assert_eq!(image_type(b"<html><script>"), None);
+    }
+
+    #[test]
+    fn knows_an_animated_avif_a_bmp_and_an_icon() {
+        // #230: each was refused with 403, though the webview draws all three.
+        assert_eq!(image_type(b"\0\0\0\x20ftypavis"), Some("image/avif"));
+        let bmp = b"BM\x46\0\0\0\0\0\0\0\x36\0\0\0";
+        assert_eq!(image_type(bmp), Some("image/bmp"));
+        assert_eq!(
+            image_type(b"\0\0\x01\0\x01\0\x10\x10"),
+            Some("image/x-icon")
+        );
+        // Text that starts with BM is not a bitmap, and an icon names at least one image.
+        assert_eq!(image_type(b"BMW owners' notes\n"), None);
+        assert_eq!(image_type(b"\0\0\x01\0\0\0"), None);
     }
 
     #[test]
