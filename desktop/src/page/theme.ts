@@ -3,12 +3,13 @@ import { HANG_LIMIT, QUOTE_LIMIT } from "./page.ts";
 
 /**
  * A list item's lines hang under its text. The page names a width in columns, so a class a
- * width: the CSP takes no inline style.
+ * width: the CSP takes no inline style. The hang is on the line's start side, which is the right
+ * in Arabic or Hebrew (#198).
  */
 const hangs = Object.fromEntries(
   Array.from({ length: HANG_LIMIT }, (_, i) => i + 1).flatMap((n) => [
-    [`.pg-hang-${n}`, { paddingLeft: `${n}ch`, textIndent: `-${n}ch` }],
-    [`.pg-pad-${n}`, { paddingLeft: `${n}ch` }],
+    [`.pg-hang-${n}`, { paddingInlineStart: `${n}ch`, textIndent: `-${n}ch` }],
+    [`.pg-pad-${n}`, { paddingInlineStart: `${n}ch` }],
     [`.pg-box-${n}`, { display: "inline-block", width: `${n}ch`, textIndent: "0" }],
   ]),
 );
@@ -19,22 +20,28 @@ const SIZE = "var(--pg-size, 1)";
 /**
  * A quote inside a quote draws a rule for each level past the first, whose rule is its border.
  * The step is the page's text size, not the line's, so the rules stay put beside a heading or code.
+ * A right-to-left quote has them on the right.
  */
 const step = `calc(1.125rem * ${SIZE})`;
 const quotes = Object.fromEntries(
-  Array.from({ length: QUOTE_LIMIT - 1 }, (_, i) => i + 2).map((depth) => {
+  Array.from({ length: QUOTE_LIMIT - 1 }, (_, i) => i + 2).flatMap((depth) => {
     const rules = Array.from({ length: depth - 1 }, (_, i) => i + 1);
+    const at = (n: number) => `calc(${n} * ${step} + ${(n - 1) * 2}px)`;
     return [
-      `.pg-quote-${depth}`,
-      {
-        paddingLeft: `calc(${depth} * ${step} + ${(depth - 1) * 2}px)`,
-        backgroundImage: rules.map(() => "linear-gradient(var(--rule), var(--rule))").join(", "),
-        backgroundSize: rules.map(() => "2px 100%").join(", "),
-        backgroundPosition: rules
-          .map((n) => `calc(${n} * ${step} + ${(n - 1) * 2}px) 0`)
-          .join(", "),
-        backgroundRepeat: "no-repeat",
-      },
+      [
+        `.pg-quote-${depth}`,
+        {
+          paddingInlineStart: `calc(${depth} * ${step} + ${(depth - 1) * 2}px)`,
+          backgroundImage: rules.map(() => "linear-gradient(var(--rule), var(--rule))").join(", "),
+          backgroundSize: rules.map(() => "2px 100%").join(", "),
+          backgroundPosition: rules.map((n) => `${at(n)} 0`).join(", "),
+          backgroundRepeat: "no-repeat",
+        },
+      ],
+      [
+        `.pg-quote-${depth}:dir(rtl)`,
+        { backgroundPosition: rules.map((n) => `right ${at(n)} top 0`).join(", ") },
+      ],
     ];
   }),
 );
@@ -96,7 +103,11 @@ export const pageTheme = EditorView.theme({
   },
   ".pg-list-mark": { color: "var(--muted)" },
   ...hangs,
-  ".pg-quote": { color: "var(--muted)", borderLeft: "2px solid var(--rule)", paddingLeft: "1em" },
+  ".pg-quote": {
+    color: "var(--muted)",
+    borderInlineStart: "2px solid var(--rule)",
+    paddingInlineStart: "1em",
+  },
   ".pg-code-block, .pg-source-block": {
     fontFamily: "var(--mono)",
     fontSize: "0.85em",
