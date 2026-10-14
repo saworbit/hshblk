@@ -168,6 +168,22 @@ input:focus-visible {
   }
 }
 
+/* #245: no header or footer from the engine, which put tauri.localhost on every printed page. A
+   page with no margin leaves them no room, and the page's padding, repeated on each sheet, is its
+   margin. Only where padding can repeat across sheets: elsewhere the engine keeps its margins. The
+   padding outranks the theme's, which CodeMirror adds after this sheet. */
+@supports (box-decoration-break: clone) {
+  @page {
+    margin: 0;
+  }
+  @media print {
+    .cm-editor .cm-content {
+      padding: 16mm 18mm !important;
+      box-decoration-break: clone;
+    }
+  }
+}
+
 @media print {
   /* Paper on paper, whatever the screen's theme, and white so a page costs no toner. */
   :root {

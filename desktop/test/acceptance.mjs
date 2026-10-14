@@ -1455,6 +1455,31 @@ ${FILLER}
     assert.match(printed, /^Notes$/m);
     assert.doesNotMatch(printed, /match case|by word|regexp/);
   });
+
+  test("leaves an engine's header and footer no room, where its padding repeats on each sheet", async () => {
+    // #245: WebView2 printed tauri.localhost at the foot of every sheet. GTK adds no header, so
+    // this reads the rule the page has for an engine that does.
+    const page = await launch(app, [file]);
+    try {
+      await page.until(() => document.querySelector(".pg-h1"));
+      const margin = await page.run(() => {
+        for (const sheet of document.styleSheets) {
+          for (const rule of sheet.cssRules) {
+            if (!(rule instanceof CSSSupportsRule)) continue;
+            if (!/box-decoration-break/.test(rule.conditionText)) continue;
+            for (const inner of rule.cssRules) {
+              if (inner instanceof CSSPageRule) return inner.style.margin;
+            }
+          }
+        }
+        return null;
+      });
+      assert.equal(margin, "0px");
+    } finally {
+      await page.close();
+      await gone();
+    }
+  });
 });
 
 describe("a file that does not open", () => {
