@@ -100,3 +100,4 @@
 - Docs: milestone-one.md says Cmd+P prints on macOS now, through Rust. (#191)
 - Desktop: on macOS each new window opens a step down and right of the one in front, or of the last one opened, and starts again at the top left when it would leave the screen. They all opened on top of each other. A file that replaces the welcome window takes its place. (#181)
 - Desktop: on macOS the menu bar has File > Print and Edit > Find, with ⌘P and ⌘F. The page takes no events, so it hands Rust a channel for them through a new `watch_menu` command. (#182)
+- Desktop: a link with no words, such as `[](https://example.com)`, shows nothing, as on GitHub, and the rest of the page stays drawn. It made an empty mark, which CodeMirror refuses, and the page fell back to source. (#151)

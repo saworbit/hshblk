@@ -135,6 +135,12 @@ describe("the page", () => {
     assert.deepEqual(titles, ["https://x.y", "/ridge"]);
   });
 
+  it("draws the page around a link with no words, which shows nothing, as GitHub's does", () => {
+    // #151: an empty mark threw, and CodeMirror dropped the plugin that draws the page.
+    const state = open("# Title\n\n[](https://x.y) after.\n\n> - [ ] [](https://x.y) *quoted*");
+    assert.equal(visible(state), "Title\n\n after.\n\n- [box]  quoted");
+  });
+
   it("names each heading by the anchor GitHub gives it", () => {
     const doc =
       "# Tables\n\n## Tables\n\nSetext *Title*\n===\n\n# Café & *Co.* #\n\n#\n\n### Ends in **bold**";
