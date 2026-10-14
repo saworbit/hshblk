@@ -8,6 +8,7 @@
     "allow-document-text",
     "allow-pick-document",
     "allow-open-url",
-    "allow-print-page"
+    "allow-print-page",
+    "allow-watch-menu"
   ]
 }

@@ -98,3 +98,5 @@
 - Docs: milestone-one.md records item 7 on macOS, run in Finder on a Mac mini with macOS 27: a double-click, a second file, a drop, and the welcome window giving way, once #186 was fixed. It also notes that Cmd+P prints nothing there (#191). (#20)
 - Desktop: Cmd+P prints on macOS. WKWebView ignores `window.print()`, so there the page asks Rust, through a new `print_page` command, to open WebKit's print panel. The page still lays itself out for print first and goes back when the panel closes. (#191)
 - Docs: milestone-one.md says Cmd+P prints on macOS now, through Rust. (#191)
+- Desktop: on macOS each new window opens a step down and right of the one in front, or of the last one opened, and starts again at the top left when it would leave the screen. They all opened on top of each other. A file that replaces the welcome window takes its place. (#181)
+- Desktop: on macOS the menu bar has File > Print and Edit > Find, with ⌘P and ⌘F. The page takes no events, so it hands Rust a channel for them through a new `watch_menu` command. (#182)

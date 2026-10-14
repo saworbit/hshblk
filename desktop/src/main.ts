@@ -2,7 +2,7 @@ import "./styles.css";
 import { openSearchPanel } from "@codemirror/search";
 import type { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { frontmatterPanel, frontmatterText, toggleFrontmatter } from "./page/frontmatter.ts";
 import { sourceShown, toggleSource } from "./page/page.ts";
@@ -48,17 +48,17 @@ if (handle) {
   status
     .querySelector(".status-frontmatter")
     ?.addEventListener("click", () => toggleFrontmatter(view));
+  // WKWebView ignores window.print(), so on macOS Rust opens the print panel (#191).
+  const print = () =>
+    void printPage(view, mac ? () => invoke("print_page") : undefined).catch((error) =>
+      say(status, `${error}`),
+    );
+  const find = () => openSearchPanel(view);
   // The window's keys work wherever focus is: the page, the find box, or nothing at all.
   // CodeMirror goes first, and a key it took is not taken again.
   const keys: Record<string, () => void> = {
-    // On macOS, ⌘O is the File menu's (lib.rs), so the page leaves it be.
-    ...(mac ? {} : { o: pick }),
-    // WKWebView ignores window.print(), so on macOS Rust opens the print panel (#191).
-    p: () =>
-      void printPage(view, mac ? () => invoke("print_page") : undefined).catch((error) =>
-        say(status, `${error}`),
-      ),
-    f: () => openSearchPanel(view),
+    // On macOS, ⌘O, ⌘P, and ⌘F are the menu bar's (lib.rs), so the page leaves them be.
+    ...(mac ? {} : { o: pick, p: print, f: find }),
     "/": () => toggleSource(view),
     // Shift and M.
     M: () => toggleFrontmatter(view),
@@ -69,6 +69,14 @@ if (handle) {
     event.preventDefault();
     run();
   });
+  if (mac) {
+    // The menu bar's Find and Print are the page's to do. The page takes no events, so Rust sends
+    // them down a channel (#182).
+    const actions: Record<string, () => void> = { find, print };
+    const menu = new Channel<string>();
+    menu.onmessage = (action) => actions[action]?.();
+    void invoke("watch_menu", { channel: menu });
+  }
   root.append(status);
   view.focus();
 } else {

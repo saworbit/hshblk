@@ -3,13 +3,16 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Mutex;
 
 use tauri::{
-    AppHandle, DragDropEvent, Manager, Url, WebviewUrl, WebviewWindowBuilder, Window, WindowEvent,
+    AppHandle, DragDropEvent, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    Window, WindowEvent,
 };
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::documents::Documents;
+use crate::MenuChannels;
 
 /// What the open dialog offers. A dropped or double-clicked file of any kind is still tried.
 pub const EXTENSIONS: &[&str] = &["md", "markdown", "mdown", "mkd", "txt"];
@@ -74,7 +77,12 @@ pub fn open(app: &AppHandle, path: &Path) {
         .webview_windows()
         .into_values()
         .find(|window| window.label().starts_with(EMPTY));
-    build(app, &format!("{DOCUMENT}{handle}"), &document.name);
+    // A file that replaces the welcome window takes its place.
+    let place = match &waiting {
+        Some(window) if cfg!(target_os = "macos") => place_of(window),
+        _ => next_place(app),
+    };
+    build(app, &format!("{DOCUMENT}{handle}"), &document.name, place);
     if let Some(window) = waiting {
         let _ = window.close();
     }
@@ -86,21 +94,100 @@ fn empty(app: &AppHandle) {
         app,
         &format!("{EMPTY}{}", COUNT.fetch_add(1, Ordering::Relaxed)),
         "Hash Block",
+        next_place(app),
     );
 }
 
-fn build(app: &AppHandle, label: &str, title: &str) {
-    let built = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
+/// A window's size, in points.
+const SIZE: (f64, f64) = (880.0, 760.0);
+
+/// How far each new window steps down and right of the one before, in points.
+const CASCADE: f64 = 24.0;
+
+/// The label of the window opened last, which a new one cascades from when none is in front.
+static LAST: Mutex<Option<String>> = Mutex::new(None);
+
+/// A window's top left corner, in points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Place {
+    x: f64,
+    y: f64,
+}
+
+/// A screen's work area, the part the menu bar and the Dock leave, in points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Area {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+/// One step down and right of `from`, or the work area's top left when a window would not fit.
+fn cascade(from: Place, area: Area) -> Place {
+    let next = Place {
+        x: from.x + CASCADE,
+        y: from.y + CASCADE,
+    };
+    if next.x + SIZE.0 <= area.x + area.width && next.y + SIZE.1 <= area.y + area.height {
+        next
+    } else {
+        Place {
+            x: area.x + CASCADE,
+            y: area.y + CASCADE,
+        }
+    }
+}
+
+/// Where a new window goes. On macOS, AppKit cascades a document window from the one in front,
+/// but not a window made in code, so every window opened on top of the last (#181). Windows and
+/// Linux's window managers place a new window themselves.
+fn next_place(app: &AppHandle) -> Option<Place> {
+    if !cfg!(target_os = "macos") {
+        return None;
+    }
+    let windows = app.webview_windows();
+    let from = windows
+        .values()
+        .find(|window| window.is_focused().unwrap_or(false))
+        .or_else(|| {
+            let last = LAST.lock().expect("last window lock");
+            last.as_ref().and_then(|label| windows.get(label))
+        })?;
+    let monitor = from.current_monitor().ok()??;
+    let scale = monitor.scale_factor();
+    let origin = monitor.work_area().position.to_logical::<f64>(scale);
+    let size = monitor.work_area().size.to_logical::<f64>(scale);
+    let area = Area {
+        x: origin.x,
+        y: origin.y,
+        width: size.width,
+        height: size.height,
+    };
+    Some(cascade(place_of(from)?, area))
+}
+
+fn place_of(window: &WebviewWindow) -> Option<Place> {
+    let scale = window.scale_factor().ok()?;
+    let at = window.outer_position().ok()?.to_logical::<f64>(scale);
+    Some(Place { x: at.x, y: at.y })
+}
+
+fn build(app: &AppHandle, label: &str, title: &str, place: Option<Place>) {
+    let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
         .title(title)
-        .inner_size(880.0, 760.0)
+        .inner_size(SIZE.0, SIZE.1)
         .min_inner_size(420.0, 320.0)
         // A link in a document never takes the window anywhere. open_url sends it to the browser.
-        .on_navigation(is_the_app)
-        .build();
-    match built {
+        .on_navigation(is_the_app);
+    if let Some(place) = place {
+        builder = builder.position(place.x, place.y);
+    }
+    match builder.build() {
         // Shown is not in front. On Windows a file handed over by a second launch opened behind
         // File Explorer. The single-instance plugin passes its right to the foreground for this.
         Ok(window) => {
+            *LAST.lock().expect("last window lock") = Some(label.to_owned());
             if let Err(error) = window.set_focus() {
                 eprintln!("A window could not take the focus: {error}");
             }
@@ -128,6 +215,7 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
             if let Some(handle) = handle_of(window.label()) {
                 window.state::<Documents>().close(handle);
             }
+            window.state::<MenuChannels>().forget(window.label());
         }
         _ => {}
     }
@@ -170,6 +258,69 @@ mod tests {
         );
         assert!(files_in(&["hshblk".into(), "--".into()], Path::new("/work")).is_empty());
         assert!(files_in(&[], Path::new("/work")).is_empty());
+    }
+
+    #[test]
+    fn cascades_a_new_window_down_and_right_until_it_would_leave_the_work_area() {
+        // A 1920 by 1080 screen with the menu bar and the Dock taken off.
+        let area = Area {
+            x: 0.0,
+            y: 25.0,
+            width: 1920.0,
+            height: 980.0,
+        };
+        let next = cascade(Place { x: 520.0, y: 80.0 }, area);
+        assert_eq!(
+            next,
+            Place {
+                x: 520.0 + CASCADE,
+                y: 80.0 + CASCADE
+            }
+        );
+        // Its foot would pass the Dock, so it starts again at the top left of the area.
+        let low = Place {
+            x: 520.0,
+            y: 1005.0 - SIZE.1 - CASCADE + 1.0,
+        };
+        assert_eq!(
+            cascade(low, area),
+            Place {
+                x: CASCADE,
+                y: 25.0 + CASCADE
+            }
+        );
+        // And when its right edge would pass the screen's.
+        let right = Place {
+            x: 1920.0 - SIZE.0 - CASCADE + 1.0,
+            y: 80.0,
+        };
+        assert_eq!(
+            cascade(right, area),
+            Place {
+                x: CASCADE,
+                y: 25.0 + CASCADE
+            }
+        );
+        // On a second screen to the left, the area starts below zero.
+        let left = Area {
+            x: -1440.0,
+            y: 0.0,
+            width: 1440.0,
+            height: 900.0,
+        };
+        assert_eq!(
+            cascade(
+                Place {
+                    x: -1400.0,
+                    y: 10.0
+                },
+                left
+            ),
+            Place {
+                x: -1376.0,
+                y: 34.0
+            }
+        );
     }
 
     #[test]
