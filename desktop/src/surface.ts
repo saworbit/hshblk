@@ -109,9 +109,13 @@ const FRAME_WAIT = 3000;
 /**
  * Prints the page as it reads, docs/hld.md §7: every line drawn, every `<details>` open, those in
  * HTML blocks too, and no syntax or address open under the selection, which are for the screen.
- * Each `<details>` goes back as the reader left it after.
+ * Each `<details>` goes back as the reader left it after. `print` opens the print panel: the
+ * page's own, or Rust's on macOS, where WKWebView ignores `window.print()` (#191).
  */
-export async function printPage(view: EditorView): Promise<void> {
+export async function printPage(
+  view: EditorView,
+  print: () => unknown = () => window.print(),
+): Promise<void> {
   finishParse(view);
   view.dispatch({ effects: [foldAll.of(null), printing.of(true), showFrameLink.of(null)] });
   // CodeMirror draws every line once print has begun, too late for an HTML block drawn then to
@@ -119,16 +123,20 @@ export async function printPage(view: EditorView): Promise<void> {
   const drawn = drawEveryLine(view, true);
   if (drawn) await framesLoaded(view, FRAME_WAIT);
   printFrames(view, true);
-  addEventListener(
-    "afterprint",
-    () => {
-      printFrames(view, false);
-      if (drawn) drawEveryLine(view, false);
-      view.dispatch({ effects: printing.of(false) });
-    },
-    { once: true },
-  );
-  print();
+  const after = () => {
+    removeEventListener("afterprint", after);
+    printFrames(view, false);
+    if (drawn) drawEveryLine(view, false);
+    view.dispatch({ effects: printing.of(false) });
+  };
+  addEventListener("afterprint", after);
+  try {
+    await print();
+  } catch (error) {
+    // No panel opened, so no afterprint comes. The page goes back now.
+    after();
+    throw error;
+  }
 }
 
 /**

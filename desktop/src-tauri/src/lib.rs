@@ -119,6 +119,16 @@ fn open_url(url: String) -> Result<(), String> {
     open::that_detached(&url).map_err(|error| format!("The link could not open: {error}."))
 }
 
+/// Prints the window as the page has laid it out for print. On macOS WKWebView ignores
+/// `window.print()` (#191), so the page asks for this there, and WebKit's own print panel opens as
+/// a sheet. The page puts itself back on `afterprint`, when the panel closes.
+#[tauri::command]
+async fn print_page(window: WebviewWindow) -> Result<(), String> {
+    window
+        .print()
+        .map_err(|error| format!("The page could not print: {error}."))
+}
+
 /// Web and mail addresses. A scheme is case-insensitive, RFC 3986 §3.1, as the page's check is.
 fn opens(url: &str) -> bool {
     ["http://", "https://", "mailto:"].iter().any(|scheme| {
@@ -161,7 +171,8 @@ pub fn run() {
             open_document,
             document_text,
             pick_document,
-            open_url
+            open_url,
+            print_page
         ])
         .on_window_event(windows::on_event)
         .on_menu_event(on_menu_event)
