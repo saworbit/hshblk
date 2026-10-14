@@ -122,3 +122,8 @@
 - Desktop: in an HTML block, a frame draws nothing, an image that cannot load is the page's chip of its words, and a `<details>` has the page's marker. (#170)
 - Desktop: nothing in an HTML block takes the keyboard. Tab passes its frame by, and a form's fields are disabled. (#165)
 - Desktop: a summary the page draws keeps its bold, italic, and code. (#232)
+- Desktop: the find box counts the matches, to 1,000, and says which one the selection is on, such as "2 of 12", or "No matches", to a screen reader too. Words with no match leave no old match selected. (#203)
+- Desktop: the current find match stands out from the others, by day and by night. (#159)
+- Desktop: the find box has no "all" button, which selected only one match, since the page keeps one selection. `Ctrl+Shift+L` and `Ctrl+D`, which did the same, are gone too. (#202)
+- Desktop: keyboard focus on the app's buttons and fields shows as a ring in the accent colour. The engine's ring did not show on the night's paper. (#163)
+- Desktop: a file that starts with an HTML block opens at its top. It opened scrolled past the block by the block's height. (#152)

@@ -1,10 +1,17 @@
 import { standardKeymap } from "@codemirror/commands";
-import { search, searchKeymap, searchPanelOpen } from "@codemirror/search";
+import {
+  search,
+  searchKeymap,
+  searchPanelOpen,
+  selectNextOccurrence,
+  selectSelectionMatches,
+} from "@codemirror/search";
 import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, type KeyBinding, keymap } from "@codemirror/view";
 import { assetUrl, type AssetUrl } from "./page/assets.ts";
 import { completeParse, finishParse } from "./page/complete.ts";
 import { markdown } from "./page/dialect.ts";
+import { findExtras } from "./page/find.ts";
 import { closeFrontmatter, frontmatter } from "./page/frontmatter.ts";
 import {
   cursorLineOnto,
@@ -47,7 +54,11 @@ export const pageKeys: readonly KeyBinding[] = [
   { mac: "Ctrl-n", run: lineDown },
   { mac: "Ctrl-p", run: lineUp },
   { key: "Escape", run: closeFrontmatter },
-  ...searchKeymap,
+  // Selecting every match, or the next beside the selection, takes more than one selection,
+  // which the page does not allow. It kept only one, and said nothing (#202).
+  ...searchKeymap.filter(
+    ({ run }) => run !== selectSelectionMatches && run !== selectNextOccurrence,
+  ),
   ...standardKeymap,
 ];
 
@@ -92,6 +103,7 @@ export function createSurface(
       EditorView.contentAttributes.of({ "aria-label": "Document", spellcheck: "false" }),
       search({ top: true }),
       plainFindFields,
+      findExtras,
       keymap.of(pageKeys),
       options.nonce ? EditorView.cspNonce.of(options.nonce) : [],
       options.extensions ?? [],

@@ -264,8 +264,11 @@ export class HtmlWidget extends WidgetType {
     frame.title = "HTML";
     // Tab passes it by, as it passes the page's other drawn blocks (#165).
     frame.tabIndex = -1;
+    // Until it loads, a frame is a line tall, as the block it stands for would be. At no height,
+    // CodeMirror took the line after it for the top of the page, and kept that line in place as
+    // the frame grew, so a file that starts with one opened scrolled past it (#152).
     const height = htmlHeights.get(this.html);
-    if (height !== undefined) frame.style.height = `${height}px`;
+    frame.style.height = height === undefined ? "1.7em" : `${height}px`;
     frame.srcdoc = framed(this.html, view);
     frame.addEventListener("load", () => {
       loaded.add(frame);

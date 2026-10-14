@@ -57,7 +57,8 @@ Each file opens in a window of its own. A second file opens a second window in t
 - Dropping a file on a window opens it in a new window. A file that is already open brings its window to the front instead. `Ctrl+O` starts in the folder of the window's document. A file that is not text, such as an image, does not open, and the message names it.
 - On macOS, the menu bar's File menu has Open, with ⌘O, above Tauri's own items, and Print, with ⌘P, below them. Edit keeps Tauri's Copy and Select All, and ends with Find, with ⌘F. Each new window opens a step down and right of the one before. Linux and Windows have no menu bar, which would sit above the page in every window.
 - Move the caret into a construct with the keys, or find in it, and its syntax shows, so `**bold**` reads as written. A click places the caret and opens nothing, so the text holds still under the pointer. A link never unfolds: its address shows in a popover under it, with **Open** for web and mail addresses. A find match in the address shows there, marked.
-- Copy and find work on the source, hidden syntax included. The status line says so, after the file's name and when it was last modified.
+- Copy and find work on the source, hidden syntax included. The status line says so, after the file's name and when it was last modified. The find box says how many matches there are and which one is current, and marks that one apart from the rest.
+- Keyboard focus on the app's own buttons and fields shows as a ring in the accent colour.
 - The page has no right-click menu, and `F5` and `Ctrl+R` do nothing. A window shows the file as it was read, so a reload would bring back the same text and lose the reader's place. The find box's fields keep their menu, for paste.
 - The text size the keys set is the window's, until it closes. Print is at the page's own size.
 - Images load when they are inside the document's repository: the enclosing git repository, or the file's folder when there is none. A repository at the home folder or above it does not count, so dotfiles kept in `~/.git` do not open the whole home. A file directly in the home folder shows only the images beside it, not those in folders below. A path that starts with `/` starts at that root, as on GitHub. Nothing loads from the network.
@@ -130,7 +131,7 @@ The app has no updater, by choice ([hld.md](hld.md) §12, question 1). It makes 
 | `desktop/src-tauri/icons/` | The app icon: [`brand/app-icon/`](../brand/app-icon/), file for file. 16 and 32 px are a drawing of their own, so it is copied, never regenerated with `tauri icon`. |
 | `desktop/src/main.ts` | The window: open, print, the status line, and the welcome. |
 | `desktop/src/surface.ts` | The CodeMirror surface, with editing turned off. |
-| `desktop/src/page/` | The page: the dialect, its decorations, links, images, tables, the frontmatter panel, the whole-document parse, and the theme. |
+| `desktop/src/page/` | The page: the dialect, its decorations, links, images, tables, the frontmatter panel, find's count, the text size, the whole-document parse, and the theme. |
 | `desktop/scripts/` | What CI runs: the unit tests' runner, which fails when no test file matches, the licence check, and the check that a release tag names the version. |
 
 ## Tests

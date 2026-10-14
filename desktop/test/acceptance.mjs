@@ -570,8 +570,10 @@ describe("one open document", () => {
     const frames = () =>
       page.until(() => {
         const frames = [...document.querySelectorAll("iframe.pg-html")];
+        // The frame's own HTML, not the blank document it starts on.
         const loaded = (f) =>
-          f.contentDocument?.readyState === "complete" &&
+          f.contentDocument?.URL === "about:srcdoc" &&
+          f.contentDocument.readyState === "complete" &&
           [...f.contentDocument.images].every((image) => image.complete);
         if (frames.length < 3 || !frames.every(loaded)) return null;
         return frames.map((frame) => ({
@@ -1193,6 +1195,75 @@ describe("frontmatter", () => {
     assert.ok(await page.until(() => !document.querySelector(".pg-front-panel")));
     assert.deepEqual(fingerprint(file), bytes);
   });
+
+  test("Tab to the status line's button shows where focus is", async () => {
+    // #163: the engine's ring was near black, and did not show on the night's paper.
+    await page.run(() => document.querySelector(".cm-content").focus());
+    await page.press(Key.Tab);
+    const ring = await page.until(() => {
+      const button = document.activeElement;
+      if (!button?.classList.contains("status-frontmatter")) return null;
+      const style = getComputedStyle(button);
+      return [button.matches(":focus-visible"), style.outlineStyle, style.outlineWidth];
+    });
+    assert.deepEqual(ring, [true, "solid", "2px"]);
+  });
+});
+
+describe("find", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-find-"));
+  const file = join(folder, "find.md");
+  writeFileSync(file, "one two one three one\n\nAnother one.\n");
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelector(".cm-content")?.textContent.includes("Another"));
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  /** In the page: what the find box says of the matches. */
+  const said = () => document.querySelector(".pg-find-count")?.textContent;
+
+  test("counts the matches, marks the current one apart, and offers no all", async () => {
+    // #203: it said nothing of how many. #159: the current one looked like the rest. #202: all
+    // selected one.
+    await page.press(Key.Control, "f");
+    await page.until(() => document.activeElement?.name === "search");
+    await page.keys("one");
+    assert.equal(await page.until(said), "4 matches");
+    await page.press(Key.Enter);
+    const current = () => {
+      const words = document.querySelector(".pg-find-count")?.textContent;
+      return / of /.test(words ?? "") && words;
+    };
+    assert.equal(await page.until(current), "1 of 4");
+    const look = await page.until(() => {
+      const current = document.querySelector(".cm-searchMatch-selected");
+      const other = document.querySelector(".cm-searchMatch:not(.cm-searchMatch-selected)");
+      if (!current || !other) return null;
+      return [getComputedStyle(current).backgroundColor, getComputedStyle(other).backgroundColor];
+    });
+    assert.notEqual(look[0], look[1]);
+    const all = await page.run(
+      () => getComputedStyle(document.querySelector(".cm-search button[name=select]")).display,
+    );
+    assert.equal(all, "none");
+  });
+
+  test("says when there is no match, and leaves no old match selected", async () => {
+    await page.run(() => document.activeElement.select());
+    await page.keys("zzqq");
+    const none = () => document.querySelector(".pg-find-count")?.textContent === "No matches";
+    assert.ok(await page.until(none));
+    // The page has the focus back, and its selection is the editor's.
+    await page.press(Key.Escape);
+    await page.until(() => document.activeElement?.classList.contains("cm-content"));
+    assert.equal(await page.run(() => window.getSelection().toString()), "");
+  });
 });
 
 describe("a <details> around markdown", () => {
@@ -1446,6 +1517,8 @@ describe("an HTML block's frame", () => {
 A markdown body.
 
 </details>
+
+${Array.from({ length: 60 }, (_, n) => `Paragraph ${n}, long enough for the page to scroll.`).join("\n\n")}
 `,
   );
   let page;
@@ -1455,10 +1528,11 @@ A markdown body.
     page = await launch(app, [file]);
     drawn = await page.until(() => {
       const frames = [...document.querySelectorAll("iframe.pg-html")];
-      // Loaded, and sized to what it holds, which the page does once it has loaded.
+      // Its HTML loaded, and the frame sized to it in pixels. Until then it is a line tall, in em.
       const ready = (frame) =>
-        frame.contentDocument?.readyState === "complete" &&
-        frame.getBoundingClientRect().height > 0;
+        frame.contentDocument?.URL === "about:srcdoc" &&
+        frame.contentDocument.readyState === "complete" &&
+        frame.style.height.endsWith("px");
       if (frames.length < 5 || !frames.every(ready)) return null;
       return frames.map((frame) => {
         const doc = frame.contentDocument;
@@ -1493,6 +1567,13 @@ A markdown body.
   after(async () => {
     await page?.close();
     await gone();
+  });
+
+  test("a file that starts with one opens at its top, with the block in view", async () => {
+    // #152: CodeMirror kept the line after the frame where it was as the frame took its height.
+    // It does so as it next measures, after the frames have their heights.
+    await sleep(500);
+    assert.equal(await page.run(() => document.querySelector(".cm-scroller").scrollTop), 0);
   });
 
   test("a heading in one is not cut off, and no frame scrolls", () => {
