@@ -72,6 +72,17 @@ describe("the frontmatter panel", () => {
     ]);
   });
 
+  it("lists the fields in the order the file writes them, a number key too", () => {
+    // #208: a plain object put the key 2 first.
+    const text = "title: Notes\ndate: 2026-10-14\n2: numeric key\nnested:\n  b: 1\n  1: one";
+    assert.deepEqual(fields(yaml, text), [
+      { key: "title", value: "Notes", block: false },
+      { key: "date", value: "2026-10-14", block: false },
+      { key: "2", value: "numeric key", block: false },
+      { key: "nested", value: "b: 1\n1: one", block: true },
+    ]);
+  });
+
   it("lists nothing for YAML with errors or that is no mapping, so the panel shows it raw", () => {
     assert.equal(fields(yaml, "title: [unclosed"), null);
     assert.equal(fields(yaml, "- a\n- b"), null);

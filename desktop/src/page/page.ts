@@ -435,6 +435,7 @@ class Painter {
         return this.#wrap(node, "pg-strike", "StrikethroughMark");
       case "InlineCode":
         this.#wrap(node, "pg-code", "CodeMark");
+        this.#codePadding(node, fold);
         return false;
       case "Link":
         this.#link(node);
@@ -453,6 +454,15 @@ class Painter {
       case "Escape":
         this.#hide(fold, node.from, node.from + 1);
         return false;
+      case "Comment": {
+        // #224: a comment in a line is written not to be seen. A space before it goes with it,
+        // when a space or the line's end follows, so the words around it keep one between them.
+        const before = this.doc.sliceString(node.from - 1, node.from) === " ";
+        const after = this.doc.sliceString(node.to, node.to + 1);
+        const spaced = before && (after === " " || after === "\n" || node.to === this.doc.length);
+        this.#hide(fold, spaced ? node.from - 1 : node.from, node.to);
+        return false;
+      }
       case "Entity":
         this.#hide(fold, node.from, node.to, new TextWidget(decodeHTML(this.#slice(node))));
         return false;
@@ -498,6 +508,7 @@ class Painter {
       case "CodeBlock":
         this.#lines(node.from, node.to, "pg-code-block");
         this.#quoteMarks(node);
+        this.#codeIndent(node);
         return false;
       case "HTMLBlock":
       case "CommentBlock":
@@ -521,6 +532,27 @@ class Painter {
   #quoteMark(mark: SyntaxNode): void {
     const line = this.doc.lineAt(mark.from);
     this.#hide({ from: line.from, to: line.to }, mark.from, this.#spaceAfter(mark.to, line.to, 1));
+  }
+
+  /**
+   * An indented code block's four columns of indent are syntax, as CommonMark reads them, so its
+   * text starts where a fenced block's does (#216). Each line's shows while the selection is on it,
+   * as a quote's marks do. A list item's or a quote's own indent stays.
+   */
+  #codeIndent(block: SyntaxNode): void {
+    const first = block.childAfter(Math.max(block.from, this.from));
+    for (let text = first; text && text.from <= this.to; text = text.nextSibling) {
+      if (text.name !== "CodeText") continue;
+      const line = this.doc.lineAt(text.from);
+      const column = (pos: number) => countColumn(this.doc.sliceString(line.from, pos), 4);
+      const start = column(text.from) - 4;
+      let from = text.from;
+      while (from > line.from && /[ \t]/.test(this.doc.sliceString(from - 1, from))) {
+        if (column(from - 1) < start) break;
+        from -= 1;
+      }
+      this.#hide({ from: line.from, to: line.to }, from, text.from);
+    }
   }
 
   /** The quote marks inside a construct whose children are not decorated one by one. */
@@ -610,6 +642,19 @@ class Painter {
   /** Hides syntax for good, wherever the selection goes, unless the source shows. */
   #conceal(from: number, to: number): void {
     if (from < to && !this.source) this.#replace(this.#styles, from, to);
+  }
+
+  /**
+   * CommonMark takes one space off each end of a code span when both ends have one and it is not
+   * all spaces, so a backtick can sit at its edge (#210). A line break at an end stays a break.
+   */
+  #codePadding(node: SyntaxNode, fold: Fold): void {
+    const open = node.firstChild?.to ?? node.from;
+    const close = node.lastChild?.from ?? node.to;
+    const content = this.doc.sliceString(open, close).replace(/\n/g, " ");
+    if (!/^ .*[^ ].* $/s.test(content)) return;
+    if (this.doc.sliceString(open, open + 1) === " ") this.#hide(fold, open, open + 1);
+    if (this.doc.sliceString(close - 1, close) === " ") this.#hide(fold, close - 1, close);
   }
 
   #wrap(node: SyntaxNode, className: string, markName: string): void {

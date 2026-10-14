@@ -236,16 +236,18 @@ Each construct has one rule:
 | Escape | The escaped character, without the backslash. |
 | Entity | The decoded character. An unknown name stays as written. |
 | Hard break | A line break. |
+| Code span | Its text. One space comes off each end when both ends have one and it is not all spaces, as CommonMark strips it, so a backtick can sit at its edge. |
+| Indented code block | Its lines, without the four columns of indent that make it one, so it lines up with a fenced block. A list item's or a quote's own indent stays. |
 | Setext heading | A heading. The underline does not paint. |
 | Link | Its words. The title is not part of them. Its syntax never unfolds inline: the address shows in a popover at the caret, where the editor will edit it. Unfolding put `[` before the clicked word and wrapped it to the next line (§9). |
 | Link reference definition | Nothing. The links that use it carry its address. |
-| Frontmatter | Folded away, and named in the status line, whose panel lists its fields or shows its YAML as written. The panel reads it with the `yaml` package, loaded when the panel first opens, and shows raw what is not a mapping or takes more aliases than the package allows. The keys and find show its source in a quiet monospace block. It is `---` alone on the first line, through the next `---` or `...`. CommonMark would read it as a rule and a heading, so the page finds it, and draws, anchors, and defines nothing in it. |
+| Frontmatter | Folded away, and named in the status line, whose panel lists its fields or shows its YAML as written. The panel reads it with the `yaml` package, loaded when the panel first opens, and shows raw what is not a mapping or takes more aliases than the package allows. The keys and find show its source in a quiet monospace block. It is `---` alone on the first line, through the next `---` or `...`. A `---` with a blank line after it is a rule, as Pandoc reads it. CommonMark would read it as a rule and a heading, so the page finds it, and draws, anchors, and defines nothing in it. |
 | Reference with no definition | Its brackets, as written. |
 | List marker | As written: `-`, `*`, `1.`, `1)`. |
 | Task list item | Its box, in place of its `[ ]`, ticked as the file has it. A click, or Enter with the caret in its text, ticks or unticks it on the page only: the file keeps what it says, and opening it again shows it as written. |
 | Raw HTML block | Drawn in a sandboxed frame (§6). A selection in it shows its source. A `<details>` inside one block opens and closes from a click on its summary only, and stays as the reader left it when its frame is drawn again. The keys show the block's source instead, body and all. |
 | `<details>` around markdown | Its summary, which a click, or Enter with the caret on its tags, opens or closes. Its body folds while it is closed. A selection in a tag shows that tag's source. |
-| Inline HTML | As written. |
+| Inline HTML | As written. A comment folds away, with a space before it, since it is written not to be seen. The keys and find show it where they reach it. |
 | Image in the repository | The image, through the resource channel. Its destination, escapes and entities resolved, is a URL, so it is decoded once to name the file: `screen%20shot.png` is `screen shot.png`. A leading `/` is the repository's root (§6). |
 | Remote image | Its alternative text, in milestone one. |
 

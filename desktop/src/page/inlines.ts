@@ -107,6 +107,9 @@ function inline(doc: Text, definitions: Definitions, node: SyntaxNode): Inline[]
       return [text(decodeHTML(source))];
     case "HardBreak":
       return [text(" ")];
+    case "Comment":
+      // Written not to be seen, as on the page (#224).
+      return [];
     default:
       return MARKS.has(node.name) ? [] : [text(source)];
   }

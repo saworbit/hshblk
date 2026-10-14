@@ -1059,6 +1059,16 @@ describe("a task list", () => {
     await page.until(first, false);
     assert.deepEqual(fingerprint(file), bytes);
   });
+
+  test("draws the tick inside a ticked box, in a hung line", async () => {
+    // #158: the check took the line's negative indent, and drew left of its box, paper on paper.
+    const indents = await page.run(() =>
+      [...document.querySelectorAll(".pg-task-ticked")].map(
+        (box) => getComputedStyle(box, "::after").textIndent,
+      ),
+    );
+    assert.deepEqual(indents, ["0px"]);
+  });
 });
 
 describe("frontmatter", () => {
@@ -1363,6 +1373,12 @@ A [link below the table](https://example.com/below) and more words.
 ![wide](wide.svg)
 
 A dot ![dot](dot.png) in a line, and one at the end ![end](dot.png).
+
+#### Four
+
+##### Five
+
+###### Six
 `,
   );
   writeFileSync(join(folder, "dot.png"), PNG);
@@ -1524,5 +1540,22 @@ A dot ![dot](dot.png) in a line, and one at the end ![end](dot.png).
     assert.ok(seen.wideAlone, "the lone image is a block");
     assert.ok(seen.inLine, "an image between words stays in the line");
     assert.deepEqual(seen.stop, [".", true]);
+  });
+
+  test("headings four to six draw apart, each smaller, and six muted", async () => {
+    // #211: they shared one rule.
+    const drawn = await page.until(() => {
+      document.querySelector(".cm-scroller").scrollTop = 1e6;
+      const lines = [".pg-h4", ".pg-h5", ".pg-h6"].map((name) => document.querySelector(name));
+      if (!lines.every(Boolean)) return null;
+      return lines.map((line) => {
+        const style = getComputedStyle(line);
+        return { size: parseFloat(style.fontSize), color: style.color };
+      });
+    });
+    const [four, five, six] = drawn;
+    assert.ok(four.size > five.size && five.size > six.size, JSON.stringify(drawn));
+    assert.equal(four.color, five.color);
+    assert.notEqual(six.color, five.color);
   });
 });

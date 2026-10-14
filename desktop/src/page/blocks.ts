@@ -118,10 +118,12 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
 /**
  * YAML frontmatter, as Obsidian and static site generators write it: `---` alone on the first
  * line, through the next line that is `---` or `...`. CommonMark reads it as a rule and a heading.
- * Lezer can look only one line ahead, so the page finds it here, where the whole text is.
+ * Lezer can look only one line ahead, so the page finds it here, where the whole text is. A `---`
+ * with a blank line after it is a rule, as Pandoc reads it (#196).
  */
 function frontmatter(doc: Text): Span | null {
   if (!/^---[ \t]*$/.test(doc.line(1).text)) return null;
+  if (doc.lines > 1 && !doc.line(2).text.trim()) return null;
   for (let n = 2; n <= Math.min(doc.lines, FRONTMATTER_LINES); n += 1) {
     const line = doc.line(n);
     if (/^(---|\.\.\.)[ \t]*$/.test(line.text)) return { from: 0, to: line.to };

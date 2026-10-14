@@ -27,7 +27,9 @@ const quotes = Object.fromEntries(
         paddingLeft: `calc(${depth} * ${step} + ${(depth - 1) * 2}px)`,
         backgroundImage: rules.map(() => "linear-gradient(var(--rule), var(--rule))").join(", "),
         backgroundSize: rules.map(() => "2px 100%").join(", "),
-        backgroundPosition: rules.map((n) => `calc(${n} * ${step} + ${(n - 1) * 2}px) 0`).join(", "),
+        backgroundPosition: rules
+          .map((n) => `calc(${n} * ${step} + ${(n - 1) * 2}px) 0`)
+          .join(", "),
         backgroundRepeat: "no-repeat",
       },
     ];
@@ -61,7 +63,10 @@ export const pageTheme = EditorView.theme({
   ".pg-h1": { fontSize: "2.1em", letterSpacing: "-0.01em", paddingBottom: "0.2em" },
   ".pg-h2": { fontSize: "1.5em", paddingTop: "0.6em" },
   ".pg-h3": { fontSize: "1.25em", paddingTop: "0.4em" },
-  ".pg-h4, .pg-h5, .pg-h6": { fontSize: "1.05em" },
+  // Four to six step down, as GitHub's do, and six is muted, so a deep outline reads (#211).
+  ".pg-h4": { fontSize: "1.1em" },
+  ".pg-h5": { fontSize: "1em" },
+  ".pg-h6": { fontSize: "0.92em", color: "var(--muted)" },
   ".pg-em": { fontStyle: "italic" },
   ".pg-strong": { fontWeight: "650" },
   ".pg-strike": { color: "var(--muted)", textDecoration: "line-through" },
@@ -136,10 +141,12 @@ export const pageTheme = EditorView.theme({
     border: "0",
     pointerEvents: "none",
   },
-  // A task box, drawn in place of its `[ ]`. Ticked, it takes the accent and a check.
+  // A task box, drawn in place of its `[ ]`. Ticked, it takes the accent and a check. A list
+  // line hangs by a negative indent, which the check would take, and draw left of the box (#158).
   ".pg-task": {
     display: "inline-block",
     position: "relative",
+    textIndent: "0",
     boxSizing: "border-box",
     width: "0.9em",
     height: "0.9em",

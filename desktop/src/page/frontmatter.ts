@@ -68,21 +68,29 @@ export const toggleRaw: StateCommand = ({ state, dispatch }) => {
 /**
  * The frontmatter's fields, or null when it is not a mapping the panel can list, such as YAML
  * with errors, a list, or one that takes more aliases than the package allows. Then the panel
- * shows it raw. Nothing in it runs: the package reads data, and the panel writes text.
+ * shows it raw. Nothing in it runs: the package reads data, and the panel writes text. Mappings
+ * come as maps, which keep the file's order. An object puts a number key first (#208).
  */
 export function fields(yaml: Yaml, text: string): Field[] | null {
   let value: unknown;
   try {
     const document = yaml.parseDocument(text);
     if (document.errors.length > 0) return null;
-    value = document.toJS();
+    value = document.toJS({ mapAsMap: true });
   } catch {
     // The package throws past its alias limit, which stops a YAML bomb.
     return null;
   }
   if (value === null || value === undefined) return [];
-  if (typeof value !== "object" || Array.isArray(value)) return null;
-  return Object.entries(value).map(([key, item]) => ({ key, ...shown(yaml, item) }));
+  if (!(value instanceof Map)) return null;
+  return [...value].map(([key, item]) => ({ key: keyOf(yaml, key), ...shown(yaml, item) }));
+}
+
+/** A key as the file reads, on one line. A key may be a list or a mapping in YAML. */
+function keyOf(yaml: Yaml, key: unknown): string {
+  if (key === null || key === undefined) return "";
+  if (typeof key !== "object") return String(key);
+  return yaml.stringify(key, { collectionStyle: "flow" }).trim();
 }
 
 function shown(yaml: Yaml, value: unknown): { value: string; block: boolean } {
