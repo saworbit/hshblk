@@ -1,6 +1,7 @@
 import { type Extension, StateEffect, StateField } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
-import { assetUrl, filePath, isLocal } from "./assets.ts";
+import { imageUrl } from "./assets.ts";
+import { element } from "./dom.ts";
 import type { Inline } from "./inlines.ts";
 
 export type Align = "left" | "center" | "right" | null;
@@ -76,8 +77,7 @@ function imageNode(
   inline: boolean,
   title: string | null = null,
 ): HTMLElement {
-  const file = filePath(reference);
-  const url = isLocal(file) ? view.state.facet(assetUrl)(file) : null;
+  const url = imageUrl(view.state, reference);
   if (!url) return placeholder("Image not loaded", alt, inline);
   const frame = document.createElement("span");
   frame.className = inline ? "pg-figure-inline" : "pg-figure";
@@ -553,8 +553,7 @@ function prepared(html: string, view: EditorView): string {
   const sources = new Map<Element, string>();
   for (const source of parsed.querySelectorAll("picture > source[srcset]")) {
     const one = /^\s*(\S+?)(?:\s+1x)?\s*$/.exec(source.getAttribute("srcset") ?? "");
-    const file = one ? filePath(one[1]) : "";
-    const url = one && isLocal(file) ? view.state.facet(assetUrl)(file) : null;
+    const url = one ? imageUrl(view.state, one[1]) : null;
     if (url) sources.set(source, url);
   }
   for (const element of parsed.querySelectorAll("*")) {
@@ -572,18 +571,15 @@ function prepared(html: string, view: EditorView): string {
     if (element.matches("input, textarea, select, button")) element.setAttribute("disabled", "");
   }
   for (const image of parsed.querySelectorAll("img")) {
-    const file = filePath(image.getAttribute("src")?.trim() ?? "");
-    const url = isLocal(file) ? view.state.facet(assetUrl)(file) : null;
+    const url = imageUrl(view.state, image.getAttribute("src")?.trim() ?? "");
     if (url) {
       image.setAttribute("src", url);
       continue;
     }
-    const alt = image.getAttribute("alt") ?? "";
-    const chip = parsed.createElement("span");
-    chip.className = "pg-image-chip";
-    chip.textContent = alt || "untitled";
-    chip.title = `Image not loaded · ${alt || "untitled"}`;
-    image.replaceWith(chip);
+    // The page's chip, made in the frame's document (#257).
+    image.replaceWith(
+      placeholder("Image not loaded", image.getAttribute("alt") ?? "", true, parsed),
+    );
   }
   for (const [source, url] of sources) source.setAttribute("srcset", url);
   // The parser puts what may lead a document, such as a <meta>, in its head. The frame has it all.
@@ -646,19 +642,14 @@ function paint(view: EditorView, inline: Inline): Node {
   }
 }
 
-function element(tag: string, className: string, children: Node[]): HTMLElement {
-  const el = document.createElement(tag);
-  if (className) el.className = className;
-  el.append(...children);
-  return el;
-}
-
-/** Why an image does not show, and its words. In a line, a chip of its words says why on hover. */
-function placeholder(what: string, alt: string, inline: boolean): HTMLElement {
-  const span = document.createElement("span");
+/**
+ * Why an image does not show, and its words. In a line, a chip of its words says why on hover.
+ * The page's and a frame's are one chip, made in the document that shows it (#257).
+ */
+function placeholder(what: string, alt: string, inline: boolean, owner = document): HTMLElement {
   const said = `${what} · ${alt || "untitled"}`;
-  span.className = inline ? "pg-image-missing pg-image-chip" : "pg-image-missing";
-  span.textContent = inline ? alt || "untitled" : said;
+  const className = inline ? "pg-image-missing pg-image-chip" : "pg-image-missing";
+  const span = element("span", className, inline ? alt || "untitled" : said, owner);
   if (inline) span.title = said;
   return span;
 }

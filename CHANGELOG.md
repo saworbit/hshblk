@@ -148,3 +148,6 @@
 - Desktop: a drop, or a Finder open, of several files says once what did not open, as a launch and the Open dialog do. Each refusal was a dialog of its own. (#260)
 - Desktop: a document's 64 MB cap and an image's 20 MB cap are on what is read, from the handle whose size was checked, so a file that grows while it is read is refused, not read whole. (#262)
 - Desktop: the find box counts its matches once a search and a text, and finds the current one among them as the selection moves. Every caret move walked the whole file again, half a second at 8 MB. A text over a million characters is not counted. (#263)
+- Desktop: a markdown image, an `<img>`, and a picture's source turn a reference into a URL through one function, and an image that cannot load is one chip, made the same way on the page and in a frame. (#256, #257)
+- Desktop: the shell, the frontmatter panel, and the widgets build their elements with one helper. (#258)
+- CI: the corpus gate tells a local image from a remote one with the app's own check, so the two agree on a reference that starts with a backslash. (#259)

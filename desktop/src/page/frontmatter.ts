@@ -7,6 +7,7 @@ import {
 } from "@codemirror/state";
 import { type EditorView, type Panel, showPanel, type ViewUpdate } from "@codemirror/view";
 import { page } from "./page.ts";
+import { element } from "./dom.ts";
 
 /** What the panel shows: whether it is open, and the raw YAML or the fields. */
 type Shown = { open: boolean; raw: boolean };
@@ -170,11 +171,4 @@ function panel(view: EditorView): Panel {
       if (update.state.field(frontmatterPanel).raw !== before.raw) render(update.state);
     },
   };
-}
-
-function element(tag: string, className: string, text?: string): HTMLElement {
-  const el = document.createElement(tag);
-  if (className) el.className = className;
-  if (text) el.textContent = text;
-  return el;
 }

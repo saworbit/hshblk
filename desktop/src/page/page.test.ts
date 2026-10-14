@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState, RangeSet, type StateCommand } from "@codemirror/state";
 import { showTooltip, type DecorationSet } from "@codemirror/view";
-import { filePath, isLocal } from "./assets.ts";
+import { assetUrl, filePath, imageUrl, isLocal } from "./assets.ts";
 import { markdown } from "./dialect.ts";
 import { around, modClickOpens, showFrameLink } from "./links.ts";
 import { scan, scanNow } from "./blocks.ts";
@@ -971,6 +971,22 @@ describe("line endings", () => {
 });
 
 describe("an image's file", () => {
+  it("is one URL for a markdown image, an <img>, and a picture's source", () => {
+    // #256: the three each decoded, checked, and asked the channel on their own.
+    const state = EditorState.create({ extensions: assetUrl.of((file) => `asset:${file}`) });
+    assert.equal(imageUrl(state, "a%20b.png?v=2#top"), "asset:a b.png");
+    assert.equal(imageUrl(state, "/images/logo.png"), "asset:/images/logo.png");
+    for (const remote of [
+      "https://x.y/a.png",
+      "//x.y/a.png",
+      "\\\\server\\a.png",
+      "data:image/png,x",
+      "",
+    ]) {
+      assert.equal(imageUrl(state, remote), null, remote);
+    }
+  });
+
   it("is the destination decoded once, less its query and fragment", () => {
     assert.equal(filePath("screen%20shot.png"), "screen shot.png");
     assert.equal(filePath("caf%C3%A9.png?v=2#top"), "café.png");
