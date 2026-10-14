@@ -276,6 +276,19 @@ describe("the page", () => {
     assert.deepEqual(lineClasses(state, styles).slice(0, 2), ["pg-quote", "pg-quote"]);
   });
 
+  it("draws a rule for each level of a quote in a quote", () => {
+    const state = open("> outer\n>\n> > inner\n> > > deepest\n\n> back");
+    assert.equal(visible(state), "outer\n\ninner\ndeepest\n\nback");
+    assert.deepEqual(lineClasses(state, styles), [
+      "pg-quote",
+      "pg-quote",
+      "pg-quote pg-quote-2",
+      "pg-quote pg-quote-2 pg-quote-3",
+      "",
+      "pg-quote",
+    ]);
+  });
+
   it("hides a quote's marks on every line of what it holds, code and raw HTML included", () => {
     assert.equal(visible(open("> ```\n> code\n> ```")), "```\ncode\n```");
     assert.equal(visible(open(">     indented\n>     code")), "    indented\n    code");

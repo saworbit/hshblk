@@ -1,5 +1,5 @@
 import { EditorView } from "@codemirror/view";
-import { HANG_LIMIT } from "./page.ts";
+import { HANG_LIMIT, QUOTE_LIMIT } from "./page.ts";
 
 /**
  * A list item's lines hang under its text. The page names a width in columns, so a class a
@@ -11,6 +11,27 @@ const hangs = Object.fromEntries(
     [`.pg-pad-${n}`, { paddingLeft: `${n}ch` }],
     [`.pg-box-${n}`, { display: "inline-block", width: `${n}ch`, textIndent: "0" }],
   ]),
+);
+
+/**
+ * A quote inside a quote draws a rule for each level past the first, whose rule is its border.
+ * The step is the page's text size, not the line's, so the rules stay put beside a heading or code.
+ */
+const step = "1.125rem";
+const quotes = Object.fromEntries(
+  Array.from({ length: QUOTE_LIMIT - 1 }, (_, i) => i + 2).map((depth) => {
+    const rules = Array.from({ length: depth - 1 }, (_, i) => i + 1);
+    return [
+      `.pg-quote-${depth}`,
+      {
+        paddingLeft: `calc(${depth} * ${step} + ${(depth - 1) * 2}px)`,
+        backgroundImage: rules.map(() => "linear-gradient(var(--rule), var(--rule))").join(", "),
+        backgroundSize: rules.map(() => "2px 100%").join(", "),
+        backgroundPosition: rules.map((n) => `calc(${n} * ${step} + ${(n - 1) * 2}px) 0`).join(", "),
+        backgroundRepeat: "no-repeat",
+      },
+    ];
+  }),
 );
 
 /**
@@ -71,6 +92,8 @@ export const pageTheme = EditorView.theme({
     backgroundColor: "var(--code)",
     padding: "0 1em",
   },
+  // After the code block's padding, so code in a nested quote clears its rules.
+  ...quotes,
   ".pg-fence": { color: "var(--muted)" },
   // YAML frontmatter is data about the file, so it shows as written, and stays quiet.
   ".pg-frontmatter": { color: "var(--muted)" },
