@@ -11,6 +11,8 @@ const hangs = Object.fromEntries(
     [`.pg-hang-${n}`, { paddingInlineStart: `${n}ch`, textIndent: `-${n}ch` }],
     [`.pg-pad-${n}`, { paddingInlineStart: `${n}ch` }],
     [`.pg-box-${n}`, { display: "inline-block", width: `${n}ch`, textIndent: "0" }],
+    // A code block's or a quote's line in an item, by the page's columns, not its own face's.
+    [`.pg-in-${n}`, { marginInlineStart: `calc(${n} * var(--pg-ch))` }],
   ]),
 );
 
@@ -65,6 +67,8 @@ export const pageTheme = EditorView.theme({
     margin: "0 auto",
     padding: "3rem 1.5rem 6rem",
     caretColor: "var(--accent)",
+    // The page's column, as a length a line in another face can step in by (styles.css).
+    "--pg-ch": "1ch",
   },
   ".cm-line": { padding: "0" },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)" },
@@ -285,6 +289,14 @@ export const pageTheme = EditorView.theme({
   // It selected one match, not all: the page keeps one selection (#202).
   ".cm-search button[name=select]": { display: "none" },
   ".pg-find-count": { color: "var(--muted)", fontSize: "0.9em", margin: "0 0.5em" },
+
+  // #233: under a contrast theme, a break's and a quote's rules keep their drawing, in the
+  // theme's colours (styles.css), and a code or HTML block is marked by a rule at its side.
+  "@media (forced-colors: active)": {
+    [[".pg-rule", ...Object.keys(quotes)].join(", ")]: { forcedColorAdjust: "none" },
+    ".pg-code-block": { borderInlineStart: "3px solid CanvasText" },
+    ".pg-source-block": { boxShadow: "none", borderInlineStart: "2px solid CanvasText" },
+  },
 
   // Print is the whole page, not a window's worth of it: no scroller, and no height to fill.
   // The find box and the frontmatter panel are for the screen, as the status line is.

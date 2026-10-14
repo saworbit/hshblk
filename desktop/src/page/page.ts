@@ -76,6 +76,9 @@ export const HANG_LIMIT = 24;
 /** The deepest quote with a rule of its own. A quote nested further draws as this one. */
 export const QUOTE_LIMIT = 6;
 
+/** The blocks in a list item that step in to its text, as its paragraphs hang there (#213). */
+const STEPPED = new Set(["FencedCode", "CodeBlock", "Blockquote"]);
+
 /** How long an image's address may be before it opens cut short, and how much of it shows (#204). */
 const ADDRESS_LIMIT = 200;
 const ADDRESS_KEPT = 40;
@@ -629,6 +632,24 @@ class Painter {
         }
       }
     }
+    // #213: a code block or a quote in the item starts where its text does, not at the page's
+    // edge, its background and its rule too. Its lines step in by the item's columns, and the
+    // indent that puts them in the item folds away a line at a time, as a quote's marks do.
+    if (this.source) return;
+    for (let block = item.firstChild; block; block = block.nextSibling) {
+      if (!STEPPED.has(block.name)) continue;
+      for (let pos = Math.max(block.from, this.from); pos <= Math.min(block.to, this.to);) {
+        const line = this.doc.lineAt(pos);
+        pos = line.to + 1;
+        this.#lines(line.from, line.from, `pg-in-${text}`);
+        let end = line.from;
+        while (end < line.to && /[ \t]/.test(this.doc.sliceString(end, end + 1))) {
+          if (column(line.from, end + 1) > text) break;
+          end += 1;
+        }
+        this.#hide({ from: line.from, to: line.to }, line.from, end);
+      }
+    }
   }
 
   /** Whether an image is all its paragraph holds, inside any links that hold only it. */
@@ -641,8 +662,10 @@ class Painter {
       top = link;
     }
     const block = top.parent;
+    // In a list item it stays beside the marker, as on GitHub, not below it (#214).
     return (
       block?.name === "Paragraph" &&
+      block.parent?.name !== "ListItem" &&
       !this.doc.sliceString(block.from, top.from).trim() &&
       !this.doc.sliceString(top.to, block.to).trim()
     );

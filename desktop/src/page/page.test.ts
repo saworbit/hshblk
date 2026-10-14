@@ -390,6 +390,41 @@ describe("the page", () => {
     assert.equal(visible(select(open(html), html.indexOf("quoted"))), "<p>\n> quoted\n</p>");
   });
 
+  it("starts a code block or a quote in a list item where the item's text starts", () => {
+    // #213: their background and their rule ran from the page's edge, out past the marker.
+    const doc =
+      "- item with code:\n\n  ```js\n  const x = 1;\n  ```\n\n" +
+      "- item with a quote:\n\n  > quoted in a list\n  > two\n\n1. numbered\n\n   ```\n   z\n   ```";
+    const state = open(doc);
+    assert.equal(
+      visible(state),
+      "- item with code:\n\n```js\nconst x = 1;\n```\n\n- item with a quote:\n\nquoted in a list\ntwo\n\n" +
+        "1. numbered\n\n```\nz\n```",
+    );
+    const classes = lineClasses(state, styles);
+    assert.deepEqual(
+      [2, 3, 4, 8, 9, 13, 14, 15].map((line) =>
+        classes[line].split(" ").find((c) => c.startsWith("pg-in-")),
+      ),
+      ["pg-in-2", "pg-in-2", "pg-in-2", "pg-in-2", "pg-in-2", "pg-in-3", "pg-in-3", "pg-in-3"],
+    );
+    // The keys show a line's indent, as they show a quote's marks.
+    assert.match(visible(select(state, doc.indexOf("const"))), /\n {2}const x = 1;\n```\n/);
+  });
+
+  it("draws an image alone in a list item beside its marker, not below it", () => {
+    // #214: a lone image is a block, so it dropped under the marker.
+    const state = open("- [link item](https://x.y)\n- ![image item](logo.png)\n\n![alone](a.png)");
+    const inline: boolean[] = [];
+    shown(state).between(0, state.doc.length, (_from, _to, decoration) => {
+      if (decoration.spec.widget instanceof ImageWidget) inline.push(decoration.spec.widget.inline);
+    });
+    styles(state).between(0, state.doc.length, (_from, _to, decoration) => {
+      if (decoration.spec.widget instanceof ImageWidget) inline.push(decoration.spec.widget.inline);
+    });
+    assert.deepEqual(inline.sort(), [false, true]);
+  });
+
   it("hangs a list item's lines under its text, at every level", () => {
     const doc = "- one\n  more\n- two\n  1. nested\n     deeper\nlazy\n\n> - quoted";
     const state = open(doc);

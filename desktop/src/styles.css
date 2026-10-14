@@ -3,6 +3,14 @@
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 
+/* The page's column as a length, computed where the page's face sets it, so a code line in a
+   list item can step in by the page's columns, not its own face's (theme.ts, #213). */
+@property --pg-ch {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 /* Paper by day, Ink by night. */
 :root {
   color-scheme: light;
@@ -145,6 +153,19 @@ input:focus-visible {
   color: var(--muted);
   font-size: 0.7rem;
   margin-top: 2rem;
+}
+
+/* A Windows contrast theme drops backgrounds and shadows, which drew the page's rules. Its own
+   colours stand in for the page's, and the rules are drawn in them (theme.ts, #233). */
+@media (forced-colors: active) {
+  :root {
+    --paper: Canvas;
+    --ink: CanvasText;
+    --muted: GrayText;
+    --accent: LinkText;
+    --rule: CanvasText;
+    --code: Canvas;
+  }
 }
 
 @media print {

@@ -1700,6 +1700,26 @@ describe("reading", () => {
     });
   });
 
+  test("a contrast theme keeps a break's and a quote's rules, and marks a code block", async () => {
+    // #233: they were backgrounds and shadows, which a contrast theme drops. WebKitGTK cannot
+    // force colours, so this reads the rules the page has for it.
+    const forced = await page.run(() => {
+      const found = [];
+      const walk = (rules) => {
+        for (const rule of rules) {
+          if (rule instanceof CSSMediaRule && /forced-colors:\s*active/.test(rule.conditionText)) {
+            for (const inner of rule.cssRules) found.push(inner.selectorText);
+          } else if (rule.cssRules) walk(rule.cssRules);
+        }
+      };
+      for (const sheet of document.styleSheets) walk(sheet.cssRules);
+      return found.join(" ");
+    });
+    for (const selector of [/:root/, /\.pg-rule/, /\.pg-quote-2/, /\.pg-code-block/]) {
+      assert.match(forced, selector);
+    }
+  });
+
   test("PageDown, Space, Shift+Space, and PageUp keep a line of the last page in view", async () => {
     // #197: PageDown skipped a line a page, and more past a table. #234: Space did nothing.
     await page.run(() => document.querySelector(".cm-content").focus());
