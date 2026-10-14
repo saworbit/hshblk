@@ -61,12 +61,23 @@ fn pick_document(window: WebviewWindow) {
     pick(window.app_handle(), Some(&window));
 }
 
-/// The Open dialog, over `parent` when there is one. A picked file opens in a window of its own.
+/// The Open dialog's filters: markdown, then every file, as a drop or the command line takes any
+/// (#241). On macOS the dialog folds its filters into one list, with no choice between them, so
+/// there it stays markdown.
+fn filters() -> Vec<(&'static str, &'static [&'static str])> {
+    let mut filters = vec![("Markdown", windows::EXTENSIONS)];
+    if !cfg!(target_os = "macos") {
+        filters.push(("All files", &["*"]));
+    }
+    filters
+}
+
+/// The Open dialog, over `parent` when there is one. Each picked file opens in a window of its own.
 fn pick(app: &AppHandle, parent: Option<&WebviewWindow>) {
-    let mut dialog = app
-        .dialog()
-        .file()
-        .add_filter("Markdown", windows::EXTENSIONS);
+    let mut dialog = app.dialog().file();
+    for (name, extensions) in filters() {
+        dialog = dialog.add_filter(name, extensions);
+    }
     if let Some(parent) = parent {
         dialog = dialog.set_parent(parent);
         if let Some(folder) = windows::folder_of(&app.state::<Documents>(), parent.label()) {
@@ -74,10 +85,14 @@ fn pick(app: &AppHandle, parent: Option<&WebviewWindow>) {
         }
     }
     let app = app.clone();
-    dialog.pick_file(move |picked| {
-        if let Some(path) = picked.and_then(|file| file.into_path().ok()) {
-            windows::open(&app, &path);
-        }
+    // Several at once, as a drop of several opens each (#241).
+    dialog.pick_files(move |picked| {
+        let paths: Vec<_> = picked
+            .into_iter()
+            .flatten()
+            .filter_map(|file| file.into_path().ok())
+            .collect();
+        windows::open_all(&app, &paths);
     });
 }
 
@@ -283,6 +298,17 @@ fn on_run_event(_app: &tauri::AppHandle, _event: RunEvent) {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn offers_every_file_after_markdown_where_the_dialog_can_choose() {
+        // #241: the one filter was markdown, so a README with no extension could not be picked.
+        let names: Vec<_> = filters().iter().map(|(name, _)| *name).collect();
+        if cfg!(target_os = "macos") {
+            assert_eq!(names, ["Markdown"]);
+        } else {
+            assert_eq!(names, ["Markdown", "All files"]);
+        }
+    }
 
     #[test]
     fn turns_the_dmabuf_renderer_off_unless_the_user_set_it() {

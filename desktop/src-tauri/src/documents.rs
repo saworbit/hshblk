@@ -55,6 +55,8 @@ pub enum Encoding {
     Utf16Le,
     Utf16Be,
     InvalidUtf8,
+    /// Not UTF-8, with no letter past ASCII that is: shown as Windows-1252 (#207).
+    Windows1252,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,6 +102,10 @@ impl Facts {
                 encoding: Encoding::Utf16Le | Encoding::Utf16Be,
                 ..
             } => Some("The file is UTF-16."),
+            Self {
+                encoding: Encoding::Windows1252,
+                ..
+            } => Some("Shown as Windows-1252. The file is not UTF-8."),
             Self { nul: true, .. } => Some("The file holds NUL bytes."),
             Self {
                 line_endings: LineEndings::Mixed,
@@ -133,12 +139,38 @@ fn decode(bytes: &[u8]) -> (Encoding, bool, String) {
     }
     match std::str::from_utf8(bytes) {
         Ok(text) => (Encoding::Utf8, false, text.to_owned()),
+        Err(_) if !has_utf8_letters(bytes) => (Encoding::Windows1252, false, windows_1252(bytes)),
         Err(_) => (
             Encoding::InvalidUtf8,
             false,
             String::from_utf8_lossy(bytes).into_owned(),
         ),
     }
+}
+
+/// Whether a valid stretch of the bytes holds a letter past ASCII. UTF-8 with a bad byte in it
+/// does, and reading it all as Windows-1252 would garble those letters. Windows-1252 text almost
+/// never forms one, so a file with none is read as that, as Notepad saved notes until 2019.
+fn has_utf8_letters(bytes: &[u8]) -> bool {
+    bytes.utf8_chunks().any(|chunk| !chunk.valid().is_ascii())
+}
+
+/// Windows-1252 as the WHATWG encoding standard maps it: Latin-1, but for 0x80 to 0x9F.
+fn windows_1252(bytes: &[u8]) -> String {
+    const HIGH: [char; 32] = [
+        '\u{20AC}', '\u{81}', '\u{201A}', '\u{192}', '\u{201E}', '\u{2026}', '\u{2020}',
+        '\u{2021}', '\u{2C6}', '\u{2030}', '\u{160}', '\u{2039}', '\u{152}', '\u{8D}', '\u{17D}',
+        '\u{8F}', '\u{90}', '\u{2018}', '\u{2019}', '\u{201C}', '\u{201D}', '\u{2022}', '\u{2013}',
+        '\u{2014}', '\u{2DC}', '\u{2122}', '\u{161}', '\u{203A}', '\u{153}', '\u{9D}', '\u{17E}',
+        '\u{178}',
+    ];
+    bytes
+        .iter()
+        .map(|&byte| match byte {
+            0x80..=0x9F => HIGH[usize::from(byte - 0x80)],
+            _ => char::from(byte),
+        })
+        .collect()
 }
 
 fn utf16(bytes: &[u8], unit: fn([u8; 2]) -> u16) -> String {
@@ -341,11 +373,34 @@ mod tests {
     }
 
     #[test]
-    fn shows_invalid_utf8_lossily() {
-        let (facts, text) = Facts::read(b"caf\xE9");
+    fn shows_windows_1252_as_it_reads_and_says_so() {
+        // #207: an old Windows note showed a replacement character for each accented letter.
+        let (facts, text) =
+            Facts::read(b"# Caf\xE9 notes: na\xEFve r\xE9sum\xE9, \x93quoted\x94, \x80 5");
+        assert_eq!(facts.encoding, Encoding::Windows1252);
+        assert_eq!(
+            text,
+            "# Café notes: naïve résumé, \u{201C}quoted\u{201D}, € 5"
+        );
+        assert_eq!(
+            facts.read_only_reason(),
+            Some("Shown as Windows-1252. The file is not UTF-8.")
+        );
+    }
+
+    #[test]
+    fn shows_utf8_with_a_bad_byte_lossily_not_as_windows_1252() {
+        // Its letters are UTF-8, so reading it all as Windows-1252 would garble them.
+        let mut bytes = "café \u{2014} ".as_bytes().to_vec();
+        bytes.push(0xFF);
+        let (facts, text) = Facts::read(&bytes);
         assert_eq!(
             (facts.encoding, text.as_str()),
-            (Encoding::InvalidUtf8, "caf\u{FFFD}")
+            (Encoding::InvalidUtf8, "café \u{2014} \u{FFFD}")
+        );
+        assert_eq!(
+            facts.read_only_reason(),
+            Some("The file is not valid UTF-8.")
         );
     }
 

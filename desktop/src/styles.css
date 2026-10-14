@@ -54,6 +54,23 @@ body {
   color: var(--muted);
   font-family: var(--mono);
   font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* One line, whatever the window or the name. The notes give way first, then the name, which ends
+   in an ellipsis. The date and the frontmatter's button keep their room (#162). */
+.status > * {
+  flex: 0 1000 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.status > .status-name {
+  flex: 0 1 auto;
+}
+.status > .status-modified,
+.status > .status-frontmatter {
+  flex: 0 0 auto;
 }
 .status-name {
   color: var(--ink);
@@ -123,6 +140,11 @@ input:focus-visible {
   color: var(--muted);
   font-size: 0.8rem;
   margin-top: 1rem;
+}
+.welcome-version {
+  color: var(--muted);
+  font-size: 0.7rem;
+  margin-top: 2rem;
 }
 
 @media print {

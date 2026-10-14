@@ -1472,6 +1472,19 @@ describe("a file that does not open", () => {
       }
     }
   });
+
+  test("the welcome window says which version is running", { timeout }, async () => {
+    // #238: there was no way to tell on Linux and Windows, which have no About item.
+    const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url)));
+    const page = await launch(app, [join(work, "missing.md")]);
+    try {
+      const said = await page.until(() => document.querySelector(".welcome-version")?.textContent);
+      assert.equal(said, `Version ${version}`);
+    } finally {
+      await page.close();
+      await gone();
+    }
+  });
 });
 
 describe("quit and reopen", () => {
@@ -1744,6 +1757,38 @@ describe("a table's images", () => {
       return image?.complete && chip && [image.naturalWidth > 0, chip.textContent];
     });
     assert.deepEqual(seen, [true, "remote"]);
+  });
+});
+
+describe("a long file name", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-name-"));
+  const name = `${"a-very-long-file-name-".repeat(9)}.md`;
+  writeFileSync(join(folder, name), "# Long\n");
+  let page;
+
+  before(async () => {
+    page = await launch(app, [join(folder, name)]);
+    await page.until(() => document.querySelector(".status-name"));
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  test("keeps the status line on one line, and the window from scrolling sideways", async () => {
+    // #162: the name made the row 1622 px wide, and the window scrolled sideways.
+    const seen = await page.run(() => {
+      const status = document.querySelector(".status");
+      const shown = [...status.children].filter((part) => !part.hidden);
+      const name = document.querySelector(".status-name");
+      return {
+        lines: new Set(shown.map((part) => Math.round(part.getBoundingClientRect().top))).size,
+        sideways: document.documentElement.scrollWidth > window.innerWidth,
+        cut: name.scrollWidth > name.clientWidth,
+        title: name.title,
+      };
+    });
+    assert.deepEqual(seen, { lines: 1, sideways: false, cut: true, title: name });
   });
 });
 

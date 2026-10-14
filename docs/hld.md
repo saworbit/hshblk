@@ -129,7 +129,7 @@ CodeMirror does not provide no-op identity by default. It splits on LF, CRLF, an
 |---|---|
 | Valid UTF-8 | Working string is the Unicode scalar values of those bytes. |
 | BOM | Preserved. Not part of the working string. |
-| Invalid UTF-8, UTF-16 | Open read-only. Save disabled. No lossless path into a JS string. |
+| Invalid UTF-8, UTF-16 | Open read-only. Save disabled. No lossless path into a JS string. Bytes that are not UTF-8, with no letter past ASCII that is, show as Windows-1252, as Notepad saved notes until 2019, and the status line says so. UTF-8 with a bad byte shows as UTF-8, a replacement character for the bad byte. |
 | NUL bytes | Open read-only. UTF-16 without a BOM can pass as valid UTF-8, and NUL is how it shows. |
 | Uniform LF or CRLF | Preserved by recording the separator and configuring CodeMirror to it. |
 | Pasted, dropped, or composed text | Line breaks become the recorded separator before the transaction applies: a `clipboardInputFilter` for paste, a transaction filter for drop and IME. Without it, a Mac clipboard pasted into a CRLF file writes a bare LF, and the file opens read-only next time. |
@@ -177,7 +177,7 @@ Entry points. Each mints a handle in Rust:
 - `pick() -> handle`. Rust runs the native dialog. The dialog plugin's JavaScript `open()` is not used, because it returns a path to the webview.
 - Drop. Rust handles the window's drag-drop event and emits a handle. Tauri's frontend drag-drop event carries `paths: string[]`, so it is turned off.
 
-A second file, by double-click or by `app file.md`, goes to the app that is already running and opens in a new window there. One process holds every handle. A file that is already open, however its path is written, brings its window to the front instead, so one file never has two pages. `pick()` starts in the folder of the window's document, which Rust knows and the page does not.
+A second file, by double-click or by `app file.md`, goes to the app that is already running and opens in a new window there. One process holds every handle. A file that is already open, however its path is written, brings its window to the front instead, so one file never has two pages. `pick()` starts in the folder of the window's document, which Rust knows and the page does not. It offers markdown, then every file, on Linux and Windows. A Mac's panel folds its filters into one list, so there it is markdown. It takes several files, each to a window of its own. A window's title is its file's name, and, when another window shows a file of the same name, as many of its folders as tell them apart: `README.md · hshblk`.
 
 A file that does not open is named in what the user is told, without the system's error code, and the message shows after the windows the same launch opens, over the last of them, so none covers it.
 

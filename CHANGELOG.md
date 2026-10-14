@@ -136,3 +136,8 @@
 - Desktop: a `<picture>` in an HTML block shows the `<source>` its media query picks, such as a README's dark-mode mark, when its `srcset` names one file in the repository. Every `srcset` was dropped. (#171)
 - Desktop: an image in a table cell shows, from the repository, or is the page's chip of its words. A cell showed only its words. (#155)
 - Desktop: an image's address over 200 characters, as an embedded `data:` image's is, opens cut short to its first 40 and an ellipsis. Opening 2 MB of base64 held the window for seconds. (#204)
+- Desktop: the Open dialog offers every file after the markdown ones on Linux and Windows, so a README with no extension can be picked, and takes several files at once, each to a window of its own. On macOS the dialog folds its filters into one list, so there it stays markdown. (#241)
+- Desktop: a file that is not UTF-8, with no letter past ASCII that is, shows as Windows-1252, so its accented letters, curly quotes, and euro signs read as written. The status line says so. (#207)
+- Desktop: two windows of files with the same name add as many of their folders as tell them apart to their titles, such as `README.md · hshblk`. (#167)
+- Desktop: the welcome window shows the version. (#238)
+- Desktop: the status line stays on one line. A long name ends in an ellipsis, with the whole name in its tooltip, and the notes give way before the name and the date. The window no longer scrolls sideways. (#162)
