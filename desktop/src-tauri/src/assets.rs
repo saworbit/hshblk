@@ -12,7 +12,7 @@ use std::path::{Component, Path, PathBuf};
 use percent_encoding::percent_decode_str;
 use tauri::http::{header, Request, Response, StatusCode};
 
-use crate::documents::{Document, Documents};
+use crate::documents::{read_capped, Document, Documents};
 use crate::windows;
 
 pub const SCHEME: &str = "doc-asset";
@@ -100,7 +100,15 @@ fn serve(
     }
     let document = documents.get(handle).ok_or(Refusal::UnknownDocument)?;
     let file = resolve(&document, reference)?;
-    let bytes = fs::read(&file).map_err(|_| Refusal::Missing)?;
+    // One handle, its own size checked, and no more than the cap read from it (#262).
+    let handle = fs::File::open(&file).map_err(|_| Refusal::Missing)?;
+    let metadata = handle.metadata().map_err(|_| Refusal::Missing)?;
+    if !metadata.is_file() {
+        return Err(Refusal::NotAFile);
+    }
+    let bytes = read_capped(handle, MAX_ASSET_BYTES)
+        .map_err(|_| Refusal::Missing)?
+        .ok_or(Refusal::TooLarge)?;
     let kind = image_type(&bytes).ok_or(Refusal::NotAnImage)?;
     Ok((bytes, kind))
 }
