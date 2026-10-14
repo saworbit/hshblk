@@ -99,6 +99,8 @@ export const pageTheme = EditorView.theme({
   ".pg-frontmatter": { color: "var(--muted)" },
   ".pg-source-block": { boxShadow: "inset 2px 0 0 var(--rule)" },
   ".pg-rule": {
+    // The line holds only its hidden marks, which leave it no height to draw in (#187).
+    minHeight: "1.7em",
     background: "linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat",
   },
   // A setext underline, hidden with its line until the selection opens it.
