@@ -12,7 +12,10 @@ use tauri::menu::{Menu, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Manager, RunEvent, State, WebviewWindow, Wry};
 use tauri_plugin_dialog::DialogExt;
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+use tauri::ipc::Channel;
 
 use documents::{Document, Documents};
 
@@ -75,39 +78,91 @@ fn pick(app: &AppHandle, parent: Option<&WebviewWindow>) {
     });
 }
 
-/// The File menu's Open item.
+/// The menu bar's own items: File's Open and Print, and Edit's Find.
 const OPEN: &str = "open";
+const PRINT: &str = "print";
+const FIND: &str = "find";
 
 /// macOS's menu bar: Tauri's own, which holds Edit's Copy and Select All, with Open at the top of
-/// File. Its ⌘O is the menu's there, so the page stands down for it. Linux and Windows get no
-/// menu bar, which would sit above the page in every window. They keep Ctrl+O and the welcome
-/// window's button.
+/// File, Print at its foot, and Find at the foot of Edit (#182). Their keys are the menu's there,
+/// so the page stands down for them. Linux and Windows get no menu bar, which would sit above the
+/// page in every window. They keep the keys and the welcome window's button.
 fn file_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let menu = Menu::default(app)?;
     let open = MenuItem::with_id(app, OPEN, "Open…", true, Some("CmdOrCtrl+O"))?;
-    let separator = PredefinedMenuItem::separator(app)?;
+    let print = MenuItem::with_id(app, PRINT, "Print…", true, Some("CmdOrCtrl+P"))?;
+    let find = MenuItem::with_id(app, FIND, "Find…", true, Some("CmdOrCtrl+F"))?;
+    let mut has_file = false;
     for item in menu.items()? {
-        if let MenuItemKind::Submenu(file) = item {
-            if file.text()? == "File" {
-                file.insert_items(&[&open, &separator], 0)?;
-                return Ok(menu);
+        if let MenuItemKind::Submenu(submenu) = item {
+            match submenu.text()?.as_str() {
+                "File" => {
+                    submenu.insert_items(&[&open, &PredefinedMenuItem::separator(app)?], 0)?;
+                    submenu.append_items(&[&PredefinedMenuItem::separator(app)?, &print])?;
+                    has_file = true;
+                }
+                "Edit" => submenu.append_items(&[&PredefinedMenuItem::separator(app)?, &find])?,
+                _ => {}
             }
         }
     }
     // Tauri's menu has a File menu on macOS. Should it lose it, Open still has one, after the app's.
-    menu.insert(&Submenu::with_items(app, "File", true, &[&open])?, 1)?;
+    if !has_file {
+        menu.insert(
+            &Submenu::with_items(app, "File", true, &[&open, &print])?,
+            1,
+        )?;
+    }
     Ok(menu)
 }
 
-/// File > Open, over the window in front, if there is one.
+/// The menu bar's items, for the window in front, if there is one. Find and Print are the page's
+/// to do, so they go down the channel it gave `watch_menu`. The welcome window gave none.
 fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
-    if event.id() == OPEN {
-        let front = app
-            .webview_windows()
-            .into_values()
-            .find(|window| window.is_focused().unwrap_or(false));
-        pick(app, front.as_ref());
+    let front = app
+        .webview_windows()
+        .into_values()
+        .find(|window| window.is_focused().unwrap_or(false));
+    match event.id().as_ref() {
+        OPEN => pick(app, front.as_ref()),
+        action @ (FIND | PRINT) => {
+            if let Some(window) = front {
+                app.state::<MenuChannels>().send(window.label(), action);
+            }
+        }
+        _ => {}
     }
+}
+
+/// Each document window's line from the menu bar. The page takes no events, so it hands Rust a
+/// channel for the items that are its to do.
+#[derive(Default)]
+pub struct MenuChannels(Mutex<HashMap<String, Channel<String>>>);
+
+impl MenuChannels {
+    fn send(&self, label: &str, action: &str) {
+        let channels = self.0.lock().expect("menu channels lock");
+        if let Some(channel) = channels.get(label) {
+            if let Err(error) = channel.send(action.to_owned()) {
+                eprintln!("The menu could not reach its window: {error}");
+            }
+        }
+    }
+
+    /// A closed window's channel goes with it.
+    pub fn forget(&self, label: &str) {
+        self.0.lock().expect("menu channels lock").remove(label);
+    }
+}
+
+/// The page's line from the menu bar, for Find and Print on macOS.
+#[tauri::command]
+fn watch_menu(window: WebviewWindow, channel: Channel<String>, menus: State<'_, MenuChannels>) {
+    menus
+        .0
+        .lock()
+        .expect("menu channels lock")
+        .insert(window.label().to_owned(), channel);
 }
 
 /// A link goes to the system browser, after a click. The page itself never navigates.
@@ -159,6 +214,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(Documents::default())
+        .manage(MenuChannels::default())
         .register_uri_scheme_protocol(assets::SCHEME, |ctx, request| {
             let window = ctx.webview_label();
             let documents = ctx.app_handle().state::<Documents>();
@@ -172,7 +228,8 @@ pub fn run() {
             document_text,
             pick_document,
             open_url,
-            print_page
+            print_page,
+            watch_menu
         ])
         .on_window_event(windows::on_event)
         .on_menu_event(on_menu_event)

@@ -184,6 +184,7 @@ IPC, milestone one:
 - `read_asset`, served as a custom scheme: `doc-asset://<handle>/<relative>`. Not Tauri's asset protocol, which is addressed by path (`convertFileSrc(filePath)`). A window is served only its own document's images: the handle must be the one its label names.
 - `open_url(url)`. `http`, `https`, and `mailto` only, opened in the system browser. A click on a link never navigates the webview.
 - `print_page()`. The window's print panel, which Rust opens on macOS, where WKWebView ignores `window.print()`. The page lays itself out for print first, and goes back on `afterprint`.
+- `watch_menu(channel)`. On macOS, the menu bar's Find and Print are the page's to do, and the page takes no events, so it hands Rust a channel for them.
 
 IPC, editor milestone:
 

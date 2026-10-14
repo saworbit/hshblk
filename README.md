@@ -14,10 +14,10 @@ Packages for Linux, macOS, and Windows come from the Desktop workflow on `main`.
 | Key | Does |
 |---|---|
 | `Ctrl+O` (`⌘O`) | Open a file. On macOS, so does File > Open |
-| `Ctrl+F` (`⌘F`) | Find, in the source |
+| `Ctrl+F` (`⌘F`) | Find, in the source. On macOS, so does Edit > Find |
 | `Ctrl+/` (`⌘/`) | Show all the syntax, or hide it again |
 | `Ctrl+Shift+M` (`⌘⇧M`) | Show or hide the frontmatter's panel |
-| `Ctrl+P` (`⌘P`) | Print the whole page |
+| `Ctrl+P` (`⌘P`) | Print the whole page. On macOS, so does File > Print |
 | `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading it names |
 | `Enter` | Open or close a `<details>`, with the caret on its tags. Tick or untick a task box, with the caret in its text |
 
