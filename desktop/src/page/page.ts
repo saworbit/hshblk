@@ -534,16 +534,19 @@ class Painter {
   /**
    * A link shows its words, and its syntax stays hidden even with the caret inside: the address
    * shows at the caret instead. A reference with no definition is not a link, and is left as written.
+   * A link with no words shows nothing, as on GitHub. CodeMirror takes no empty mark (#151).
    */
   #link(node: SyntaxNode): void {
     const link = linkSpan(this.doc, this.definitions, node);
     if (!link) return;
     const { href } = link;
-    this.#style(
-      Decoration.mark({ class: "pg-link", attributes: { title: href, "data-href": href } }),
-      link.from,
-      link.to,
-    );
+    if (link.from < link.to) {
+      this.#style(
+        Decoration.mark({ class: "pg-link", attributes: { title: href, "data-href": href } }),
+        link.from,
+        link.to,
+      );
+    }
     this.#conceal(node.from, link.from);
     this.#conceal(link.to, node.to);
   }
