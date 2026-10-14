@@ -88,3 +88,4 @@
 - Desktop: on Windows a file double-clicked while the app runs opens its window in front of File Explorer, not behind it. A new window now takes the focus. (#148)
 - Docs: milestone-one.md records the double-click and the drop on Windows, run by hand on the named machine. All of macOS is still to run. (#20)
 - Docs: the app has no updater, by choice. hld.md §12 and desktop.md say why: the webview's fixes come from the OS, and a signed updater needs a key kept for good and a network request at launch. Releases go to GitHub Releases, and later to winget and a Homebrew tap. (#28)
+- Docs: milestone-one.md no longer calls §12's question on the named machine open, and no longer lists the Windows drop as not run.

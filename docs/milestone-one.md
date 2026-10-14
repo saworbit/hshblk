@@ -2,7 +2,7 @@
 
 [hld.md](hld.md) §8, item by item. How each is checked is in [desktop.md](desktop.md#tests).
 
-Run: 2026-10-10. Ubuntu 24.04 LTS in a cloud container: four cores of a 2.1 GHz Xeon, no GPU, Xvfb, WebKitGTK 2.52.6. This is not the named machine, which §12 question 2 leaves open, so the timings below are this machine's and nobody else's.
+Run: 2026-10-10. Ubuntu 24.04 LTS in a cloud container: four cores of a 2.1 GHz Xeon, no GPU, Xvfb, WebKitGTK 2.52.6. This is not the named machine (§12 question 2), so the timings under Item 3 are this machine's and nobody else's. The named machine's have a section of their own.
 
 ## Result
 
@@ -65,5 +65,5 @@ Run: 2026-10-14, on the named machine: Windows 11 Home 26H2, build 26300.9550, W
 ## Not covered
 
 - macOS: double-click, drop, and the rest. Windows: the rest, since only the double-click and the drop ran by hand. `tauri-driver` does not run on macOS, and this run was on Linux only. On Windows, msedgedriver passes a WebView2 app's arguments as switches, so a WebDriver session cannot open a file there.
-- A drop from a file manager. Only the operating system can start one, and WebDriver cannot. Drops are handled in Rust, and the page cannot see them: it has no event permissions.
+- A drop from a file manager on Linux. Only the operating system can start one, and WebDriver cannot, so on Windows it ran by hand. Drops are handled in Rust, and the page cannot see them: it has no event permissions.
 - A real session, with a compositor and an input method. The host spot-check in §9 is for that. It ran in a VM on 2026-10-13, recorded in [gates/click-target.md](gates/click-target.md). A real GPU is still to come.
