@@ -463,7 +463,9 @@ describe("closing a window", () => {
       const page = await launch(app, [file]);
       try {
         await page.until(() => document.querySelector(".pg-h1"));
-        await page.press(Key.Control, "w");
+        // The window goes while the driver is still pressing, so the session ends without a
+        // reply. That the app has gone is the test.
+        await page.press(Key.Control, "w").catch(() => {});
         await gone();
       } finally {
         await page.close().catch(() => {});
