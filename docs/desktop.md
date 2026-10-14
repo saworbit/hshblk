@@ -101,7 +101,9 @@ The macOS app is signed and notarized when the repository has these secrets. Wit
 Not done yet ([hld.md](hld.md) §12, question 1):
 
 - Windows signing. A code-signing certificate issued since June 2023 keeps its key in hardware or in a signing service, so it cannot be a secret here. Each service signs through its own command, set as `bundle.windows.signCommand`. That waits on choosing one.
-- The updater. It needs a key pair: the public key in `tauri.conf.json`, the private key as a secret. The app also has to say how it offers an update. On Linux, Tauri updates only an AppImage, which hld.md §10 rules out, so Linux updates wait for a Flatpak against the GNOME runtime.
+- Once the repository is public: a winget manifest, and a Homebrew cask in a tap of the project's own, since homebrew/cask takes only apps that pass Gatekeeper. Each updates the app for those who install it that way.
+
+The app has no updater, by choice ([hld.md](hld.md) §12, question 1). It makes no network request, and keeps no key. The webview's security fixes come from the OS on macOS and Windows, and from the distribution on Linux. A new release reaches readers through the release page. On GitHub, **Watch**, then **Custom**, then **Releases** says when there is one.
 
 ## How a file becomes a page
 
