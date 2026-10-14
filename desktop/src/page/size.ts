@@ -1,4 +1,5 @@
 import type { EditorView } from "@codemirror/view";
+import { matchFrames } from "./widgets.ts";
 
 /** The text sizes Ctrl+= and Ctrl+− step through, as a share of the page's own (#164). */
 export const SIZES = [0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
@@ -22,12 +23,6 @@ export function textSize(view: EditorView): number {
  */
 export function setTextSize(view: EditorView, size: number): void {
   view.dom.style.setProperty("--pg-size", String(size));
-  const text = getComputedStyle(view.contentDOM);
-  for (const frame of view.dom.querySelectorAll<HTMLIFrameElement>("iframe.pg-html")) {
-    const body = frame.contentDocument?.body;
-    if (!body) continue;
-    body.style.fontSize = text.fontSize;
-    body.style.lineHeight = text.lineHeight;
-  }
+  matchFrames(view);
   view.requestMeasure();
 }

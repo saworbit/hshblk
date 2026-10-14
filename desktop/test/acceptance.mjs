@@ -585,6 +585,9 @@ describe("one open document", () => {
           policy: frame.contentDocument.querySelector("meta[http-equiv=Content-Security-Policy]")
             ?.content,
           images: [...frame.contentDocument.images].map((image) => [image.alt, image.naturalWidth]),
+          chips: [...frame.contentDocument.querySelectorAll(".pg-image-chip")].map(
+            (chip) => chip.textContent,
+          ),
           backgrounds: [...frame.contentDocument.body.querySelectorAll("*")]
             .map((el) => frame.contentWindow.getComputedStyle(el).backgroundImage)
             .filter((image) => image !== "none"),
@@ -634,14 +637,13 @@ describe("one open document", () => {
       assert.deepEqual(frame.backgrounds, []);
     }
     // The image beside the file shows. A remote one, one outside the repository, one named by a
-    // doc-asset address, a srcset, and the CSS background do not.
+    // doc-asset address, a srcset, and the CSS background do not. Those left with nothing to load
+    // are the page's chips of their words, not the engine's broken image (#170).
     assert.deepEqual(fetching.images, [
       ["framed", 1],
-      ["asset", 0],
-      ["remote", 0],
       ["outside", 0],
-      ["srcset", 0],
     ]);
+    assert.deepEqual(fetching.chips, ["asset", "remote", "srcset"]);
     assert.equal(await page.run(() => window.ran ?? null), null);
     assert.equal(await page.run(() => document.querySelectorAll(".cm-content script").length), 0);
     const images = await page.run(
@@ -1420,6 +1422,121 @@ describe("quit and reopen", () => {
     }
     assert.deepEqual(listing(root), files, `written under ${relative(tmpdir(), root)}`);
     assert.deepEqual(fingerprint(file), bytes);
+  });
+});
+
+describe("an HTML block's frame", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-frames-"));
+  const file = join(folder, "frames.md");
+  writeFileSync(
+    file,
+    `<h1 align="center">Project</h1>
+
+<table><tr><th>Name</th><th align="right">Value</th></tr><tr><td>alpha</td><td align="right">1</td></tr></table>
+
+<form><input name="q"><button>Send</button></form>
+
+<p><a href="https://example.com/">A link</a> <iframe src="https://example.com/"></iframe></p>
+
+<details><summary>One-line details</summary>Body</details>
+
+<details>
+<summary><b>Bold</b> summary with <code>code</code></summary>
+
+A markdown body.
+
+</details>
+`,
+  );
+  let page;
+  let drawn;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    drawn = await page.until(() => {
+      const frames = [...document.querySelectorAll("iframe.pg-html")];
+      // Loaded, and sized to what it holds, which the page does once it has loaded.
+      const ready = (frame) =>
+        frame.contentDocument?.readyState === "complete" &&
+        frame.getBoundingClientRect().height > 0;
+      if (frames.length < 5 || !frames.every(ready)) return null;
+      return frames.map((frame) => {
+        const doc = frame.contentDocument;
+        const style = (el, pseudo) => frame.contentWindow.getComputedStyle(el, pseudo);
+        const heading = doc.querySelector("h1");
+        const cells = [...doc.querySelectorAll("th, td")];
+        return {
+          height: frame.getBoundingClientRect().height,
+          spills: doc.body.scrollHeight - frame.clientHeight,
+          // A line at least as tall as its letters, so none is cut off.
+          heading:
+            heading && parseFloat(style(heading).lineHeight) >= parseFloat(style(heading).fontSize),
+          frameTab: frame.tabIndex,
+          cells: cells.map((cell) => [
+            parseFloat(style(cell).paddingRight) > 0,
+            style(cell).borderBottomWidth,
+            // The engine names an align attribute's side its own way, and the default "start".
+            /right/.test(style(cell).textAlign)
+              ? "right"
+              : /center/.test(style(cell).textAlign)
+                ? "center"
+                : "left",
+          ]),
+          fields: [...doc.querySelectorAll("input, button")].map((field) => field.disabled),
+          links: [...doc.querySelectorAll("a, summary")].map((el) => el.tabIndex),
+          inner: [...doc.querySelectorAll("iframe")].map((inner) => style(inner).display),
+          marker: [...doc.querySelectorAll("summary")].map((el) => style(el, "::before").content),
+        };
+      });
+    });
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  test("a heading in one is not cut off, and no frame scrolls", () => {
+    // #227: the page's line height came as a length, too short for a heading.
+    assert.equal(drawn[0].heading, true);
+    for (const frame of drawn) assert.ok(frame.spills <= 0, JSON.stringify(frame));
+  });
+
+  test("a table in one draws as the page's tables do, and keeps its alignment", () => {
+    // #226: it had no rules and no padding.
+    assert.deepEqual(drawn[1].cells, [
+      [true, "1px", "left"],
+      [true, "1px", "right"],
+      [true, "1px", "left"],
+      [true, "1px", "right"],
+    ]);
+  });
+
+  test("nothing in one takes the keyboard, and a form's field takes no typing", () => {
+    // #165: each frame was a tab stop, and a field in one took typing.
+    assert.ok(drawn.every((frame) => frame.frameTab === -1));
+    assert.deepEqual(drawn[2].fields, [true, true]);
+    assert.deepEqual(drawn[3].links, [-1]);
+    assert.deepEqual(drawn[4].links, [-1]);
+  });
+
+  test("a frame in one draws nothing, and its details have the page's marker", () => {
+    // #170: an empty box with a border, and the engine's large filled marker.
+    assert.deepEqual(drawn[3].inner, ["none"]);
+    assert.deepEqual(drawn[4].marker, ['"▸"']);
+  });
+
+  test("a summary the page draws keeps its bold and its code", async () => {
+    // #232: it was drawn as plain words.
+    const summary = await page.until(() => {
+      const summary = document.querySelector(".pg-summary");
+      if (!summary) return null;
+      return [
+        summary.textContent,
+        summary.querySelector(".pg-strong")?.textContent,
+        summary.querySelector(".pg-code")?.textContent,
+      ];
+    });
+    assert.deepEqual(summary, ["Bold summary with code", "Bold", "code"]);
   });
 });
 

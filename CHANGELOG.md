@@ -117,3 +117,8 @@
 - Desktop: `Ctrl+W` closes the window on Linux and Windows, through a new `close_window` command. macOS has File > Close Window. (#166)
 - Desktop: `F5` and `Ctrl+R` no longer reload a window, which brought back the text as it was read and lost the reader's place. (#161)
 - Desktop: a right-click on the page opens no menu. WebView2's offered Save as, a Print that skipped the page's preparation, and Refresh. The find box's fields keep theirs, for paste. (#244)
+- Desktop: a heading in an HTML block is no longer cut off, and no block's frame scrolls. A frame took the page's line height as a length, not as its ratio. (#227)
+- Desktop: a table in an HTML block has the page's rules, padding, and header weight, and keeps its cells' alignment. (#226)
+- Desktop: in an HTML block, a frame draws nothing, an image that cannot load is the page's chip of its words, and a `<details>` has the page's marker. (#170)
+- Desktop: nothing in an HTML block takes the keyboard. Tab passes its frame by, and a form's fields are disabled. (#165)
+- Desktop: a summary the page draws keeps its bold, italic, and code. (#232)
