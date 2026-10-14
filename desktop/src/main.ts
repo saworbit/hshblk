@@ -53,7 +53,11 @@ if (handle) {
   const keys: Record<string, () => void> = {
     // On macOS, ⌘O is the File menu's (lib.rs), so the page leaves it be.
     ...(mac ? {} : { o: pick }),
-    p: () => void printPage(view),
+    // WKWebView ignores window.print(), so on macOS Rust opens the print panel (#191).
+    p: () =>
+      void printPage(view, mac ? () => invoke("print_page") : undefined).catch((error) =>
+        say(status, `${error}`),
+      ),
     f: () => openSearchPanel(view),
     "/": () => toggleSource(view),
     // Shift and M.
