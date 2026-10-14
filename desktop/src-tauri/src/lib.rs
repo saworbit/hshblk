@@ -145,7 +145,7 @@ pub fn run() {
     tauri::Builder::default()
         // First, so a second launch hands its files to this process before anything else starts.
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
-            windows::open_arguments(app, &argv, Path::new(&cwd));
+            windows::open_arguments(app, &argv, Path::new(&cwd), windows::Launch::Again);
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(Documents::default())
@@ -173,7 +173,12 @@ pub fn run() {
                 }
             }
             let argv: Vec<String> = std::env::args().collect();
-            windows::open_arguments(app.handle(), &argv, &std::env::current_dir()?);
+            windows::open_arguments(
+                app.handle(),
+                &argv,
+                &std::env::current_dir()?,
+                windows::Launch::First,
+            );
             Ok(())
         })
         .build(tauri::generate_context!())
