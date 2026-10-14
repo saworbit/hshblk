@@ -141,3 +141,6 @@
 - Desktop: two windows of files with the same name add as many of their folders as tell them apart to their titles, such as `README.md · hshblk`. (#167)
 - Desktop: the welcome window shows the version. (#238)
 - Desktop: the status line stays on one line. A long name ends in an ellipsis, with the whole name in its tooltip, and the notes give way before the name and the date. The window no longer scrolls sideways. (#162)
+- Desktop: a code block or a quote in a list item starts where the item's text starts, its background and its rule included. Both ran from the page's edge, out past the marker. The indent that puts them in the item folds away a line at a time. (#213)
+- Desktop: an image alone in a list item stays beside its marker, as on GitHub. It dropped below it. (#214)
+- Desktop: under a Windows contrast theme, a thematic break and each level of a quote keep their rules, in the theme's colours, and a code or HTML block has a rule at its side. The theme dropped the backgrounds and shadows that drew them. (#233)
