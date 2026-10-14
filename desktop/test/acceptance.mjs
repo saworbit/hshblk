@@ -1621,6 +1621,86 @@ ${Array.from({ length: 60 }, (_, n) => `Paragraph ${n}, long enough for the page
   });
 });
 
+describe("reading", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-reading-"));
+  const file = join(folder, "reading.md");
+  const paragraphs = Array.from(
+    { length: 120 },
+    (_, n) => `Paragraph ${n}, with words enough to fill some of a line.`,
+  );
+  writeFileSync(
+    file,
+    [
+      "## العربية",
+      "هذه فقرة باللغة العربية مع **نص عريض** و[رابط](https://example.com).",
+      "- عنصر أول\n- عنصر ثان",
+      "English, with one word of עברית in it.",
+      ...paragraphs,
+    ].join("\n\n") + "\n",
+  );
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelector(".pg-h2"));
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  test("Arabic and Hebrew read right to left, and English left to right", async () => {
+    // #198: every line was laid out left to right.
+    const seen = await page.run(() => {
+      const lines = [...document.querySelectorAll(".cm-line")];
+      const style = (words) => getComputedStyle(lines.find((l) => l.textContent.includes(words)));
+      const item = style("عنصر أول");
+      return {
+        heading: style("العربية").direction,
+        paragraph: style("هذه فقرة").direction,
+        english: style("English").direction,
+        // A list item hangs from its start, which is the right.
+        item: [item.direction, parseFloat(item.paddingRight) > 0, item.paddingLeft],
+      };
+    });
+    assert.deepEqual(seen, {
+      heading: "rtl",
+      paragraph: "rtl",
+      english: "ltr",
+      item: ["rtl", true, "0px"],
+    });
+  });
+
+  test("PageDown, Space, Shift+Space, and PageUp keep a line of the last page in view", async () => {
+    // #197: PageDown skipped a line a page, and more past a table. #234: Space did nothing.
+    await page.run(() => document.querySelector(".cm-content").focus());
+    /** In the page: the lines with words in view, wholly or in part, from the top. */
+    const shown = () => {
+      const box = document.querySelector(".cm-scroller").getBoundingClientRect();
+      return [...document.querySelectorAll(".cm-line")]
+        .filter((line) => line.textContent.trim())
+        .filter((line) => {
+          const at = line.getBoundingClientRect();
+          return at.bottom > box.top + 1 && at.top < box.bottom - 1;
+        })
+        .map((line) => line.textContent);
+    };
+    // A page moves by the window less a line, so one or two lines of the last page still show.
+    const turn = async (...keys) => {
+      const before = await page.run(shown);
+      await page.press(...keys);
+      await sleep(300);
+      const after = await page.run(shown);
+      const kept = after.filter((line) => before.includes(line));
+      assert.ok(kept.length >= 1 && kept.length <= 2, JSON.stringify({ before, after }));
+    };
+    await turn(Key.PageDown);
+    await turn(" ");
+    await turn(Key.Shift, " ");
+    await turn(Key.PageUp);
+  });
+});
+
 describe("layout", () => {
   const folder = mkdtempSync(join(tmpdir(), "hshblk-layout-"));
   const file = join(folder, "layout.md");

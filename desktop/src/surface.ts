@@ -7,11 +7,12 @@ import {
   selectSelectionMatches,
 } from "@codemirror/search";
 import { EditorState, type Extension } from "@codemirror/state";
-import { EditorView, type KeyBinding, keymap } from "@codemirror/view";
+import { type Command, EditorView, type KeyBinding, keymap } from "@codemirror/view";
 import { assetUrl, type AssetUrl } from "./page/assets.ts";
 import { completeParse, finishParse } from "./page/complete.ts";
 import { markdown } from "./page/dialect.ts";
 import { findExtras } from "./page/find.ts";
+import { textDirection } from "./page/direction.ts";
 import { closeFrontmatter, frontmatter } from "./page/frontmatter.ts";
 import {
   cursorLineOnto,
@@ -41,6 +42,25 @@ const lineDown = cursorLineOnto(true);
 const lineUp = cursorLineOnto(false);
 
 /**
+ * #197: a page scrolls by the window less a line, as a browser's does, so the last line of one
+ * page is the first of the next. CodeMirror's moved the caret a page and scrolled to keep it in
+ * place, which skipped a line a page, and more past a table. The caret goes to the first whole
+ * line in view, so the keys go on from there.
+ */
+function pageBy(direction: 1 | -1): Command {
+  return (view) => {
+    const scroller = view.scrollDOM;
+    const line = view.defaultLineHeight;
+    scroller.scrollTop += direction * Math.max(scroller.clientHeight - line, line);
+    const top = scroller.getBoundingClientRect().top - view.documentTop;
+    const block = view.lineBlockAtHeight(Math.max(top, 0));
+    const cut = block.top < top - 1 && block.to < view.state.doc.length;
+    view.dispatch({ selection: { anchor: cut ? block.to + 1 : block.from }, userEvent: "select" });
+    return true;
+  };
+}
+
+/**
  * Movement and selection. The state is read-only, so the editing commands here do nothing.
  * Enter on a <details>'s tags opens or closes it, and in a task item's text ticks or unticks its
  * box. Escape closes the frontmatter panel. Up and Down stop on a drawn block, and so do Ctrl+N
@@ -54,6 +74,10 @@ export const pageKeys: readonly KeyBinding[] = [
   { mac: "Ctrl-n", run: lineDown },
   { mac: "Ctrl-p", run: lineUp },
   { key: "Escape", run: closeFrontmatter },
+  { key: "PageDown", run: pageBy(1) },
+  { key: "PageUp", run: pageBy(-1) },
+  // Space pages as it does in a browser, Shift and Space back (#234). Find's field is not the page.
+  { key: "Space", run: pageBy(1), shift: pageBy(-1) },
   // Selecting every match, or the next beside the selection, takes more than one selection,
   // which the page does not allow. It kept only one, and said nothing (#202).
   ...searchKeymap.filter(
@@ -90,6 +114,7 @@ export function createSurface(
     extensions: [
       markdown,
       page,
+      textDirection,
       completeParse,
       pageTheme,
       clickPastLineEnd,

@@ -13,6 +13,8 @@ export const Key = {
   Tab: "\uE004",
   Enter: "\uE007",
   Escape: "\uE00C",
+  PageUp: "\uE00E",
+  PageDown: "\uE00F",
   End: "\uE010",
   ArrowUp: "\uE013",
   ArrowRight: "\uE014",
