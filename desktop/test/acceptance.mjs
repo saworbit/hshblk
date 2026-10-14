@@ -518,9 +518,12 @@ describe("one open document", () => {
     assert.deepEqual([script.scripts, script.ran, script.height], [1, null, 0]);
     assert.equal(block.text, "Raw HTML block");
     assert.ok(block.height > 10, `the frame is ${block.height}px tall`);
-    // A click on the block's onclick runs nothing either.
+    // A click on the block's onclick runs nothing either. The block comes into view first: where
+    // the scroll above leaves it depends on the height of every line before it.
     const at = await page.run(() => {
-      const box = document.querySelectorAll("iframe.pg-html")[1].getBoundingClientRect();
+      const frame = document.querySelectorAll("iframe.pg-html")[1];
+      frame.scrollIntoView({ block: "center" });
+      const box = frame.getBoundingClientRect();
       return { x: box.x + 20, y: box.y + box.height / 2 };
     });
     await page.click(at.x, at.y);
