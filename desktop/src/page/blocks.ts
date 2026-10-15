@@ -19,10 +19,13 @@ export type Blocks = {
   /** Each `<details>` written as its own blocks around a markdown body. The page draws these. */
   details: Details[];
   /** The file's frontmatter, which shows as written, or null when it has none. */
-  frontmatter: Span | null;
+  frontmatter: Frontmatter | null;
 };
 
 type Span = { from: number; to: number };
+
+/** Frontmatter: where it is, and whether it is YAML or TOML. */
+export type Frontmatter = Span & { format: "yaml" | "toml" };
 
 /**
  * A `<details>` whose opening and closing tags are raw HTML blocks of their own, with markdown
@@ -122,14 +125,23 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
  * YAML frontmatter, as Obsidian and static site generators write it: `---` alone on the first
  * line, through the next line that is `---` or `...`. CommonMark reads it as a rule and a heading.
  * Lezer can look only one line ahead, so the page finds it here, where the whole text is. A `---`
- * with a blank line after it is a rule, as Pandoc reads it (#196).
+ * with a blank line after it is a rule, as Pandoc reads it (#196). TOML frontmatter, as Hugo and
+ * Zola write it, is between `+++` lines, which are no markdown, so a blank line takes nothing
+ * from it (#209).
  */
-function frontmatter(doc: Text): Span | null {
-  if (!/^---[ \t]*$/.test(doc.line(1).text)) return null;
+function frontmatter(doc: Text): Frontmatter | null {
+  const first = doc.line(1).text;
+  if (/^\+\+\+[ \t]*$/.test(first)) return closed(doc, /^\+\+\+[ \t]*$/, "toml");
+  if (!/^---[ \t]*$/.test(first)) return null;
   if (doc.lines > 1 && !doc.line(2).text.trim()) return null;
+  return closed(doc, /^(---|\.\.\.)[ \t]*$/, "yaml");
+}
+
+/** Frontmatter through the first line after the first that `fence` matches, if one does. */
+function closed(doc: Text, fence: RegExp, format: Frontmatter["format"]): Frontmatter | null {
   for (let n = 2; n <= Math.min(doc.lines, FRONTMATTER_LINES); n += 1) {
     const line = doc.line(n);
-    if (/^(---|\.\.\.)[ \t]*$/.test(line.text)) return { from: 0, to: line.to };
+    if (fence.test(line.text)) return { from: 0, to: line.to, format };
   }
   return null;
 }

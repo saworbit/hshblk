@@ -1,5 +1,6 @@
 import { EditorView } from "@codemirror/view";
 import { HANG_LIMIT, QUOTE_LIMIT } from "./page.ts";
+import { ALERTS } from "./widgets.ts";
 
 /**
  * A list item's lines hang under its text. The page names a width in columns, so a class a
@@ -14,6 +15,11 @@ const hangs = Object.fromEntries(
     // A code block's or a quote's line in an item, by the page's columns, not its own face's.
     [`.pg-in-${n}`, { marginInlineStart: `calc(${n} * var(--pg-ch))` }],
   ]),
+);
+
+/** Each alert's colour, a variable styles.css sets by day and by night (#219). */
+const alerts = Object.fromEntries(
+  ALERTS.map((kind) => [`.pg-alert-${kind}`, { "--alert": `var(--${kind})` }]),
 );
 
 /** The reader's text size, a share of the page's own, which setTextSize sets (#164). */
@@ -112,6 +118,29 @@ export const pageTheme = EditorView.theme({
     borderInlineStart: "2px solid var(--rule)",
     paddingInlineStart: "1em",
   },
+  // #219: GitHub's alerts. The quote's rule and its label take the alert's colour, on a tint.
+  ...alerts,
+  ".pg-alert": {
+    color: "var(--ink)",
+    borderInlineStartColor: "var(--alert)",
+    backgroundColor: "color-mix(in oklab, var(--alert) 7%, transparent)",
+  },
+  ".pg-alert-label": {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.4em",
+    color: "var(--alert)",
+    fontWeight: "600",
+  },
+  ".pg-alert-label svg": {
+    width: "1em",
+    height: "1em",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.5",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  },
   ".pg-code-block, .pg-source-block": {
     fontFamily: "var(--mono)",
     fontSize: "0.85em",
@@ -122,7 +151,7 @@ export const pageTheme = EditorView.theme({
   // After the code block's padding, so code in a nested quote clears its rules.
   ...quotes,
   ".pg-fence": { color: "var(--muted)" },
-  // YAML frontmatter is data about the file, so it shows as written, and stays quiet.
+  // Frontmatter, YAML or TOML, is data about the file, so it shows as written, and stays quiet.
   ".pg-frontmatter": { color: "var(--muted)" },
   ".pg-source-block": { boxShadow: "inset 2px 0 0 var(--rule)" },
   ".pg-rule": {
@@ -178,6 +207,9 @@ export const pageTheme = EditorView.theme({
     cursor: "pointer",
   },
   ".pg-task-ticked": { borderColor: "var(--accent)", backgroundColor: "var(--accent)" },
+  // In a bullet's place, it hangs a little into the margin, as GitHub's does, to leave a gap
+  // before the text, which starts where a plain item's does (#212).
+  ".pg-task-place .pg-task": { marginInlineStart: "-0.2em" },
   ".pg-task-ticked::after": {
     content: '"✓"',
     position: "absolute",
