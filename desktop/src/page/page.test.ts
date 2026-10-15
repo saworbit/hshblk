@@ -5,7 +5,16 @@ import { EditorState, RangeSet, type StateCommand } from "@codemirror/state";
 import { showTooltip, type DecorationSet } from "@codemirror/view";
 import { assetUrl, filePath, imageUrl, isLocal } from "./assets.ts";
 import { markdown } from "./dialect.ts";
-import { around, modClickOpens, showFrameLink } from "./links.ts";
+import {
+  around,
+  destinationOf,
+  jumpBack,
+  jumpForward,
+  jumpTo,
+  modClickOpens,
+  printedAddress,
+  showFrameLink,
+} from "./links.ts";
 import { scan, scanNow } from "./blocks.ts";
 import {
   foldAll,
@@ -714,6 +723,75 @@ describe("unfolding", () => {
     const folded = inBold.update({ effects: foldAll.of(null) }).state;
     assert.equal(visible(folded), "Title\n\nSome bold words.");
     assert.equal(visible(select(folded, doc.indexOf("bold"))), "Title\n\nSome **bold** words.");
+  });
+});
+
+describe("following a link", () => {
+  const refused = "Only web and mail links open, and links to files in the repository.";
+
+  it("goes to a heading, the browser, or a file in the repository, or says why it goes nowhere", () => {
+    const state = open("# Install\n\nText.");
+    assert.deepEqual(destinationOf(state, "#install"), { heading: 0 });
+    assert.deepEqual(destinationOf(state, "https://x.y/a"), { url: "https://x.y/a" });
+    assert.deepEqual(destinationOf(state, "MAILTO:me@x.y"), { url: "MAILTO:me@x.y" });
+    // #156: a file is named as the link names it, decoded, less its query and fragment.
+    assert.deepEqual(destinationOf(state, "docs/desktop.md"), { file: "docs/desktop.md" });
+    assert.deepEqual(destinationOf(state, "the%20guide.md#install"), { file: "the guide.md" });
+    assert.deepEqual(destinationOf(state, "/README.md?plain=1"), { file: "/README.md" });
+    assert.deepEqual(destinationOf(state, "#no-such-heading"), {
+      refused: "Nothing in this file is named #no-such-heading.",
+    });
+    for (const href of ["ftp://x.y/f", "tel:123", "file:///etc/hostname", "//x.y/a", "?q=1"]) {
+      assert.deepEqual(destinationOf(state, href), { refused }, href);
+    }
+    // Decoded, it has a scheme, so it is no file.
+    assert.deepEqual(destinationOf(state, "javascript%3Aalert(1)"), { refused });
+    for (const href of ["", "#"]) {
+      assert.deepEqual(destinationOf(state, href), { refused: "This link has no address." });
+    }
+  });
+
+  it("goes back from a link to a heading, and forward again, as a browser does", () => {
+    const doc = "# Install\n\nRun it.\n\n[Install](#install) and [Use](#use).\n\n# Use";
+    let state = EditorState.create({ doc, extensions: [markdown, page, modClickOpens] });
+    ensureSyntaxTree(state, doc.length, 5000);
+    state = state.update({}).state;
+    const at = (place: { caret: number }) => state.selection.main.head === place.caret;
+    const here = { caret: doc.indexOf("and"), top: doc.indexOf("Run") };
+    const install = { caret: headingAt(state, "#install")!, top: 0 };
+    assert.equal(jumpBack(state, here), null);
+    state = state.update(jumpTo(state, here, install.caret)).state;
+    assert.ok(at(install));
+    assert.equal(jumpForward(state, install), null);
+    state = state.update(jumpBack(state, install)!).state;
+    assert.ok(at(here));
+    assert.equal(jumpBack(state, here), null);
+    state = state.update(jumpForward(state, here)!).state;
+    assert.ok(at(install));
+    // Back again, then a new jump: the way forward is gone, and the way back holds both.
+    state = state.update(jumpBack(state, install)!).state;
+    const use = headingAt(state, "#use")!;
+    state = state.update(jumpTo(state, here, use)).state;
+    assert.equal(jumpForward(state, { caret: use, top: use }), null);
+    state = state.update(jumpBack(state, { caret: use, top: use })!).state;
+    assert.ok(at(here));
+  });
+
+  it("prints the address a link leaves for after its words, unless the words are the address", () => {
+    assert.equal(printedAddress("https://x.y/a", "the ridge"), "https://x.y/a");
+    assert.equal(printedAddress("mailto:me@x.y", "write to me"), "me@x.y");
+    assert.equal(printedAddress("https://x.y/a", "https://x.y/a"), null);
+    assert.equal(printedAddress("mailto:me@x.y", "me@x.y"), null);
+    assert.equal(printedAddress("#install", "Install"), null);
+    assert.equal(printedAddress("docs/a.md", "the docs"), null);
+    // #237: on the page, a link's words carry what print shows after them, an autolink's none.
+    const doc = "[the ridge](https://x.y/r) <https://x.y/a> <me@x.y> [up](#top)";
+    const printed: (string | null)[] = [];
+    styles(open(doc)).between(0, doc.length, (_from, _to, decoration) => {
+      if (decoration.spec.class === "pg-link")
+        printed.push(decoration.spec.attributes["data-print"] ?? null);
+    });
+    assert.deepEqual(printed, ["https://x.y/r", null, null, null]);
   });
 });
 

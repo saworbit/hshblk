@@ -2,7 +2,8 @@ import { type Extension, StateEffect, StateField } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { imageUrl } from "./assets.ts";
 import { element } from "./dom.ts";
-import type { Inline } from "./inlines.ts";
+import { type Inline, plainText } from "./inlines.ts";
+import { printedAddress } from "./links.ts";
 
 export type Align = "left" | "center" | "right" | null;
 
@@ -637,6 +638,8 @@ function paint(view: EditorView, inline: Inline): Node {
       const link = element("span", "pg-link", all(inline.children));
       link.title = inline.title ?? inline.href;
       link.dataset.href = inline.href;
+      const printed = printedAddress(inline.href, plainText(inline.children));
+      if (printed) link.dataset.print = printed;
       return link;
     }
   }

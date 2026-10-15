@@ -52,12 +52,13 @@ Each file opens in a window of its own. A second file opens a second window in t
 | `Ctrl+W` (`⌘W`) | Close the window. On macOS, so does File > Close Window |
 | `Ctrl+A`, `Ctrl+C` | Select and copy, as source |
 | `PageDown`, `Space` | Down a page, by the window less a line. `PageUp` and `Shift+Space` go back up |
-| `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading or HTML anchor it names |
+| `Ctrl` or `⌘` and click | Open a link in the browser, or a file in the repository in a window of its own, or go to the heading or HTML anchor it names |
+| `Alt+Left`, `Alt+Right` (`⌘[`, `⌘]`) | Back to where a link to a heading was followed from, and forward again |
 | `Enter` | Open or close a `<details>`, with the caret on its tags. Tick or untick a task box, with the caret in its text |
 
 - Dropping a file on a window opens it in a new window. A file that is already open brings its window to the front instead. `Ctrl+O` starts in the folder of the window's document, offers every file after the markdown ones on Linux and Windows, and takes several at once. Two windows of files with the same name add the folder to their titles. A file that is not text, such as an image, does not open, and the message names it.
 - On macOS, the menu bar's File menu has Open, with ⌘O, above Tauri's own items, and Print, with ⌘P, below them. Edit keeps Tauri's Copy and Select All, and ends with Find, with ⌘F. Each new window opens a step down and right of the one before. Linux and Windows have no menu bar, which would sit above the page in every window.
-- Move the caret into a construct with the keys, or find in it, and its syntax shows, so `**bold**` reads as written. A click places the caret and opens nothing, so the text holds still under the pointer. A link never unfolds: its address shows in a popover under it, with **Open** for web and mail addresses. A find match in the address shows there, marked.
+- Move the caret into a construct with the keys, or find in it, and its syntax shows, so `**bold**` reads as written. A click places the caret and opens nothing, so the text holds still under the pointer. A link never unfolds: its address shows in a popover under it, with **Open** for web and mail addresses and for files in the repository, which open in a window of their own. A link that cannot open says why in its popover, and in the status line after `Ctrl` or `⌘` and a click. After following a link to a heading, `Alt+Left` (`⌘[`) goes back to where it was followed from. Print shows a web or mail link's address after its words. A find match in the address shows there, marked.
 - Copy and find work on the source, hidden syntax included. The status line says so, after the file's name and when it was last modified. The find box says how many matches there are and which one is current, and marks that one apart from the rest.
 - Keyboard focus on the app's own buttons and fields shows as a ring in the accent colour.
 - The page has no right-click menu, and `F5` and `Ctrl+R` do nothing. A window shows the file as it was read, so a reload would bring back the same text and lose the reader's place. The find box's fields keep their menu, for paste.
@@ -118,7 +119,7 @@ The app has no updater, by choice ([hld.md](hld.md) §12, question 1). It makes 
 2. The page asks `open_document` for the file's name and when it was last modified, and `document_text` for its text, as UTF-8 bytes. Never a path ([hld.md](hld.md) §6).
 3. CodeMirror holds the text, read-only. [`src/page/`](../desktop/src/page) draws section 7's dialect as decorations over the source, inline syntax only near the viewport. The rest of the document is parsed in the background after the first paint, so a definition at the end can name a link at the top.
 4. An image asks the `doc-asset` scheme for the handle and the file its destination names, so `screen%20shot.png` asks for `screen shot.png`. Rust checks that the handle is the window's own, resolves the file inside the scope, symlinks first, and serves it only if its bytes are an image ([`assets.rs`](../desktop/src-tauri/src/assets.rs)).
-5. A link leaves through `open_url`, which takes `http`, `https`, and `mailto` and nothing else.
+5. A link leaves through `open_url`, which takes `http`, `https`, and `mailto` and nothing else. A link to a file asks `open_link` for the file its destination names, decoded as an image's is. Rust finds it from the window's own document, inside the scope, and opens it in a window of its own.
 
 ## File layout
 
@@ -127,7 +128,7 @@ The app has no updater, by choice ([hld.md](hld.md) §12, question 1). It makes 
 | `desktop/src-tauri/src/documents.rs` | Opening a file: its facts, its scope, its handle. |
 | `desktop/src-tauri/src/assets.rs` | The resource channel for images. |
 | `desktop/src-tauri/src/windows.rs` | Where files come from (the command line, a double-click, the dialog, a drop) and the window each gets, and where it opens on macOS. |
-| `desktop/src-tauri/src/lib.rs` | The seven commands the page may call, and the app, with its menu bar on macOS. |
+| `desktop/src-tauri/src/lib.rs` | The eight commands the page may call, and the app, with its menu bar on macOS. |
 | `desktop/src-tauri/linux/hshblk.desktop` | The Linux desktop entry, which passes the double-clicked file. |
 | `desktop/src-tauri/icons/` | The app icon: [`brand/app-icon/`](../brand/app-icon/), file for file. 16 and 32 px are a drawing of their own, so it is copied, never regenerated with `tauri icon`. |
 | `desktop/src/main.ts` | The window: open, print, the status line, and the welcome, which names the version. |

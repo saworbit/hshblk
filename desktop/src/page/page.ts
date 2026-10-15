@@ -23,7 +23,7 @@ import { decodeHTML } from "entities";
 import { type Blocks, scanNow } from "./blocks.ts";
 import { pageTree, wholeBlocks } from "./complete.ts";
 import { inlinesOf, plainText } from "./inlines.ts";
-import { addressTooltip, linkAt, linkSpan } from "./links.ts";
+import { addressTooltip, linkAt, linkSpan, printedAddress } from "./links.ts";
 import { destination, headings, titleOf, type Definitions } from "./references.ts";
 import {
   ImageWidget,
@@ -585,11 +585,11 @@ class Painter {
     // A hover shows the link's title, as on GitHub, or its address when it has none (#229).
     const title = (node.name === "Link" && titleOf(this.doc, node, this.definitions)) || href;
     if (link.from < link.to) {
-      this.#style(
-        Decoration.mark({ class: "pg-link", attributes: { title, "data-href": href } }),
-        link.from,
-        link.to,
-      );
+      // Print shows the address after the words, since paper has no popover (#237).
+      const printed = printedAddress(href, this.doc.sliceString(link.from, link.to));
+      const attributes: Record<string, string> = { title, "data-href": href };
+      if (printed) attributes["data-print"] = printed;
+      this.#style(Decoration.mark({ class: "pg-link", attributes }), link.from, link.to);
     }
     this.#conceal(node.from, link.from);
     this.#conceal(link.to, node.to);

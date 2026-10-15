@@ -5,6 +5,7 @@ fn main() {
         "document_text",
         "pick_document",
         "open_url",
+        "open_link",
         "print_page",
         "watch_menu",
         "close_window",

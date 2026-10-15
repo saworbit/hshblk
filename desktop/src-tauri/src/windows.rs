@@ -95,7 +95,7 @@ fn files_in(argv: &[String], cwd: &Path) -> Vec<PathBuf> {
 
 /// Shows a file: in the window it has, if it is open, or else in a new one. An empty window, if
 /// there is one, gives way to it.
-fn show(app: &AppHandle, path: &Path) -> Result<(), String> {
+pub fn show(app: &AppHandle, path: &Path) -> Result<(), String> {
     let documents = app.state::<Documents>();
     // #174: a second window on one file is two copies of the page, easy to mix up.
     let open = documents

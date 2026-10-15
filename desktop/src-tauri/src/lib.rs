@@ -192,6 +192,31 @@ fn open_url(url: String) -> Result<(), String> {
     open::that_detached(&url).map_err(|error| format!("The link could not open: {error}."))
 }
 
+/// A link to a file in the repository opens it in a window of its own, or brings the window it
+/// has to the front (#156). The reference is the link's, decoded, and is found from this window's
+/// document under the scope an image has, so the page names no path. Async, since a window made
+/// from a synchronous command deadlocks on Windows.
+#[tauri::command]
+async fn open_link(
+    window: WebviewWindow,
+    documents: State<'_, Documents>,
+    reference: String,
+) -> Result<(), String> {
+    let document = own_document(&window, &documents)?;
+    let file = assets::locate(&document, &reference)
+        .map_err(|refusal| link_refusal(&refusal, &reference))?;
+    windows::show(window.app_handle(), &file)
+}
+
+/// Why a link to a file does not open, naming it as the link does.
+fn link_refusal(refusal: &assets::Refusal, reference: &str) -> String {
+    match refusal {
+        assets::Refusal::OutsideScope => format!("{reference} is outside the repository."),
+        assets::Refusal::Missing => format!("{reference} was not found."),
+        _ => "Only web and mail links open, and links to files in the repository.".into(),
+    }
+}
+
 /// Prints the window as the page has laid it out for print. On macOS WKWebView ignores
 /// `window.print()` (#191), so the page asks for this there, and WebKit's own print panel opens as
 /// a sheet. The page puts itself back on `afterprint`, when the panel closes.
@@ -255,6 +280,7 @@ pub fn run() {
             document_text,
             pick_document,
             open_url,
+            open_link,
             print_page,
             watch_menu,
             close_window
@@ -319,6 +345,23 @@ mod tests {
         // Set either way, the user's word stands: `0` keeps the renderer on.
         assert!(!dmabuf_off(Some("0".into())));
         assert!(!dmabuf_off(Some("1".into())));
+    }
+
+    #[test]
+    fn says_why_a_link_to_a_file_does_not_open_naming_it_as_the_link_does() {
+        use assets::Refusal;
+        assert_eq!(
+            link_refusal(&Refusal::OutsideScope, "../../secret.md"),
+            "../../secret.md is outside the repository."
+        );
+        assert_eq!(
+            link_refusal(&Refusal::Missing, "docs/gone.md"),
+            "docs/gone.md was not found."
+        );
+        assert_eq!(
+            link_refusal(&Refusal::NotRelative, "C:/x.md"),
+            "Only web and mail links open, and links to files in the repository."
+        );
     }
 
     #[test]

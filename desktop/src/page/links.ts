@@ -1,6 +1,15 @@
-import { type Extension, Facet, StateEffect, StateField, type Text } from "@codemirror/state";
-import { EditorView, type Rect, showTooltip, type Tooltip } from "@codemirror/view";
+import {
+  type EditorState,
+  type Extension,
+  Facet,
+  StateEffect,
+  StateField,
+  type Text,
+  type TransactionSpec,
+} from "@codemirror/state";
+import { type Command, EditorView, type Rect, showTooltip, type Tooltip } from "@codemirror/view";
 import type { SyntaxNode, Tree } from "@lezer/common";
+import { filePath, isLocal } from "./assets.ts";
 import { autolinkHref, destination, headingAt, type Definitions } from "./references.ts";
 import { htmlAt } from "./widgets.ts";
 
@@ -58,9 +67,56 @@ export const linkOpener = Facet.define<(href: string) => void, ((href: string) =
   combine: (values) => values[0] ?? null,
 });
 
+/**
+ * What the shell does with a link to a file in the repository: opens it in a window of its own
+ * (#156). It is handed the file as the link names it, decoded, never a path.
+ */
+export const fileOpener = Facet.define<(file: string) => void, ((file: string) => void) | null>({
+  combine: (values) => values[0] ?? null,
+});
+
+/** Where the shell says why a link the reader followed does not open. */
+export const linkRefused = Facet.define<
+  (reason: string) => void,
+  ((reason: string) => void) | null
+>({ combine: (values) => values[0] ?? null });
+
 /** Addresses that leave for the system browser. Anything else is only shown. */
 export function opens(href: string): boolean {
   return /^(https?:\/\/|mailto:)/i.test(href);
+}
+
+/**
+ * Where a link goes: to a heading or an anchor in this document, to the browser, to a file in the
+ * repository, or nowhere, with the reason why.
+ */
+export type Destination =
+  | { heading: number }
+  | { url: string }
+  | { file: string }
+  | { refused: string };
+
+export function destinationOf(state: EditorState, href: string): Destination {
+  const heading = headingAt(state, href);
+  if (heading !== undefined) return { heading };
+  if (opens(href)) return { url: href };
+  if (href === "" || href === "#") return { refused: "This link has no address." };
+  if (href.startsWith("#")) return { refused: `Nothing in this file is named ${href}.` };
+  // Whether the file is in the repository, and opens, is the shell's to say.
+  const file = filePath(href);
+  if (isLocal(file)) return { file };
+  return { refused: "Only web and mail links open, and links to files in the repository." };
+}
+
+/**
+ * #237: what print shows after a link's words, the address it leaves for, or null. A link to a
+ * heading prints as its words, and so does one whose words already are its address, as an
+ * autolink's are.
+ */
+export function printedAddress(href: string, words: string): string | null {
+  if (!opens(href)) return null;
+  const address = href.replace(/^mailto:/i, "");
+  return words.trim() === address || words.trim() === href ? null : address;
 }
 
 /** A find match: its text, and where it starts in the document. */
@@ -114,12 +170,17 @@ function address(view: EditorView, link: LinkSpan, found?: Found): HTMLElement {
     line.append(source.slice(0, at), marked(found.text), source.slice(at + found.text.length));
   }
   const go = follow(view, href);
-  if (go) {
+  if (typeof go === "function") {
     const button = box.appendChild(document.createElement("button"));
     button.type = "button";
     button.textContent = headingAt(view.state, href) === undefined ? "Open" : "Go to";
     button.addEventListener("mousedown", (event) => event.preventDefault());
     button.addEventListener("click", go);
+  } else if (go) {
+    // A link that cannot open says why where its button would be (#156).
+    const why = lines.appendChild(document.createElement("span"));
+    why.className = "pg-address-why";
+    why.textContent = go;
   }
   return box;
 }
@@ -128,22 +189,92 @@ function marked(text: string): HTMLElement {
   return Object.assign(document.createElement("mark"), { textContent: text });
 }
 
-/** Where a link goes: to a heading in this document, to the browser, or nowhere. */
-function follow(view: EditorView, href: string): (() => void) | null {
-  const heading = headingAt(view.state, href);
-  if (heading !== undefined) {
+/**
+ * What following a link does: go to a heading in this document, hand the address or the file to
+ * the shell, or, as a string, why it does not open. Null when the shell opens nothing at all.
+ */
+function follow(view: EditorView, href: string): (() => void) | string | null {
+  const to = destinationOf(view.state, href);
+  if ("heading" in to) {
     return () => {
-      view.dispatch({
-        selection: { anchor: heading },
-        effects: EditorView.scrollIntoView(heading, { y: "start" }),
-        userEvent: "select",
-      });
+      view.dispatch(jumpTo(view.state, placeOf(view), to.heading));
       view.focus();
     };
   }
-  const open = view.state.facet(linkOpener);
-  return open && opens(href) ? () => open(href) : null;
+  if ("refused" in to) return to.refused;
+  const open = "url" in to ? view.state.facet(linkOpener) : view.state.facet(fileOpener);
+  const target = "url" in to ? to.url : to.file;
+  return open ? () => open(target) : null;
 }
+
+/** A place on the page: where the caret is, and where the line at the top of the window starts. */
+export type Place = { caret: number; top: number };
+
+/** The places the reader left by a link to a heading, to go back to, and forward again (#235). */
+type Jumps = { back: readonly Place[]; forward: readonly Place[] };
+
+const NO_JUMPS: Jumps = { back: [], forward: [] };
+
+/** How many places back the page keeps. */
+const MAX_JUMPS = 100;
+
+const jumped = StateEffect.define<Jumps>();
+
+const jumps = StateField.define<Jumps>({
+  create: () => NO_JUMPS,
+  update: (value, tr) => tr.effects.reduce((v, e) => (e.is(jumped) ? e.value : v), value),
+});
+
+/** Goes to a place, with the jumps as they stand after it. */
+function goTo(place: Place, after: Jumps): TransactionSpec {
+  return {
+    selection: { anchor: place.caret },
+    effects: [EditorView.scrollIntoView(place.top, { y: "start" }), jumped.of(after)],
+    userEvent: "select",
+  };
+}
+
+/** Follows a link from `here` to the heading at `heading`, which `here` can come back to. */
+export function jumpTo(state: EditorState, here: Place, heading: number): TransactionSpec {
+  const { back } = state.field(jumps, false) ?? NO_JUMPS;
+  const place = { caret: heading, top: heading };
+  return goTo(place, { back: [...back, here].slice(-MAX_JUMPS), forward: [] });
+}
+
+/** Back to where the last jump left from, or null when there is none to go back to. */
+export function jumpBack(state: EditorState, here: Place): TransactionSpec | null {
+  const { back, forward } = state.field(jumps, false) ?? NO_JUMPS;
+  const to = back.at(-1);
+  return to ? goTo(to, { back: back.slice(0, -1), forward: [...forward, here] }) : null;
+}
+
+/** Forward again to where going back left from, or null when there is none. */
+export function jumpForward(state: EditorState, here: Place): TransactionSpec | null {
+  const { back, forward } = state.field(jumps, false) ?? NO_JUMPS;
+  const to = forward.at(-1);
+  return to ? goTo(to, { back: [...back, here], forward: forward.slice(0, -1) }) : null;
+}
+
+/** Where the reader is now: the caret, and the line at the top of the window. */
+function placeOf(view: EditorView): Place {
+  const top = view.scrollDOM.getBoundingClientRect().top - view.documentTop;
+  const line = view.lineBlockAtHeight(Math.max(top, 0));
+  return { caret: view.state.selection.main.head, top: line.from };
+}
+
+function jumping(move: typeof jumpBack): Command {
+  return (view) => {
+    const spec = move(view.state, placeOf(view));
+    if (spec) view.dispatch(spec);
+    return spec !== null;
+  };
+}
+
+/** Alt+Left, or ⌘[ on macOS: back to where the last link to a heading was followed from. */
+export const goBack = jumping(jumpBack);
+
+/** Alt+Right, or ⌘] on macOS: forward again. */
+export const goForward = jumping(jumpForward);
 
 /** A link in an HTML block: where the block starts, which of its links it is, and its address. */
 export type FrameLink = { pos: number; index: number; href: string };
@@ -203,9 +334,11 @@ function frameLinkBox(view: EditorView, { pos, index }: FrameLink): Rect {
 /**
  * A Ctrl or Cmd click on a link follows it. A plain click places the caret in its words, or on a
  * link in an HTML block, which has no words in the source to place it in, shows its address.
+ * The places a link to a heading leaves are kept, for `goBack` and `goForward`.
  */
 export const modClickOpens: Extension = [
   frameLink,
+  jumps,
   EditorView.domEventHandlers({
     // The press would move the caret first. Following a link leaves it where it was.
     mousedown: (event, view) => following(event, view) !== null,
@@ -231,13 +364,17 @@ function showsFrameLink(event: MouseEvent, view: EditorView): boolean {
 }
 
 /**
- * What a Ctrl or Cmd click on a link does, or null when the click follows nothing. A link in an
- * HTML block's frame follows the same way as one on the page.
+ * What a Ctrl or Cmd click on a link does, or null when the click lands on no link. A link in an
+ * HTML block's frame follows the same way as one on the page. One that does not open says why.
  */
 function following(event: MouseEvent, view: EditorView): (() => void) | null {
   if (!(event.metaKey || event.ctrlKey)) return null;
   const href =
     (event.target as Element).closest<HTMLElement>("[data-href]")?.dataset.href ??
     htmlAt(view, event.clientX, event.clientY)?.closest("a[href]")?.getAttribute("href")?.trim();
-  return href ? follow(view, href) : null;
+  if (href === undefined) return null;
+  const go = follow(view, href);
+  if (typeof go !== "string") return go;
+  const say = view.state.facet(linkRefused);
+  return say ? () => say(go) : null;
 }

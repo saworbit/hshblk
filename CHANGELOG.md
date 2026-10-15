@@ -152,3 +152,6 @@
 - Desktop: the shell, the frontmatter panel, and the widgets build their elements with one helper. (#258)
 - CI: the corpus gate tells a local image from a remote one with the app's own check, so the two agree on a reference that starts with a backslash. (#259)
 - Docs: hld.md §7 puts Ctrl+N and Ctrl+P back beside Up and Down, which the notes on paging, text direction, and contrast themes had split. desktop.md's page row names each line's direction, and the page's keymap says what it does with PageDown, Space, and find's keys.
+- Desktop: a link to another file in the repository, such as `[docs](docs/desktop.md)`, opens it in a window of its own, from **Open** in its popover or Ctrl or ⌘ and a click, through a new `open_link` command. Rust finds the file from the window's document under the scope an image has. A link that cannot open says why, in its popover and in the status line: a heading that is not there, an address that is not web or mail, or a file outside the repository or not found. (#156)
+- Desktop: Alt+Left and Alt+Right, ⌘[ and ⌘] on macOS, go back to where a link to a heading was followed from, and forward again. (#235)
+- Desktop: print shows a web or mail link's address after its words, small and muted, unless the words are the address, as an autolink's are. A link to a heading prints as its words. (#237)

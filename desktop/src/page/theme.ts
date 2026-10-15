@@ -228,6 +228,8 @@ export const pageTheme = EditorView.theme({
     color: "inherit",
     backgroundColor: "color-mix(in oklab, var(--accent) 30%, transparent)",
   },
+  // Why a link does not open, where its button would be (#156).
+  ".pg-address-why": { fontFamily: "var(--serif)", fontStyle: "italic" },
   ".pg-address button": {
     font: "inherit",
     color: "var(--paper)",
@@ -301,9 +303,19 @@ export const pageTheme = EditorView.theme({
   // Print is the whole page, not a window's worth of it: no scroller, and no height to fill.
   // The find box and the frontmatter panel are for the screen, as the status line is.
   // Print is at the page's own size, whatever the reader set for the screen.
+  // A link to the web or mail prints its address after its words, as paper has no popover (#237).
+  // An inline block takes no underline from the link.
   "@media print": {
     "&": { display: "block", "--pg-size": "1 !important" },
     ".cm-scroller": { overflow: "visible" },
     ".cm-panels": { display: "none" },
+    ".pg-link[data-print]::after": {
+      content: '" (" attr(data-print) ")"',
+      display: "inline-block",
+      fontFamily: "var(--mono)",
+      fontSize: "0.75em",
+      color: "var(--muted)",
+      overflowWrap: "anywhere",
+    },
   },
 });
