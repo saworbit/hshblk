@@ -29,6 +29,7 @@ import {
 } from "./page.ts";
 import { headingAt, headings } from "./references.ts";
 import {
+  AlertWidget,
   HtmlWidget,
   ImageWidget,
   SummaryWidget,
@@ -87,12 +88,17 @@ function visible(state: EditorState): string {
 
 function named(widget: unknown): string {
   if (widget instanceof TextWidget) return widget.text;
+  if (widget instanceof AlertWidget) return `[${widget.kind}]`;
   if (widget instanceof ImageWidget) return `[image ${widget.reference} · ${widget.alt}]`;
   if (widget instanceof TableWidget) return `[table ${widget.table.rows.length} rows]`;
   if (widget instanceof HtmlWidget) return `[html ${widget.html}]`;
   if (widget instanceof SummaryWidget)
     return `[summary ${widget.summary}${widget.open ? " open" : ""}]`;
-  if (widget instanceof TaskWidget) return widget.checked ? "[ticked]" : "[box]";
+  if (widget instanceof TaskWidget) {
+    // In a bullet's place it is as wide as the bullet and its spaces (#212).
+    const pad = " ".repeat(Math.max((widget.columns ?? 1) - 1, 0));
+    return (widget.checked ? "[ticked]" : "[box]") + pad;
+  }
   return "";
 }
 
@@ -131,7 +137,20 @@ describe("the page", () => {
   });
 
   it("hides emphasis, strong, strikethrough, and code marks", () => {
-    assert.equal(visible(open("*a* **b** ~~c~~ `d` ~e~")), "a b c d ~e~");
+    assert.equal(visible(open("*a* **b** ~~c~~ `d` ~e~")), "a b c d e");
+  });
+
+  it("strikes text through between single tildes, as GitHub does, one only with one", () => {
+    // #223: a file written for GitHub read with stray tildes.
+    const doc = "~struck~ and ~~two~~, not ~one~~ or ~/a to ~/b";
+    const state = open(doc);
+    assert.equal(visible(state), "struck and two, not ~one~~ or ~/a to ~/b");
+    const struck: string[] = [];
+    styles(state).between(0, doc.length, (from, to, decoration) => {
+      if (decoration.spec.class === "pg-strike") struck.push(doc.slice(from, to));
+    });
+    assert.deepEqual(struck, ["~struck~", "~~two~~"]);
+    assert.equal(visible(select(state, 3)), doc.replace("~~two~~", "two"));
   });
 
   it("hides the space at each end of a code span that CommonMark strips, with its marks", () => {
@@ -156,7 +175,7 @@ describe("the page", () => {
   it("draws the page around a link with no words, which shows nothing, as GitHub's does", () => {
     // #151: an empty mark threw, and CodeMirror dropped the plugin that draws the page.
     const state = open("# Title\n\n[](https://x.y) after.\n\n> - [ ] [](https://x.y) *quoted*");
-    assert.equal(visible(state), "Title\n\n after.\n\n- [box]  quoted");
+    assert.equal(visible(state), "Title\n\n after.\n\n[box]  quoted");
   });
 
   it("shows a link's or an image's title on hover, its own or its definition's", () => {
@@ -371,6 +390,55 @@ describe("the page", () => {
       rows: [[[{ kind: "code", text: "c | d" }]]],
     });
     assert.equal(visible(state), "[table 1 rows]\n\na \\| b");
+  });
+
+  it("draws GitHub's five alerts, the marker as its name, and leaves anything else a quote", () => {
+    // #219: a warning read as any other quote, its marker as text.
+    const doc = [
+      "> [!WARNING]",
+      "> Critical content.",
+      "",
+      "> [!tip]  ",
+      "> Lower case.",
+      "",
+      "> [!NOTE] with words",
+      "",
+      "> [!SOON]",
+      "> Not one.",
+      "",
+      "> > [!NOTE]",
+      "> > Nested.",
+    ].join("\n");
+    const state = open(doc);
+    assert.equal(
+      visible(state),
+      [
+        "[warning]",
+        "Critical content.",
+        "",
+        "[tip]  ",
+        "Lower case.",
+        "",
+        "[!NOTE] with words",
+        "",
+        "[!SOON]",
+        "Not one.",
+        "",
+        "[!NOTE]",
+        "Nested.",
+      ].join("\n"),
+    );
+    const classes = lineClasses(state, styles);
+    assert.deepEqual(classes.slice(0, 5), [
+      "pg-quote pg-alert pg-alert-warning",
+      "pg-quote pg-alert pg-alert-warning",
+      "",
+      "pg-quote pg-alert pg-alert-tip",
+      "pg-quote pg-alert pg-alert-tip",
+    ]);
+    assert.deepEqual(classes.slice(6, 10), ["pg-quote", "", "pg-quote", "pg-quote"]);
+    // The keys show the marker as written.
+    assert.match(visible(select(state, 4)), /^> \[!WARNING\]\nCritical/);
   });
 
   it("hides quote marks and keeps list markers as written", () => {
@@ -797,10 +865,11 @@ describe("following a link", () => {
 
 describe("a task list", () => {
   it("draws each item's box, ticked as written, and leaves a box outside an item as source", () => {
-    const doc = "- [ ] open\n- [x] done\n1. [X] numbered\n- not a [ ] task\n\n> - [ ] quoted";
+    // #212: a bullet's box is drawn where the bullet was. A number stays.
+    const doc = "- [ ] open\n* [x] done\n1. [X] numbered\n- not a [ ] task\n\n> - [ ] quoted";
     assert.equal(
       visible(open(doc)),
-      "- [box] open\n- [ticked] done\n1. [ticked] numbered\n- not a [ ] task\n\n- [box] quoted",
+      "[box] open\n[ticked] done\n1. [ticked] numbered\n- not a [ ] task\n\n[box] quoted",
     );
   });
 
@@ -808,16 +877,21 @@ describe("a task list", () => {
     const doc = "- [ ] open\n- [x] done";
     let state = open(doc);
     state = state.update({ effects: [toggleTask.of(2), toggleTask.of(13)] }).state;
-    assert.equal(visible(state), "- [ticked] open\n- [box] done");
+    assert.equal(visible(state), "[ticked] open\n[box] done");
     state = state.update({ effects: toggleTask.of(2) }).state;
-    assert.equal(visible(state), "- [box] open\n- [box] done");
+    assert.equal(visible(state), "[box] open\n[box] done");
     assert.equal(state.doc.toString(), doc);
   });
 
   it("shows a box's source while the keys are in it, and hangs its item's lines", () => {
-    const state = open("- [ ] a task\n  that wraps\n- plain");
-    assert.equal(visible(select(state, 3)), "- [ ] a task\n  that wraps\n- plain");
-    assert.equal(visible(click(state, 3)), "- [box] a task\n  that wraps\n- plain");
+    const doc = "- [ ] a task\n  that wraps\n- plain";
+    const state = open(doc);
+    // The bullet and the box open together, and the text holds the caret with both folded.
+    assert.equal(visible(select(state, 3)), doc);
+    assert.equal(visible(select(state, 0)), doc);
+    const drawn = "[box] a task\n  that wraps\n- plain";
+    assert.equal(visible(select(state, doc.indexOf("a task"))), drawn);
+    assert.equal(visible(click(state, 3)), drawn);
     assert.deepEqual(lineClasses(state, styles), ["pg-hang-2", "pg-hang-2", "pg-hang-2"]);
   });
 
@@ -830,16 +904,16 @@ describe("a task list", () => {
   it("ticks or unticks from Enter with the caret in its text, and the file keeps what it says", () => {
     const doc = "- [ ] open\n  wraps\n- [x] done\n  - [ ] inner";
     const ticked = enter(select(open(doc), doc.indexOf("open")))!;
-    assert.equal(visible(ticked), "- [ticked] open\n  wraps\n- [ticked] done\n  - [box] inner");
+    assert.equal(visible(ticked), "[ticked] open\n  wraps\n[ticked] done\n  [box] inner");
     // Its wrapped lines are its text too, and the box stays drawn, so the change shows.
     assert.equal(visible(enter(select(ticked, doc.indexOf("wraps")))!), visible(open(doc)));
     assert.equal(
       visible(enter(select(open(doc), doc.indexOf("done")))!),
-      "- [box] open\n  wraps\n- [box] done\n  - [box] inner",
+      "[box] open\n  wraps\n[box] done\n  [box] inner",
     );
     assert.equal(
       visible(enter(click(open(doc), doc.indexOf("inner")))!),
-      "- [box] open\n  wraps\n- [ticked] done\n  - [ticked] inner",
+      "[box] open\n  wraps\n[ticked] done\n  [ticked] inner",
     );
     assert.equal(ticked.doc.toString(), doc);
   });
@@ -937,6 +1011,27 @@ describe("frontmatter", () => {
     assert.equal(visible(open("Text\n\n---\ntitle: x\n---")), "Text\n\n\ntitle: x\n");
     assert.equal(visible(open("---\ntitle: never closed")), "\ntitle: never closed");
     assert.equal(open("---\ntitle: never closed").field(page).blocks.frontmatter, null);
+  });
+
+  it("folds TOML between +++ lines away too, as Hugo and Zola write it, a blank line and all", () => {
+    // #209: it showed as paragraphs at the top of the page.
+    const toml = '+++\ntitle = "Hugo"\n\ndate = 2026-10-14\n+++';
+    const doc = `${toml}\n\n# Heading`;
+    const state = open(doc);
+    assert.deepEqual(state.field(page).blocks.frontmatter, {
+      from: 0,
+      to: toml.length,
+      format: "toml",
+    });
+    assert.equal(visible(state), "\n\nHeading");
+    assert.equal(visible(select(state, doc.indexOf("date"))), `${toml}\n\nHeading`);
+    const lines = [quiet, quiet, quiet, quiet, quiet, "", "pg-heading pg-h1"];
+    assert.deepEqual(lineClasses(state, styles), lines);
+    assert.equal(startOfPage(state), toml.length + 1);
+    // Only on the first line, and only closed by another +++.
+    assert.equal(open("Text\n\n+++\na = 1\n+++").field(page).blocks.frontmatter, null);
+    assert.equal(open("+++\na = 1\n---").field(page).blocks.frontmatter, null);
+    assert.equal(open(`${front}\n`).field(page).blocks.frontmatter?.format, "yaml");
   });
 
   it("is not a --- with a blank line after it, which is a rule, as Pandoc reads it", () => {

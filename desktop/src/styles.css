@@ -20,6 +20,12 @@
   --accent: #8f3d2b;
   --rule: #e4d9c8;
   --code: #ebe4d6;
+  /* GitHub's alerts (#219), each above 4.5:1 on the paper. */
+  --note: #2f5f8a;
+  --tip: #3a6b36;
+  --important: #6a4a92;
+  --warning: #835c00;
+  --caution: #a8322a;
   --serif: "Source Serif 4 Variable", "Iowan Old Style", Palatino, Georgia, serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
 }
@@ -33,6 +39,11 @@
     --accent: #e08c71;
     --rule: #3a332b;
     --code: #27231e;
+    --note: #86acd6;
+    --tip: #8fbf86;
+    --important: #b7a0dc;
+    --warning: #d4a84a;
+    --caution: #ef8a78;
   }
 }
 
@@ -165,6 +176,11 @@ input:focus-visible {
     --accent: LinkText;
     --rule: CanvasText;
     --code: Canvas;
+    --note: CanvasText;
+    --tip: CanvasText;
+    --important: CanvasText;
+    --warning: CanvasText;
+    --caution: CanvasText;
   }
 }
 

@@ -29,6 +29,50 @@ export class TextWidget extends WidgetType {
   }
 }
 
+/** The five alerts GitHub draws, by the word in their marker, `> [!NOTE]`. */
+export const ALERTS = ["note", "tip", "important", "warning", "caution"] as const;
+
+export type Alert = (typeof ALERTS)[number];
+
+/**
+ * Each alert's icon, drawn here in strokes of the label's colour: a circled i, a bulb, a speech
+ * bubble with a mark, a triangle with one, and an octagon with one.
+ */
+const ALERT_ICONS: Record<Alert, string[]> = {
+  note: ["M8 1.75a6.25 6.25 0 1 0 0 12.5a6.25 6.25 0 1 0 0-12.5z", "M8 7.25v4", "M8 4.75v.01"],
+  tip: ["M5.5 10.5a4.25 4.25 0 1 1 5 0V12h-5z", "M6.25 14.25h3.5"],
+  important: ["M2.25 2.75h11.5v8h-6.5l-3.5 2.75v-2.75h-1.5z", "M8 4.75v3", "M8 9.25v.01"],
+  warning: ["M8 1.75l6.5 12h-13z", "M8 6.25v3.5", "M8 11.75v.01"],
+  caution: ["M5.4 1.75h5.2l3.65 3.65v5.2l-3.65 3.65H5.4l-3.65-3.65V5.4z", "M8 4.75v4", "M8 11v.01"],
+};
+
+/** An alert's marker, `[!WARNING]`, drawn as its name and icon: "Warning". */
+export class AlertWidget extends WidgetType {
+  readonly kind: Alert;
+
+  constructor(kind: Alert) {
+    super();
+    this.kind = kind;
+  }
+
+  eq(other: AlertWidget): boolean {
+    return other.kind === this.kind;
+  }
+
+  toDOM(): HTMLElement {
+    const label = element("span", "pg-alert-label");
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    for (const d of ALERT_ICONS[this.kind]) {
+      const path = svg.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "path"));
+      path.setAttribute("d", d);
+    }
+    label.append(svg, this.kind[0].toUpperCase() + this.kind.slice(1));
+    return label;
+  }
+}
+
 /**
  * An image in the repository, or the words meant to stand in for one that may not load. An image
  * in a line of text stays in the line. One alone in its paragraph is a block.
@@ -219,15 +263,23 @@ export class TaskWidget extends WidgetType {
   /** Where the box's `[ ]` starts, which names it. */
   readonly from: number;
   readonly checked: boolean;
+  /**
+   * The columns of the bullet it is drawn in place of, so the text after it starts where a plain
+   * item's does (#212). Null where it takes the place of its `[ ]`.
+   */
+  readonly columns: number | null;
 
-  constructor(from: number, checked: boolean) {
+  constructor(from: number, checked: boolean, columns: number | null = null) {
     super();
     this.from = from;
     this.checked = checked;
+    this.columns = columns;
   }
 
   eq(other: TaskWidget): boolean {
-    return other.from === this.from && other.checked === this.checked;
+    return (
+      other.from === this.from && other.checked === this.checked && other.columns === this.columns
+    );
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -238,7 +290,8 @@ export class TaskWidget extends WidgetType {
     // The press would move the caret first. Ticking the box leaves it where it was.
     box.addEventListener("mousedown", (event) => event.preventDefault());
     box.addEventListener("click", () => view.dispatch({ effects: toggleTask.of(this.from) }));
-    return box;
+    if (this.columns === null) return box;
+    return element("span", `pg-task-place pg-box-${this.columns}`, [box]);
   }
 }
 

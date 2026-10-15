@@ -26,6 +26,8 @@ import { inlinesOf, plainText } from "./inlines.ts";
 import { addressTooltip, linkAt, linkSpan, printedAddress } from "./links.ts";
 import { destination, headings, titleOf, type Definitions } from "./references.ts";
 import {
+  type Alert,
+  AlertWidget,
   ImageWidget,
   SummaryWidget,
   TaskWidget,
@@ -354,6 +356,23 @@ function unfold(folds: DecorationSet, opening: EditorSelection | null): Decorati
   });
 }
 
+/** An alert's marker, alone on the first line of a quote. GitHub takes it in any case. */
+const ALERT_MARKER = /^\[!(note|tip|important|warning|caution)\][ \t]*$/i;
+
+/**
+ * #219: the alert a quote is, as GitHub draws `> [!NOTE]` and its four siblings, and where its
+ * marker is. A quote in a quote is not one, and neither is a marker with words after it.
+ */
+function alertOf(doc: Text, quote: SyntaxNode): (Fold & { kind: Alert }) | null {
+  const first = quote.getChild("Paragraph");
+  if (!first || quote.parent?.name !== "Document") return null;
+  const line = doc.lineAt(first.from);
+  const match = ALERT_MARKER.exec(doc.sliceString(first.from, line.to));
+  if (!match) return null;
+  const kind = match[1].toLowerCase() as Alert;
+  return { kind, from: first.from, to: first.from + match[0].trimEnd().length };
+}
+
 /**
  * Walks the tree between two points, writing a class for each construct and a fold for its
  * syntax. A construct that runs past them is drawn only as far as they go.
@@ -483,6 +502,12 @@ class Painter {
         // The outer quote marks every line. A quote inside it adds its level, which draws a rule.
         let depth = 1;
         for (let up = node.parent; up; up = up.parent) if (up.name === "Blockquote") depth++;
+        const alert = depth === 1 ? alertOf(this.doc, node) : null;
+        if (alert) {
+          this.#lines(node.from, node.to, `pg-quote pg-alert pg-alert-${alert.kind}`);
+          this.#hide(alert, alert.from, alert.to, new AlertWidget(alert.kind));
+          return;
+        }
         this.#lines(
           node.from,
           node.to,
@@ -500,7 +525,21 @@ class Painter {
         // `[x]` and `[X]` are ticked, as GFM reads them.
         const written = this.#slice(node) !== "[ ]";
         const box = new TaskWidget(node.from, written !== this.ticked.has(node.from));
-        this.#hide(fold, node.from, node.to, box);
+        // #212: a bullet's task shows its box where the bullet was, as GitHub draws it, as wide
+        // as the bullet and its spaces, and its `[ ]` folds away with the space after it. Both
+        // open together. A number stays, and its box takes the place of its `[ ]`.
+        const item = node.parent?.parent;
+        const bullet = item?.parent?.name === "BulletList" ? item.getChild("ListMark") : null;
+        if (!bullet) {
+          this.#hide(fold, node.from, node.to, box);
+          return false;
+        }
+        const line = this.doc.lineAt(node.from);
+        const column = (pos: number) => countColumn(this.doc.sliceString(line.from, pos), 4);
+        const columns = Math.min(column(node.from) - column(bullet.from), HANG_LIMIT);
+        const both = { from: bullet.from, to: node.to };
+        this.#hide(both, bullet.from, node.from, new TaskWidget(box.from, box.checked, columns));
+        this.#hide(both, node.from, this.#spaceAfter(node.to, line.to, 1));
         return false;
       }
       case "ListMark":

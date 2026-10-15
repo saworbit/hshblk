@@ -35,6 +35,9 @@ describe("the frontmatter panel", () => {
     assert.equal(frontmatterText(open(doc)), "title: Notes\ntags: [a, b]");
     assert.equal(frontmatterText(open("---\n---\nText")), "");
     assert.equal(frontmatterText(open("Text\n\n---\nx: 1\n---")), null);
+    // #209: TOML too, which the panel shows as written.
+    assert.equal(frontmatterText(open('+++\ntitle = "x"\n+++\nText')), 'title = "x"');
+    assert.ok(run(toggleFrontmatter, open('+++\ntitle = "x"\n+++\nText')));
   });
 
   it("opens and closes from its key, starts on the fields, and switches to the raw YAML", () => {

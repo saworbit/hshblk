@@ -33,7 +33,7 @@ export const frontmatterPanel = StateField.define<Shown>({
 /** The frontmatter panel and its state, for the surface. */
 export const frontmatter: Extension = frontmatterPanel;
 
-/** The frontmatter's YAML, between its fences, or null when the file has none. */
+/** The frontmatter's YAML or TOML, between its fences, or null when the file has none. */
 export function frontmatterText(state: EditorState): string | null {
   const span = state.field(page).blocks.frontmatter;
   if (!span) return null;
@@ -136,7 +136,9 @@ function panel(view: EditorView): Panel {
   let yaml: Yaml | null = null;
   const render = (state: EditorState) => {
     const text = frontmatterText(state) ?? "";
-    const listed = yaml ? fields(yaml, text) : null;
+    // #209: the bundle has no TOML parser, so TOML shows as written, with no fields.
+    const toml = state.field(page).blocks.frontmatter?.format === "toml";
+    const listed = yaml && !toml ? fields(yaml, text) : null;
     const asRaw = state.field(frontmatterPanel).raw || (yaml !== null && listed === null);
     raw.textContent = asRaw ? "Fields" : "Raw YAML";
     // Until the package loads, and for YAML it cannot list, there are no fields to switch to.
