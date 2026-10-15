@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What a page may ask of Rust: its own document, the open dialog, a link handed to the browser or to a window of its own, print where the webview cannot, and to close its window. Nothing from Tauri's core or its plugins.",
+  "description": "What a page may ask of Rust: its own document and why an image of it was refused, the open dialog, a link handed to the browser or to a window of its own, print where the webview cannot, and to close its window. Nothing from Tauri's core or its plugins.",
   "windows": ["*"],
   "permissions": [
     "allow-open-document",
@@ -9,6 +9,7 @@
     "allow-pick-document",
     "allow-open-url",
     "allow-open-link",
+    "allow-image-refusal",
     "allow-print-page",
     "allow-watch-menu",
     "allow-close-window"

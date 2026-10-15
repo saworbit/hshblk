@@ -208,6 +208,21 @@ async fn open_link(
     windows::show(window.app_handle(), &file)
 }
 
+/// Why the resource channel refused an image the page could not show, in its chip's words, or
+/// none when the channel serves it, as when its bytes would not decode (#231). The reference is
+/// the one the page asked the channel for, so it checks what the channel checked.
+#[tauri::command]
+fn image_refusal(
+    window: WebviewWindow,
+    documents: State<'_, Documents>,
+    reference: String,
+) -> Result<Option<&'static str>, String> {
+    let document = own_document(&window, &documents)?;
+    Ok(assets::load(&document, &reference)
+        .err()
+        .map(|refusal| refusal.reason()))
+}
+
 /// Why a link to a file does not open, naming it as the link does.
 fn link_refusal(refusal: &assets::Refusal, reference: &str) -> String {
     match refusal {
@@ -281,6 +296,7 @@ pub fn run() {
             pick_document,
             open_url,
             open_link,
+            image_refusal,
             print_page,
             watch_menu,
             close_window

@@ -1,6 +1,6 @@
 import { type Extension, StateEffect, StateField } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
-import { imageUrl } from "./assets.ts";
+import { imageUrl, refusalOf, unloaded } from "./assets.ts";
 import { element } from "./dom.ts";
 import { type Inline, plainText } from "./inlines.ts";
 import { printedAddress } from "./links.ts";
@@ -123,16 +123,20 @@ function imageNode(
   title: string | null = null,
 ): HTMLElement {
   const url = imageUrl(view.state, reference);
-  if (!url) return placeholder("Image not loaded", alt, inline);
+  if (!url) return placeholder(unloaded(reference), alt, inline);
   const frame = document.createElement("span");
   frame.className = inline ? "pg-figure-inline" : "pg-figure";
   const image = frame.appendChild(document.createElement("img"));
   image.className = "pg-image";
   image.alt = alt;
   if (title) image.title = title;
-  image.addEventListener("error", () =>
-    image.replaceWith(placeholder("Image not shown", alt, inline)),
-  );
+  // The chip says why, once the shell has asked (#231). Until then the broken image is hidden.
+  image.addEventListener("error", () => {
+    image.hidden = true;
+    void refusalOf(view.state, reference).then((why) =>
+      image.replaceWith(placeholder(why, alt, inline)),
+    );
+  });
   image.src = url;
   return frame;
 }
@@ -347,6 +351,7 @@ export class HtmlWidget extends WidgetType {
     frame.srcdoc = framed(this.html, view);
     frame.addEventListener("load", () => {
       loaded.add(frame);
+      chipRefused(frame, view);
       this.#fit(frame, view);
       retoggle(frame, view);
       openForPrint(frame, view);
@@ -377,6 +382,27 @@ export class HtmlWidget extends WidgetType {
     observer.observe(root);
     fitting.set(frame, observer);
     fits.set(frame, fit);
+  }
+}
+
+/**
+ * #267: an `<img>` the resource channel refused is the page's chip of its words, not the engine's
+ * broken image. No script runs in a frame, so the page swaps each one when the frame has loaded,
+ * which is once its images have settled, and asks the shell why, as for a markdown image.
+ */
+function chipRefused(frame: HTMLIFrameElement, view: EditorView): void {
+  const doc = frame.contentDocument;
+  if (!doc) return;
+  for (const image of [...doc.images]) {
+    if (!image.complete || image.naturalWidth > 0) continue;
+    const alt = image.getAttribute("alt") ?? "";
+    const chip = placeholder("Image not shown", alt, true, doc);
+    image.replaceWith(chip);
+    const reference = image.getAttribute("data-reference");
+    if (!reference) continue;
+    void refusalOf(view.state, reference).then((why) =>
+      chip.replaceWith(placeholder(why, alt, true, doc)),
+    );
   }
 }
 
@@ -625,14 +651,17 @@ function prepared(html: string, view: EditorView): string {
     if (element.matches("input, textarea, select, button")) element.setAttribute("disabled", "");
   }
   for (const image of parsed.querySelectorAll("img")) {
-    const url = imageUrl(view.state, image.getAttribute("src")?.trim() ?? "");
+    const reference = image.getAttribute("src")?.trim() ?? "";
+    const url = imageUrl(view.state, reference);
     if (url) {
       image.setAttribute("src", url);
+      // What the page asked for, so a chip in its place can ask why it was refused (#267).
+      image.setAttribute("data-reference", reference);
       continue;
     }
     // The page's chip, made in the frame's document (#257).
     image.replaceWith(
-      placeholder("Image not loaded", image.getAttribute("alt") ?? "", true, parsed),
+      placeholder(unloaded(reference), image.getAttribute("alt") ?? "", true, parsed),
     );
   }
   for (const [source, url] of sources) source.setAttribute("srcset", url);
