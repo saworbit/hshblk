@@ -527,10 +527,11 @@ describe("one open document", () => {
       { alt: "far", width: 1 },
       { alt: "root", width: 1 },
     ]);
+    // #231: each chip says why, the channel's reason asked of Rust.
     assert.deepEqual(shown.missing, [
-      "Image not shown · outside",
-      "Image not shown · leaving",
-      "Image not loaded · remote",
+      "Outside the repository · outside",
+      "Outside the repository · leaving",
+      "Remote images do not load · remote",
     ]);
     const requests = await page.run(() =>
       performance.getEntriesByType("resource").map((entry) => entry.name),
@@ -574,7 +575,8 @@ describe("one open document", () => {
         const loaded = (f) =>
           f.contentDocument?.URL === "about:srcdoc" &&
           f.contentDocument.readyState === "complete" &&
-          [...f.contentDocument.images].every((image) => image.complete);
+          // #267: a refused image gives way to a chip once its frame has loaded.
+          [...f.contentDocument.images].every((image) => image.complete && image.naturalWidth > 0);
         if (frames.length < 3 || !frames.every(loaded)) return null;
         return frames.map((frame) => ({
           sandbox: frame.getAttribute("sandbox"),
@@ -640,12 +642,10 @@ describe("one open document", () => {
     }
     // The image beside the file shows. A remote one, one outside the repository, one named by a
     // doc-asset address, a srcset, and the CSS background do not. Those left with nothing to load
-    // are the page's chips of their words, not the engine's broken image (#170).
-    assert.deepEqual(fetching.images, [
-      ["framed", 1],
-      ["outside", 0],
-    ]);
-    assert.deepEqual(fetching.chips, ["asset", "remote", "srcset"]);
+    // are the page's chips of their words, not the engine's broken image (#170), and so is the one
+    // the channel refused (#267).
+    assert.deepEqual(fetching.images, [["framed", 1]]);
+    assert.deepEqual(fetching.chips, ["asset", "remote", "outside", "srcset"]);
     assert.equal(await page.run(() => window.ran ?? null), null);
     assert.equal(await page.run(() => document.querySelectorAll(".cm-content script").length), 0);
     const images = await page.run(
@@ -663,6 +663,18 @@ describe("one open document", () => {
       requests: performance.getEntriesByType("resource").map((entry) => entry.name),
       opened: JSON.stringify(await window.__TAURI_INTERNALS__.invoke("open_document")),
       text: new TextDecoder().decode(await window.__TAURI_INTERNALS__.invoke("document_text")),
+      // #231 and #156: why an image was refused, and a link that does not open, name no path.
+      refused: JSON.stringify(
+        await window.__TAURI_INTERNALS__.invoke("image_refusal", {
+          reference: "../../outside.png",
+        }),
+      ),
+      linked: await window.__TAURI_INTERNALS__.invoke("open_link", {
+        reference: "../../outside.png",
+      }).then(
+        () => "opened",
+        (error) => String(error),
+      ),
     }));
     for (const [where, text] of Object.entries(seen)) {
       const value = Array.isArray(text) ? text.join("\n") : text;
@@ -672,6 +684,8 @@ describe("one open document", () => {
     assert.equal(seen.title, "notes.md");
     assert.equal(JSON.parse(seen.opened).name, "notes.md");
     assert.ok(seen.text.startsWith("# Notes\n"), "document_text is the text, as bytes");
+    assert.equal(seen.refused, '"Outside the repository"');
+    assert.equal(seen.linked, "../../outside.png is outside the repository.");
   });
 
   test("6. opens only web and mail addresses", async () => {

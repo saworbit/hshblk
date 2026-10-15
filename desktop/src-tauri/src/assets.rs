@@ -31,6 +31,20 @@ pub enum Refusal {
     NotAnImage,
 }
 
+impl Refusal {
+    /// What an image's chip says of it, since a failed load tells the page nothing (#231).
+    pub fn reason(&self) -> &'static str {
+        match self {
+            Self::UnknownDocument | Self::Missing => "Not found",
+            Self::NotRelative => "Not a file in the repository",
+            Self::OutsideScope => "Outside the repository",
+            Self::NotAFile => "Not a file",
+            Self::TooLarge => "Larger than 20 MB",
+            Self::NotAnImage => "Not an image this app shows",
+        }
+    }
+}
+
 /// Answers a request from the window labelled `window`.
 pub fn respond(
     documents: &Documents,
@@ -99,7 +113,12 @@ fn serve(
         return Err(Refusal::UnknownDocument);
     }
     let document = documents.get(handle).ok_or(Refusal::UnknownDocument)?;
-    let file = resolve(&document, reference)?;
+    load(&document, reference)
+}
+
+/// The bytes and type of the image a reference names, or why it is refused.
+pub fn load(document: &Document, reference: &str) -> Result<(Vec<u8>, &'static str), Refusal> {
+    let file = resolve(document, reference)?;
     // One handle, its own size checked, and no more than the cap read from it (#262).
     let handle = fs::File::open(&file).map_err(|_| Refusal::Missing)?;
     let metadata = handle.metadata().map_err(|_| Refusal::Missing)?;
@@ -458,6 +477,25 @@ mod tests {
             locate(&document, "https://example.com/x.md"),
             Err(Refusal::NotRelative)
         );
+    }
+
+    #[test]
+    fn says_why_it_refused_an_image_in_the_words_of_its_chip() {
+        // #231: every refusal read "Image not shown", whatever the channel knew.
+        let fixture = fixture();
+        let document = fixture.documents.get(&fixture.handle).unwrap();
+        let big = document.path.parent().unwrap().join("big.png");
+        fs::File::create(&big)
+            .unwrap()
+            .set_len(MAX_ASSET_BYTES + 1)
+            .unwrap();
+        let why = |reference: &str| load(&document, reference).err().map(|r| r.reason());
+        assert_eq!(why("near.png"), None);
+        assert_eq!(why("gone.png"), Some("Not found"));
+        assert_eq!(why("../../secret.png"), Some("Outside the repository"));
+        assert_eq!(why("big.png"), Some("Larger than 20 MB"));
+        assert_eq!(why("fake.png"), Some("Not an image this app shows"));
+        assert_eq!(why("."), Some("Not a file"));
     }
 
     #[test]

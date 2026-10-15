@@ -8,7 +8,7 @@ import {
 } from "@codemirror/search";
 import { EditorState, type Extension } from "@codemirror/state";
 import { type Command, EditorView, type KeyBinding, keymap } from "@codemirror/view";
-import { assetUrl, type AssetUrl } from "./page/assets.ts";
+import { assetUrl, type AssetUrl, imageRefusal, type ImageRefusal } from "./page/assets.ts";
 import { completeParse, finishParse } from "./page/complete.ts";
 import { markdown } from "./page/dialect.ts";
 import { findExtras } from "./page/find.ts";
@@ -38,6 +38,8 @@ import { framesLoaded, printFrames, summaryToggles } from "./page/widgets.ts";
 
 export type SurfaceOptions = {
   assets: AssetUrl;
+  /** Why the resource channel refused an image, for its chip. Without one, the chip cannot say. */
+  imageRefusal?: ImageRefusal;
   /** Where a link goes when the reader opens it. Without one, links only show their address. */
   openLink?: (href: string) => void;
   /** Where a link to a file in the repository goes, named as the link names it, decoded. */
@@ -142,6 +144,7 @@ export function createSurface(
       options.openFile ? fileOpener.of(options.openFile) : [],
       options.linkRefused ? linkRefused.of(options.linkRefused) : [],
       assetUrl.of(options.assets),
+      options.imageRefusal ? imageRefusal.of(options.imageRefusal) : [],
       EditorState.readOnly.of(true),
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({ "aria-label": "Document", spellcheck: "false" }),

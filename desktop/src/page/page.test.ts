@@ -3,7 +3,15 @@ import assert from "node:assert/strict";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState, RangeSet, type StateCommand } from "@codemirror/state";
 import { showTooltip, type DecorationSet } from "@codemirror/view";
-import { assetUrl, filePath, imageUrl, isLocal } from "./assets.ts";
+import {
+  assetUrl,
+  filePath,
+  imageRefusal,
+  imageUrl,
+  isLocal,
+  refusalOf,
+  unloaded,
+} from "./assets.ts";
 import { markdown } from "./dialect.ts";
 import {
   around,
@@ -1158,6 +1166,31 @@ describe("an image's file", () => {
     ]) {
       assert.equal(imageUrl(state, remote), null, remote);
     }
+  });
+
+  it("says why it does not show: nothing to load, or what the shell says the channel refused", async () => {
+    // #231: every chip read "Image not shown" or "Image not loaded", whatever the reason.
+    assert.equal(unloaded("https://x.y/a.png"), "Remote images do not load");
+    assert.equal(unloaded(" //x.y/a.png"), "Remote images do not load");
+    assert.equal(unloaded("data:image/png;base64,AAAA"), "Embedded images do not load");
+    assert.equal(unloaded("doc-asset://localhost/x.png"), "Image not loaded");
+    assert.equal(unloaded(""), "Image not loaded");
+    const asked: string[] = [];
+    const shell = imageRefusal.of(async (file) => {
+      asked.push(file);
+      return file === "gone.png" ? "Not found" : null;
+    });
+    const state = EditorState.create({ extensions: shell });
+    assert.equal(await refusalOf(state, "gone.png"), "Not found");
+    // It asks for the file the channel was asked for, and says nothing more when the shell cannot.
+    assert.equal(await refusalOf(state, "screen%20shot.png?v=1"), "Image not shown");
+    assert.deepEqual(asked, ["gone.png", "screen shot.png"]);
+    assert.equal(await refusalOf(EditorState.create({}), "gone.png"), "Image not shown");
+    const failing = imageRefusal.of(() => Promise.reject(new Error("closed")));
+    assert.equal(
+      await refusalOf(EditorState.create({ extensions: failing }), "gone.png"),
+      "Image not shown",
+    );
   });
 
   it("is the destination decoded once, less its query and fragment", () => {

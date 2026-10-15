@@ -54,6 +54,8 @@ if (handle) {
   const status = statusLine(opened);
   const view = createSurface(root, text, {
     assets: (file) => convertFileSrc(`${handle}/${file}`, "doc-asset"),
+    // A failed load says nothing, so Rust checks the file again and says why (#231).
+    imageRefusal: (file) => invoke<string | null>("image_refusal", { reference: file }),
     nonce: nonce && !nonce.startsWith("__TAURI") ? nonce : undefined,
     // A link that does not open says why, in the status line.
     openLink: (url) => void invoke("open_url", { url }).catch((error) => say(status, `${error}`)),
