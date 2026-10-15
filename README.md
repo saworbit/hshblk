@@ -22,10 +22,11 @@ Packages for Linux, macOS, and Windows come from the Desktop workflow on `main`.
 | `Ctrl+0` (`⌘0`) | Put the text back to its own size |
 | `Ctrl+W` (`⌘W`) | Close the window. On macOS, so does File > Close Window |
 | `PageDown`, `Space` | Down a page, by the window less a line. `PageUp` and `Shift+Space` go back up |
-| `Ctrl` or `⌘` and click | Open a link in the browser, or go to the heading or HTML anchor it names |
+| `Ctrl` or `⌘` and click | Open a link in the browser, or a file in the repository in a window of its own, or go to the heading or HTML anchor it names |
+| `Alt+Left`, `Alt+Right` (`⌘[`, `⌘]`) | Back to where a link to a heading was followed from, and forward again |
 | `Enter` | Open or close a `<details>`, with the caret on its tags. Tick or untick a task box, with the caret in its text |
 
-Each file opens in its own window, and dropping one on a window opens it in another. A file that is already open comes to the front instead. Move the caret into a construct with the keys, or find in it, and its syntax shows. A click opens nothing, so the page holds still under the pointer. A task list shows its boxes, and a click on one, or Enter in its text, ticks it on the page, never in the file. A link shows its words, and its address shows under it. Images load from inside the file's repository and nowhere else. A raw HTML block is drawn in a frame that runs no script, and shows only images from inside the repository. Inline HTML shows as source, but for a comment, which folds away. Frontmatter folds away, and the status line opens a panel that lists its fields.
+Each file opens in its own window, and dropping one on a window opens it in another. A file that is already open comes to the front instead. Move the caret into a construct with the keys, or find in it, and its syntax shows. A click opens nothing, so the page holds still under the pointer. A task list shows its boxes, and a click on one, or Enter in its text, ticks it on the page, never in the file. A link shows its words, and its address shows under it. A link to another file in the repository opens it in a window of its own, and a link that does not open says why. Print shows a web or mail link's address after its words. Images load from inside the file's repository and nowhere else. A raw HTML block is drawn in a frame that runs no script, and shows only images from inside the repository. Inline HTML shows as source, but for a comment, which folds away. Frontmatter folds away, and the status line opens a panel that lists its fields.
 
 To build it, with Node 24, npm 11.11 or later, and Rust:
 

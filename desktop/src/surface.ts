@@ -23,7 +23,15 @@ import {
   toggleDetailsAtCaret,
   toggleTaskAtCaret,
 } from "./page/page.ts";
-import { linkOpener, modClickOpens, showFrameLink } from "./page/links.ts";
+import {
+  fileOpener,
+  goBack,
+  goForward,
+  linkOpener,
+  linkRefused,
+  modClickOpens,
+  showFrameLink,
+} from "./page/links.ts";
 import { clickPastLineEnd } from "./page/pointer.ts";
 import { pageTheme } from "./page/theme.ts";
 import { framesLoaded, printFrames, summaryToggles } from "./page/widgets.ts";
@@ -32,6 +40,10 @@ export type SurfaceOptions = {
   assets: AssetUrl;
   /** Where a link goes when the reader opens it. Without one, links only show their address. */
   openLink?: (href: string) => void;
+  /** Where a link to a file in the repository goes, named as the link names it, decoded. */
+  openFile?: (file: string) => void;
+  /** Where the shell says why a link the reader followed does not open. */
+  linkRefused?: (reason: string) => void;
   /** The CSP nonce CodeMirror puts on the styles it injects. */
   nonce?: string;
   /** Anything the shell adds: its own keys, its own handlers. */
@@ -65,7 +77,8 @@ function pageBy(direction: 1 | -1): Command {
  * Enter on a <details>'s tags opens or closes it, and in a task item's text ticks or unticks its
  * box. Escape closes the frontmatter panel. Up and Down stop on a drawn block, and so do Ctrl+N
  * and Ctrl+P, which CodeMirror binds to them on macOS. PageDown, PageUp, and Space page by the
- * window less a line. Find's keys that would select several matches are left out.
+ * window less a line. Alt+Left and Alt+Right, ⌘[ and ⌘] on macOS, go back from a link to a
+ * heading and forward again. Find's keys that would select several matches are left out.
  */
 export const pageKeys: readonly KeyBinding[] = [
   { key: "Enter", run: toggleDetailsAtCaret },
@@ -79,6 +92,9 @@ export const pageKeys: readonly KeyBinding[] = [
   { key: "PageUp", run: pageBy(-1) },
   // Space pages as it does in a browser, Shift and Space back (#234). Find's field is not the page.
   { key: "Space", run: pageBy(1), shift: pageBy(-1) },
+  // As in a browser (#235). On macOS, Alt and an arrow moves by words.
+  { key: "Alt-ArrowLeft", mac: "Mod-[", run: goBack },
+  { key: "Alt-ArrowRight", mac: "Mod-]", run: goForward },
   // Selecting every match, or the next beside the selection, takes more than one selection,
   // which the page does not allow. It kept only one, and said nothing (#202).
   ...searchKeymap.filter(
@@ -123,6 +139,8 @@ export function createSurface(
       summaryToggles,
       frontmatter,
       options.openLink ? linkOpener.of(options.openLink) : [],
+      options.openFile ? fileOpener.of(options.openFile) : [],
+      options.linkRefused ? linkRefused.of(options.linkRefused) : [],
       assetUrl.of(options.assets),
       EditorState.readOnly.of(true),
       EditorView.lineWrapping,

@@ -115,10 +115,24 @@ fn serve(
 
 /// The file a reference names, if a document may show it. The page has already dropped the
 /// destination's query and fragment, so a `#` or `?` here is part of the file's name.
+pub fn resolve(document: &Document, reference: &str) -> Result<PathBuf, Refusal> {
+    let file = locate(document, reference)?;
+    let metadata = fs::metadata(&file).map_err(|_| Refusal::Missing)?;
+    if !metadata.is_file() {
+        return Err(Refusal::NotAFile);
+    }
+    if metadata.len() > MAX_ASSET_BYTES {
+        return Err(Refusal::TooLarge);
+    }
+    Ok(file)
+}
+
+/// Where a reference leads, with symlinks resolved, if it stays inside the document's scope: an
+/// image's file, or a linked document's (#156).
 ///
 /// A reference is relative to the document, or, after one leading slash, to the scope's root, as
 /// GitHub reads it in a repository. It never names the filesystem's root.
-pub fn resolve(document: &Document, reference: &str) -> Result<PathBuf, Refusal> {
+pub fn locate(document: &Document, reference: &str) -> Result<PathBuf, Refusal> {
     let (base, rest) = match reference.strip_prefix('/') {
         Some(rest) => (document.scope.as_path(), rest),
         None => (document.path.parent().ok_or(Refusal::Missing)?, reference),
@@ -143,13 +157,6 @@ pub fn resolve(document: &Document, reference: &str) -> Result<PathBuf, Refusal>
     };
     if !inside {
         return Err(Refusal::OutsideScope);
-    }
-    let metadata = fs::metadata(&file).map_err(|_| Refusal::Missing)?;
-    if !metadata.is_file() {
-        return Err(Refusal::NotAFile);
-    }
-    if metadata.len() > MAX_ASSET_BYTES {
-        return Err(Refusal::TooLarge);
     }
     Ok(file)
 }
@@ -426,6 +433,30 @@ mod tests {
         assert_eq!(
             ask_as(&fixture, "empty-0", mine, "near.png"),
             Err(Refusal::UnknownDocument)
+        );
+    }
+
+    #[test]
+    fn locates_a_linked_document_inside_the_repository_and_nothing_outside_it() {
+        // #156: a link to another file has the scope an image has, whatever the file holds.
+        let fixture = fixture();
+        let document = fixture.documents.get(&fixture.handle).unwrap();
+        let repo = document.scope.clone();
+        fs::write(repo.join("README.md"), "# Readme\n").unwrap();
+        assert_eq!(
+            locate(&document, "../README.md"),
+            Ok(repo.join("README.md"))
+        );
+        assert_eq!(locate(&document, "/README.md"), Ok(repo.join("README.md")));
+        assert_eq!(locate(&document, "notes.md"), Ok(document.path.clone()));
+        assert_eq!(
+            locate(&document, "../../secret.png"),
+            Err(Refusal::OutsideScope)
+        );
+        assert_eq!(locate(&document, "gone.md"), Err(Refusal::Missing));
+        assert_eq!(
+            locate(&document, "https://example.com/x.md"),
+            Err(Refusal::NotRelative)
         );
     }
 

@@ -57,6 +57,10 @@ if (handle) {
     nonce: nonce && !nonce.startsWith("__TAURI") ? nonce : undefined,
     // A link that does not open says why, in the status line.
     openLink: (url) => void invoke("open_url", { url }).catch((error) => say(status, `${error}`)),
+    // Rust finds the file from this window's document, and opens it in a window of its own (#156).
+    openFile: (reference) =>
+      void invoke("open_link", { reference }).catch((error) => say(status, `${error}`)),
+    linkRefused: (reason) => say(status, reason),
     extensions: EditorView.updateListener.of((update) => reflect(status, update.state)),
   });
   reflect(status, view.state);

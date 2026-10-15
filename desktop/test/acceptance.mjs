@@ -1070,19 +1070,25 @@ ${FILLER}
     assert.equal(await page.run(open), false);
   });
 
-  test("a link to no heading shows its address, and nothing to follow", async () => {
+  test("a link to no heading shows its address, why it goes nowhere, and nothing to follow", async () => {
     const words = await linkAt("nowhere");
     await page.click(words.x, words.y);
     const popover = await page.until(() => {
       const box = document.querySelector(".pg-address");
       return (
         box?.textContent.includes("#nothing-here") && {
-          text: box.textContent,
+          address: box.querySelector(".pg-address-url").textContent,
+          why: box.querySelector(".pg-address-why")?.textContent,
           buttons: box.querySelectorAll("button").length,
         }
       );
     });
-    assert.deepEqual(popover, { text: "#nothing-here", buttons: 0 });
+    // #156: it says why where its button would be.
+    assert.deepEqual(popover, {
+      address: "#nothing-here",
+      why: "Nothing in this file is named #nothing-here.",
+      buttons: 0,
+    });
   });
 
   test("a find match in a link's title shows, marked, in its popover", async () => {
