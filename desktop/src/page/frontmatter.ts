@@ -170,7 +170,10 @@ function panel(view: EditorView): Panel {
     top: true,
     update(update: ViewUpdate) {
       const before = update.startState.field(frontmatterPanel);
-      if (update.state.field(frontmatterPanel).raw !== before.raw) render(update.state);
+      // The file's new text may hold new frontmatter (#199).
+      if (update.docChanged || update.state.field(frontmatterPanel).raw !== before.raw) {
+        render(update.state);
+      }
     },
   };
 }

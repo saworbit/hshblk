@@ -1,6 +1,6 @@
 import { syntaxTree } from "@codemirror/language";
 import { type EditorState, StateEffect, StateField } from "@codemirror/state";
-import { type EditorView, ViewPlugin } from "@codemirror/view";
+import { type EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import type { PartialParse, Tree } from "@lezer/common";
 import { type Blocks, scan } from "./blocks.ts";
 import { markdown } from "./dialect.ts";
@@ -18,7 +18,9 @@ const finished = StateEffect.define<Whole>();
 
 const whole = StateField.define<Whole | null>({
   create: () => null,
-  update: (value, tr) => tr.effects.find((effect) => effect.is(finished))?.value ?? value,
+  // The file's new text has a tree of its own, until it too is parsed (#199).
+  update: (value, tr) =>
+    tr.effects.find((effect) => effect.is(finished))?.value ?? (tr.docChanged ? null : value),
 });
 
 /**
@@ -50,11 +52,25 @@ const parser = ViewPlugin.fromClass(
 
     constructor(view: EditorView) {
       this.view = view;
-      if (syntaxTree(view.state).length >= view.state.doc.length) {
+      this.#start();
+    }
+
+    /** The file's new text is parsed afresh, as the first was (#199). */
+    update(update: ViewUpdate): void {
+      if (update.docChanged) this.#start();
+    }
+
+    #start(): void {
+      cancelAnimationFrame(this.#frame);
+      clearTimeout(this.#timer);
+      this.#parse = null;
+      this.#scan = null;
+      const { state } = this.view;
+      if (syntaxTree(state).length >= state.doc.length) {
         performance.mark(PARSED);
         return;
       }
-      this.#parse = markdown.parser.startParse(view.state.doc.toString());
+      this.#parse = markdown.parser.startParse(state.doc.toString());
       // The reader sees the page first. The rest is parsed after the frame that shows it.
       this.#frame = requestAnimationFrame(() => this.#next());
     }

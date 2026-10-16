@@ -261,7 +261,7 @@ fn after_doctype(bytes: &[u8]) -> &[u8] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::documents::Facts;
+    use crate::documents::{Facts, Stamp};
     use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
@@ -398,6 +398,10 @@ mod tests {
             flat: true,
             name: "x.md".into(),
             modified: None,
+            stamp: Stamp {
+                len: 1,
+                modified: None,
+            },
             text,
             facts,
         };

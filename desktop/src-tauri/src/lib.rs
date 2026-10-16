@@ -2,6 +2,7 @@
 
 mod assets;
 mod documents;
+mod watch;
 mod windows;
 
 use std::path::Path;
@@ -183,6 +184,20 @@ fn watch_menu(window: WebviewWindow, channel: Channel<String>, menus: State<'_, 
         .insert(window.label().to_owned(), channel);
 }
 
+/// The page's line from Rust for its file's new text (#199). Rust looks at the file twice a second
+/// and says when it changed, or why it cannot show the new text. The page asks for it again.
+#[tauri::command]
+fn watch_document(
+    window: WebviewWindow,
+    documents: State<'_, Documents>,
+    watchers: State<'_, watch::Watchers>,
+    channel: Channel<String>,
+) -> Result<(), String> {
+    let document = own_document(&window, &documents)?;
+    watchers.watch(window.label(), channel, document.stamp);
+    Ok(())
+}
+
 /// A link goes to the system browser, after a click. The page itself never navigates.
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
@@ -282,6 +297,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Documents::default())
         .manage(MenuChannels::default())
+        .manage(watch::Watchers::default())
         .register_uri_scheme_protocol(assets::SCHEME, |ctx, request| {
             let window = ctx.webview_label();
             let documents = ctx.app_handle().state::<Documents>();
@@ -299,6 +315,7 @@ pub fn run() {
             image_refusal,
             print_page,
             watch_menu,
+            watch_document,
             close_window
         ])
         .on_window_event(windows::on_event)
@@ -310,6 +327,7 @@ pub fn run() {
                     eprintln!("The File menu could not be made: {error}");
                 }
             }
+            watch::start(app.handle().clone());
             let argv: Vec<String> = std::env::args().collect();
             windows::open_arguments(
                 app.handle(),

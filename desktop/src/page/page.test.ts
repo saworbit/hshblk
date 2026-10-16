@@ -794,6 +794,19 @@ describe("unfolding", () => {
     assert.equal(visible(select(open(table), 2)), table);
   });
 
+  it("takes the file's new text with the reader's selection moved along, past its end too", () => {
+    // #199: the selection the page opened syntax for was kept as it was, past the new text's end.
+    const long = "# Title\n\nSome **bold** words, and a [link](https://x.y) at the end.";
+    const inLink = select(open(long), long.indexOf("link"));
+    const shorter = inLink.update({ changes: { from: 9, to: long.length, insert: "Short." } });
+    assert.equal(visible(shorter.state), "Title\n\nShort.");
+    assert.deepEqual(shorter.state.facet(showTooltip).filter(Boolean), []);
+    // An edit before the selection moves it, and what it opened stays open.
+    const before = select(open(doc), doc.indexOf("bold"));
+    const moved = before.update({ changes: { from: 0, insert: "# New\n\n" } }).state;
+    assert.equal(visible(moved), "New\n\nTitle\n\nSome **bold** words.");
+  });
+
   it("folds everything again for print, until the reader selects once more", () => {
     const inBold = select(open(doc), doc.indexOf("bold"));
     const folded = inBold.update({ effects: foldAll.of(null) }).state;

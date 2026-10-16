@@ -6,7 +6,7 @@ import {
   selectNextOccurrence,
   selectSelectionMatches,
 } from "@codemirror/search";
-import { EditorState, type Extension } from "@codemirror/state";
+import { type ChangeSpec, EditorState, type Extension } from "@codemirror/state";
 import { type Command, EditorView, type KeyBinding, keymap } from "@codemirror/view";
 import { assetUrl, type AssetUrl, imageRefusal, type ImageRefusal } from "./page/assets.ts";
 import { completeParse, finishParse } from "./page/complete.ts";
@@ -160,6 +160,119 @@ export function createSurface(
   // not the reader's selection, so it opens nothing.
   const start = state.update({ selection: { anchor: startOfPage(state) } }).state;
   return new EditorView({ parent, state: start });
+}
+
+/** How many lines a save may add or take away before its changes are taken as one stretch. */
+const MOST_LINE_EDITS = 500;
+
+/**
+ * The changes that turn `old` into `next`, a line at a time: the lines each adds or takes away,
+ * as few as it can be said in, so every line they share keeps its place. Past `MOST_LINE_EDITS`
+ * it is one change, between the lines they share at each end. None when they are the same.
+ */
+export function textChanges(old: string, next: string): ChangeSpec[] {
+  if (old === next) return [];
+  // Each line with its line break, so the lines put back together are the text.
+  const a = old.split(/(?<=\n)/);
+  const b = next.split(/(?<=\n)/);
+  let head = 0;
+  while (head < a.length && head < b.length && a[head] === b[head]) head += 1;
+  let tail = 0;
+  while (
+    tail < a.length - head &&
+    tail < b.length - head &&
+    a[a.length - 1 - tail] === b[b.length - 1 - tail]
+  ) {
+    tail += 1;
+  }
+  const at = [0];
+  for (const line of a) at.push(at[at.length - 1] + line.length);
+  const runs = lineEdits(
+    a.slice(head, a.length - tail),
+    b.slice(head, b.length - tail),
+    MOST_LINE_EDITS,
+  ) ?? [[0, a.length - tail - head, 0, b.length - tail - head]];
+  return runs.map(([fromA, toA, fromB, toB]) => ({
+    from: at[head + fromA],
+    to: at[head + toA],
+    insert: b.slice(head + fromB, head + toB).join(""),
+  }));
+}
+
+/**
+ * Myers's diff: the runs of lines that differ, as `[from, to)` in `a` beside `[from, to)` in `b`,
+ * by the fewest lines added and taken away, or null when it takes more than `most`.
+ */
+function lineEdits(a: string[], b: string[], most: number): [number, number, number, number][] | null {
+  const max = Math.min(a.length + b.length, most);
+  const offset = max + 1;
+  const v = new Int32Array(2 * max + 3);
+  const trace: Int32Array[] = [];
+  let found = -1;
+  search: for (let d = 0; d <= max; d += 1) {
+    trace.push(v.slice());
+    for (let k = -d; k <= d; k += 2) {
+      const down = k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1]);
+      let x = down ? v[offset + k + 1] : v[offset + k - 1] + 1;
+      let y = x - k;
+      while (x < a.length && y < b.length && a[x] === b[y]) {
+        x += 1;
+        y += 1;
+      }
+      v[offset + k] = x;
+      if (x >= a.length && y >= b.length) {
+        found = d;
+        break search;
+      }
+    }
+  }
+  if (found < 0) return null;
+  // Back from the end, the lines both keep, which the runs fall between.
+  const kept: [number, number][] = [];
+  let x = a.length;
+  let y = b.length;
+  for (let d = found; d > 0; d -= 1) {
+    const before = trace[d];
+    const k = x - y;
+    const down = k === -d || (k !== d && before[offset + k - 1] < before[offset + k + 1]);
+    const fromK = down ? k + 1 : k - 1;
+    const fromX = before[offset + fromK];
+    const fromY = fromX - fromK;
+    // One line added, down, or taken away, across, and then the lines both keep, diagonally.
+    const afterX = down ? fromX : fromX + 1;
+    while (x > afterX) {
+      x -= 1;
+      y -= 1;
+      kept.push([x, y]);
+    }
+    x = fromX;
+    y = fromY;
+  }
+  while (x > 0 && y > 0) {
+    x -= 1;
+    y -= 1;
+    kept.push([x, y]);
+  }
+  const runs: [number, number, number, number][] = [];
+  let nextA = 0;
+  let nextB = 0;
+  for (const [keptA, keptB] of kept.reverse()) {
+    if (keptA > nextA || keptB > nextB) runs.push([nextA, keptA, nextB, keptB]);
+    nextA = keptA + 1;
+    nextB = keptB + 1;
+  }
+  if (nextA < a.length || nextB < b.length) runs.push([nextA, a.length, nextB, b.length]);
+  return runs;
+}
+
+/**
+ * #199: the page takes its file's new text, changing only the lines that differ, so the caret,
+ * the scroll, and what the reader opened stay put in the rest. CodeMirror keeps its lines with
+ * `\n`, so the file's line endings are read as it reads them first.
+ */
+export function takeText(view: EditorView, text: string): void {
+  const changes = textChanges(view.state.doc.toString(), text.replace(/\r\n?/g, "\n"));
+  if (changes.length > 0) view.dispatch({ changes });
 }
 
 /** How long print waits for the HTML blocks to load, so one that never loads cannot hold it up. */

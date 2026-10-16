@@ -207,7 +207,8 @@ const COUNT_BUDGET = 12;
 
 /**
  * The selection a search left in a text too long to check at once, until its count says whether
- * the new words are in the file. The reader moving it, or new words, let it go.
+ * the new words are in the file. The reader moving it, new words, or the file's new text let it
+ * go (#199).
  */
 const stale = StateField.define<{ query: SearchQuery; head: number; from: number } | null>({
   create: () => null,
@@ -218,7 +219,7 @@ const stale = StateField.define<{ query: SearchQuery; head: number; from: number
       const long = tr.state.doc.length > COUNT_TEXT_LIMIT;
       return query.valid && long && !main.empty ? { query, head: main.head, from: main.from } : null;
     }
-    return tr.selection ? null : value;
+    return tr.selection || tr.docChanged ? null : value;
   },
 });
 
