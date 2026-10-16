@@ -246,6 +246,7 @@ Each construct has one rule:
 | Entity | The decoded character. An unknown name stays as written. |
 | Hard break | A line break. |
 | Code span | Its text. One space comes off each end when both ends have one and it is not all spaces, as CommonMark strips it, so a backtick can sit at its edge. |
+| Fenced code block that names its language | Its tokens in the page's colours, by day and by night: JavaScript and TypeScript, Python, Rust, JSON, shell, and diff, by the info string's first word in any case. Each language's parser is a Lezer grammar, or CodeMirror's shell or diff mode, a chunk of its own loaded the first time a block names it, and none interprets the markdown. A block in a quote stays one colour, since its lines carry the quote's marks. |
 | Indented code block | Its lines, without the four columns of indent that make it one, so it lines up with a fenced block. A list item's or a quote's own indent stays. |
 | Setext heading | A heading. The underline does not paint. |
 | Link | Its words. The title is not part of them: a hover shows it, or the address when there is none. A `#fragment` goes to the heading GitHub's anchor names, or else to an `id` or `name` in the document's HTML. A link to another file in the repository opens it in a window of its own (§6). One that cannot open says why, in its popover, and in the status line after a Ctrl or ⌘ click. Its syntax never unfolds inline: the address shows in a popover at the caret, where the editor will edit it. Unfolding put `[` before the clicked word and wrapped it to the next line (§9). |

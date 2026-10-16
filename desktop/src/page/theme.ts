@@ -151,6 +151,22 @@ export const pageTheme = EditorView.theme({
   // After the code block's padding, so code in a nested quote clears its rules.
   ...quotes,
   ".pg-fence": { color: "var(--muted)" },
+  // #217: a code block that names its language, its tokens in the page's own colours.
+  ".pg-tok-keyword": { color: "var(--important)" },
+  ".pg-tok-string": { color: "var(--tip)" },
+  ".pg-tok-comment": { color: "var(--muted)", fontStyle: "italic" },
+  ".pg-tok-literal": { color: "var(--warning)" },
+  ".pg-tok-function": { color: "var(--note)" },
+  ".pg-tok-type": { color: "var(--caution)" },
+  ".pg-tok-meta": { color: "var(--note)" },
+  ".pg-tok-inserted": {
+    color: "var(--tip)",
+    backgroundColor: "color-mix(in oklab, var(--tip) 12%, transparent)",
+  },
+  ".pg-tok-deleted": {
+    color: "var(--caution)",
+    backgroundColor: "color-mix(in oklab, var(--caution) 12%, transparent)",
+  },
   // Frontmatter, YAML or TOML, is data about the file, so it shows as written, and stays quiet.
   ".pg-frontmatter": { color: "var(--muted)" },
   ".pg-source-block": { boxShadow: "inset 2px 0 0 var(--rule)" },
