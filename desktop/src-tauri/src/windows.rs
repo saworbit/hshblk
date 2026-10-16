@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 
 use tauri::{
-    AppHandle, DragDropEvent, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    AppHandle, DragDropEvent, Manager, State, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
     Window, WindowEvent,
 };
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
@@ -144,12 +144,20 @@ pub fn show(app: &AppHandle, path: &Path, fragment: Option<String>) -> Result<()
     Ok(())
 }
 
+/// What the app kept from the last run: the last window's size and place, and the recent files,
+/// in its own data folder (#240, #242). It loads the first time it is needed: on macOS the file
+/// that starts the app comes before setup runs (#186), and it is a recent file too (#288).
+pub fn memory(app: &AppHandle) -> State<'_, Memory> {
+    if app.try_state::<Memory>().is_none() {
+        app.manage(Memory::load(app.path().app_local_data_dir().ok()));
+    }
+    app.state::<Memory>()
+}
+
 /// Puts a file at the top of the recent files, which the welcome window lists (#242), and macOS's
 /// File > Open Recent, and on Windows the shell's, which the app's jump list shows (#288).
 fn opened(app: &AppHandle, path: &Path) {
-    if let Some(memory) = app.try_state::<Memory>() {
-        memory.opened(path);
-    }
+    memory(app).opened(path);
     RecentMenu::refresh(app);
     #[cfg(windows)]
     note_in_shell(path);
@@ -208,7 +216,7 @@ const MIN: (f64, f64) = (420.0, 320.0);
 /// A new window's size: the one the reader last moved or resized, as far as the main screen
 /// holds it, or the app's own (#240).
 fn size_of_next(app: &AppHandle) -> (f64, f64) {
-    let Some(kept) = app.try_state::<Memory>().and_then(|memory| memory.window()) else {
+    let Some(kept) = memory(app).window() else {
         return SIZE;
     };
     let most = app
@@ -298,7 +306,7 @@ fn next_place(app: &AppHandle, size: (f64, f64)) -> Option<Place> {
 
 /// Where the reader left the last window, when it fits on a screen that is there now.
 fn kept_place(app: &AppHandle, size: (f64, f64)) -> Option<Place> {
-    let kept = app.try_state::<Memory>()?.window()?;
+    let kept = memory(app).window()?;
     let place = Place {
         x: kept.x,
         y: kept.y,

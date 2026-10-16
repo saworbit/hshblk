@@ -169,7 +169,7 @@ impl RecentMenu {
     }
 
     fn list(&self, app: &AppHandle) -> tauri::Result<()> {
-        let files = app.state::<Memory>().files();
+        let files = windows::memory(app).files();
         while self.submenu.remove_at(0)?.is_some() {}
         for (id, name) in recent_items(&files) {
             let item = MenuItem::with_id(app, id, name, true, None::<&str>)?;
@@ -531,9 +531,8 @@ pub fn run() {
                 }
             }
             watch::start(app.handle().clone());
-            // What the app kept from the last run: the last window's size and place, and the
-            // recent files, in its own data folder (#240, #242).
-            app.manage(Memory::load(app.path().app_local_data_dir().ok()));
+            // What the app kept from the last run, unless a file opened before setup loaded it.
+            windows::memory(app.handle());
             RecentMenu::refresh(app.handle());
             let argv: Vec<String> = std::env::args().collect();
             windows::open_arguments(
