@@ -13,6 +13,7 @@ import {
   unloaded,
 } from "./assets.ts";
 import { markdown } from "./dialect.ts";
+import { emojiOf, loadEmoji } from "./emoji.ts";
 import {
   around,
   destinationOf,
@@ -40,6 +41,8 @@ import {
   AlertWidget,
   HtmlWidget,
   ImageWidget,
+  NoteMarkWidget,
+  NoteReferenceWidget,
   SummaryWidget,
   TableWidget,
   TaskWidget,
@@ -97,6 +100,8 @@ function visible(state: EditorState): string {
 function named(widget: unknown): string {
   if (widget instanceof TextWidget) return widget.text;
   if (widget instanceof AlertWidget) return `[${widget.kind}]`;
+  if (widget instanceof NoteReferenceWidget) return `[ref ${widget.number}]`;
+  if (widget instanceof NoteMarkWidget) return widget.number ? `[note ${widget.number}]` : "[back]";
   if (widget instanceof ImageWidget) return `[image ${widget.reference} · ${widget.alt}]`;
   if (widget instanceof TableWidget) return `[table ${widget.table.rows.length} rows]`;
   if (widget instanceof HtmlWidget) return `[html ${widget.html}]`;
@@ -1063,6 +1068,93 @@ describe("frontmatter", () => {
     assert.equal(visible(state), "\n\nOpens with a rule\n\nNot YAML.\n\n\n\nAfter");
     assert.deepEqual([...state.field(page).blocks.anchors.keys()], ["opens-with-a-rule"]);
     assert.equal(startOfPage(state), 0);
+  });
+});
+
+describe("a footnote", () => {
+  const doc = [
+    "A sentence.[^b] And another.[^1] Again.[^b] Nowhere.[^none]",
+    "",
+    "[^1]: The first footnote, with **bold**.",
+    "[^b]: Named.",
+    "",
+    "[^unused]: No reference uses it.",
+  ].join("\n");
+
+  it("raises each reference's number, by first use, and numbers each footnote where it is", () => {
+    // #218: footnotes showed as source, with nothing to follow from a reference to its note.
+    const state = open(doc);
+    assert.equal(
+      visible(state),
+      [
+        "A sentence.[ref 1] And another.[ref 2] Again.[ref 1] Nowhere.[^none]",
+        "",
+        "[note 2]The first footnote, with bold.[back]",
+        "[note 1]Named.[back]",
+        "",
+        "[^unused]: No reference uses it.",
+      ].join("\n"),
+    );
+    assert.deepEqual(lineClasses(state, styles).slice(2, 6), ["pg-note pg-note-first", "pg-note", "", ""]);
+    // The keys show a reference's source, and a footnote's opening.
+    assert.match(visible(select(state, doc.indexOf("[^1]") + 1)), /another\.\[\^1\] Again/);
+    assert.match(visible(select(state, doc.indexOf("[^1]:") + 1)), /\n\[\^1\]: The first/);
+  });
+
+  it("goes from a reference to its footnote and back, as a link to a heading does", () => {
+    const state = open(doc);
+    assert.equal(headingAt(state, "#fn-1"), doc.indexOf("[^1]:"));
+    assert.equal(headingAt(state, "#fnref-b"), doc.indexOf("[^b]"));
+    assert.equal(headingAt(state, "#fn-unused"), undefined);
+    // `[^1]: word` is a footnote too, not a link definition that turns `[^1]` into a link.
+    const one = open("See[^1].\n\n[^1]: word");
+    assert.equal(visible(one), "See[ref 1].\n\n[note 1]word[back]");
+  });
+});
+
+describe("an emoji shortcode", () => {
+  it("shows the emoji GitHub draws for it, and as written when it is not one", async () => {
+    // #222: `:tada:` read as text, where GitHub shows its emoji.
+    await loadEmoji();
+    const doc = "Done :tada: :+1: and :not_a_real_one: at 10:30:45, `:tada:` in code.";
+    const state = open(doc);
+    assert.equal(visible(state), "Done 🎉 👍 and :not_a_real_one: at 10:30:45, :tada: in code.");
+    // The keys show it as written, and a table cell draws it too.
+    assert.match(visible(select(state, doc.indexOf("tada") + 1)), /^Done :tada: 👍/);
+    assert.equal(emojiOf("warning"), "⚠️");
+    const cells = open("| A |\n|---|\n| :rocket: |").field(page).blocks.folds.iter().value?.spec;
+    assert.deepEqual(cells?.widget.table.rows[0][0], [{ kind: "text", text: "🚀" }]);
+  });
+});
+
+describe("a <div align> around markdown", () => {
+  it("aligns what it holds, and folds its tags away until the keys reach one", () => {
+    // #225: the tags were two empty frames, and the markdown between stayed at the left.
+    const doc = '<div align="center">\n\n# Project\n\n**A pitch**\n\n</div>\n\nAfter';
+    const state = open(doc);
+    assert.equal(visible(state), "\n\nProject\n\nA pitch\n\n\n\nAfter");
+    assert.deepEqual(lineClasses(state, shown).slice(0, 7), [
+      "",
+      "pg-align-center",
+      "pg-align-center",
+      "pg-align-center",
+      "pg-align-center",
+      "pg-align-center",
+      "",
+    ]);
+    assert.match(visible(select(state, 3)), /^<div align="center">\n/);
+    assert.match(visible(select(state, doc.indexOf("</div>") + 2)), /\n<\/div>\n/);
+  });
+
+  it("takes a <p>, an align after other attributes, and leaves one with no align as frames", () => {
+    const right = open('<p class="x" align="right">\n\nRight\n\n</p>');
+    assert.deepEqual(lineClasses(right, shown), ["", "pg-align-right", "pg-align-right", "pg-align-right", ""]);
+    const plain = '<div>\n\nText\n\n</div>';
+    assert.equal(visible(open(plain)), "[html <div>]\n\nText\n\n[html </div>]");
+    // A closing tag in another container, or of another kind, pairs with nothing.
+    const crossed = open('<div align="center">\n\n> </div>\n\nText');
+    assert.equal(crossed.field(page).blocks.aligned.length, 0);
+    assert.equal(open('<div align="center">\n\nText\n\n</p>').field(page).blocks.aligned.length, 0);
   });
 });
 

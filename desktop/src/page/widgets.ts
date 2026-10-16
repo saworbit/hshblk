@@ -29,6 +29,72 @@ export class TextWidget extends WidgetType {
   }
 }
 
+/**
+ * #218: a reference to a footnote, `[^1]`, as its number, raised. Ctrl or ⌘ and a click goes to
+ * the footnote, as a link to a heading goes to it, and a hover shows its words.
+ */
+export class NoteReferenceWidget extends WidgetType {
+  readonly label: string;
+  readonly number: number;
+  readonly text: string;
+
+  constructor(label: string, number: number, text: string) {
+    super();
+    this.label = label;
+    this.number = number;
+    this.text = text;
+  }
+
+  eq(other: NoteReferenceWidget): boolean {
+    return other.label === this.label && other.number === this.number && other.text === this.text;
+  }
+
+  toDOM(): HTMLElement {
+    const sup = element("sup", "pg-note-reference", String(this.number));
+    sup.dataset.href = `#fn-${this.label}`;
+    sup.setAttribute("role", "link");
+    sup.title = this.text;
+    return sup;
+  }
+
+  ignoreEvent(): boolean {
+    return false;
+  }
+}
+
+/**
+ * A footnote's opening, `[^1]:`, as its number, and after its words a way back to its first
+ * reference, `↩`, which Ctrl or ⌘ and a click follows (#218).
+ */
+export class NoteMarkWidget extends WidgetType {
+  readonly label: string;
+  /** Its number, for the opening, or null for the way back. */
+  readonly number: number | null;
+
+  constructor(label: string, number: number | null) {
+    super();
+    this.label = label;
+    this.number = number;
+  }
+
+  eq(other: NoteMarkWidget): boolean {
+    return other.label === this.label && other.number === this.number;
+  }
+
+  toDOM(): HTMLElement {
+    if (this.number !== null) return element("span", "pg-note-number", `${this.number}.`);
+    const back = element("span", "pg-note-back", "↩");
+    back.dataset.href = `#fnref-${this.label}`;
+    back.setAttribute("role", "link");
+    back.title = "Back to the reference";
+    return back;
+  }
+
+  ignoreEvent(): boolean {
+    return false;
+  }
+}
+
 /** The five alerts GitHub draws, by the word in their marker, `> [!NOTE]`. */
 export const ALERTS = ["note", "tip", "important", "warning", "caution"] as const;
 

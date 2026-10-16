@@ -20,6 +20,10 @@ export type Blocks = {
   folds: DecorationSet;
   /** Each `<details>` written as its own blocks around a markdown body. The page draws these. */
   details: Details[];
+  /** Each `<div align>` or `<p align>` around a markdown body, which the page aligns (#225). */
+  aligned: Aligned[];
+  /** Each footnote a reference uses, by its label in lower case (#218). */
+  footnotes: Map<string, Footnote>;
   /** The file's frontmatter, which shows as written, or null when it has none. */
   frontmatter: Frontmatter | null;
 };
@@ -29,6 +33,30 @@ type Span = { from: number; to: number };
 /** A heading in the outline. */
 export type Heading = { from: number; level: number; words: string };
 
+/**
+ * A footnote, `[^label]: Its words.`, at the top level: where it starts and ends, where its words
+ * start, its number, in the order references first use it, and where the first reference is.
+ */
+export type Footnote = {
+  from: number;
+  to: number;
+  words: number;
+  number: number;
+  text: string;
+  reference: number;
+  /** Whether it is the first footnote in the file, which a rule sets apart. */
+  first: boolean;
+};
+
+/** A footnote as written: its block, its label, and where it and its words start and end. */
+type WrittenNote = { block: SyntaxNode; label: string; from: number; words: number; to: number };
+
+/** A footnote's opening, `[^label]:`, and its label. */
+const NOTE = /^\[\^([^\]\s]+)\]:[ \t]*/;
+
+/** A reference to a footnote, `[^label]`, which no colon follows. */
+const NOTE_REFERENCE = /\[\^([^\]\s]+)\](?!:)/g;
+
 /** Frontmatter: where it is, and whether it is YAML or TOML. */
 export type Frontmatter = Span & { format: "yaml" | "toml" };
 
@@ -36,6 +64,18 @@ export type Frontmatter = Span & { format: "yaml" | "toml" };
  * A `<details>` whose opening and closing tags are raw HTML blocks of their own, with markdown
  * between them, as a README writes it. Each block's source, and the whole lines it is on.
  */
+/**
+ * A `<div>` or `<p>` with an `align`, whose opening and closing tags are raw HTML blocks of their
+ * own in one container, with markdown between, as a README centres its title and badges.
+ */
+export type Aligned = {
+  align: "left" | "center" | "right";
+  head: { source: Span; lines: Span };
+  /** Where each line between the two tags starts. */
+  starts: number[];
+  tail: { source: Span; lines: Span };
+};
+
 export type Details = {
   /** The summary's HTML, empty when there is none. */
   summary: string;
@@ -65,6 +105,15 @@ const OPENS = /^<details(\s[^>]*)?>\s*(?:<summary(?:\s[^>]*)?>([\s\S]*?)<\/summa
 /** A block that closes one, and holds nothing else. */
 const CLOSES = /^<\/details\s*>$/i;
 
+/** A block that opens a `<div>` or a `<p>`, and nothing else, and its attributes. */
+const OPENS_BOX = /^<(div|p)(\s[^>]*)?>$/i;
+
+/** An `align` among a tag's attributes. */
+const ALIGN = /(?:^|\s)align\s*=\s*["']?(left|center|right)(?=["'\s]|$)/i;
+
+/** A block that closes one, and holds nothing else. */
+const CLOSES_BOX = /^<\/(div|p)\s*>$/i;
+
 /**
  * Reads the blocks of `tree`, and pauses now and then so a caller can spread it over events. It
  * goes into no paragraph, heading, or code, so it costs one step a block, not one a word.
@@ -72,6 +121,7 @@ const CLOSES = /^<\/details\s*>$/i;
 export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
   const definitions: Definitions = new Map();
   const headings: SyntaxNode[] = [];
+  const notes: WrittenNote[] = [];
   const drawn: SyntaxNode[] = [];
   const front = frontmatter(doc);
   const cursor = tree.cursor();
@@ -79,7 +129,16 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
     const name = cursor.name;
     // Lezer reads frontmatter as a rule and a heading. The page notes nothing in it.
     const noted = !front || cursor.to > front.to;
-    if (noted && name === "LinkReference") {
+    const note =
+      noted &&
+      (name === "Paragraph" || name === "LinkReference") &&
+      cursor.node.parent?.name === "Document" &&
+      NOTE.exec(doc.sliceString(cursor.from, Math.min(cursor.to, cursor.from + 200)));
+    if (note) {
+      // A footnote, which is no link definition, though `[^1]: word` reads as one (#218). Lezer
+      // reads the next line's `[^2]:` as more of the same paragraph, where GitHub starts another.
+      notes.push(...notesIn(doc, cursor.node));
+    } else if (noted && name === "LinkReference") {
       define(definitions, doc, cursor.node);
       drawn.push(cursor.node);
     } else if (noted && (name === "Table" || HTML.has(name))) {
@@ -107,9 +166,17 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
   // #228: an id or a name in the document's HTML is a place a link can go, after the headings.
   for (const [from, name] of htmlAnchors(doc, tree))
     if (!anchors.has(name)) anchors.set(name, from);
+  const footnotes = numberNotes(doc, definitions, notes);
+  for (const [label, { from, reference }] of footnotes) {
+    if (!anchors.has(`fn-${label}`)) anchors.set(`fn-${label}`, from);
+    if (!anchors.has(`fnref-${label}`)) anchors.set(`fnref-${label}`, reference);
+  }
   const details = pairDetails(doc, drawn);
+  const aligned = pairAligned(doc, drawn);
   // A details' own tags are drawn by the page, not in frames.
-  const tags = new Set(details.flatMap(({ head, tail }) => [head.source.from, tail.source.from]));
+  const tags = new Set(
+    [...details, ...aligned].flatMap(({ head, tail }) => [head.source.from, tail.source.from]),
+  );
   const folds: Range<Decoration>[] = [];
   for (const node of drawn) {
     if (tags.has(node.from)) continue;
@@ -126,7 +193,16 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
     yield;
   }
   const folded = Decoration.set(folds, true);
-  return { definitions, anchors, outline, folds: folded, details, frontmatter: front };
+  return {
+    definitions,
+    anchors,
+    outline,
+    folds: folded,
+    details,
+    aligned,
+    footnotes,
+    frontmatter: front,
+  };
 }
 
 /**
@@ -204,6 +280,94 @@ function pairDetails(doc: Text, drawn: SyntaxNode[]): Details[] {
     // Any opened after it, in a container now closed, has no partner.
     const [{ node: head, tag: written }] = opened.splice(at);
     paired.push(detailsOf(doc, head, written, node));
+  }
+  return paired.sort((a, b) => a.head.source.from - b.head.source.from);
+}
+
+/**
+ * Numbers each footnote a reference uses, in the order references first use them, as GitHub
+ * does. One no reference uses is not a footnote, and shows as written.
+ */
+function numberNotes(
+  doc: Text,
+  definitions: Definitions,
+  notes: WrittenNote[],
+): Map<string, Footnote> {
+  const written = new Map<string, WrittenNote>();
+  for (const note of notes) if (!written.has(note.label)) written.set(note.label, note);
+  const footnotes = new Map<string, Footnote>();
+  if (written.size === 0) return footnotes;
+  for (const match of doc.toString().matchAll(NOTE_REFERENCE)) {
+    const label = match[1].toLowerCase();
+    const note = written.get(label);
+    if (!note || footnotes.has(label)) continue;
+    const { block, from, words, to } = note;
+    const text =
+      block.name === "Paragraph"
+        ? plainText(inlinesOf(doc, definitions, block, words, to))
+        : doc.sliceString(words, to).trim();
+    const number = footnotes.size + 1;
+    footnotes.set(label, { from, to, words, number, text, reference: match.index, first: false });
+  }
+  // The first in the file a reference uses is set apart by a rule.
+  const first = [...footnotes.values()].sort((a, b) => a.from - b.from)[0];
+  if (first) first.first = true;
+  return footnotes;
+}
+
+/** The footnotes a block holds, one from each line that opens one, to the next. */
+function notesIn(doc: Text, block: SyntaxNode): WrittenNote[] {
+  const notes: WrittenNote[] = [];
+  for (let line = doc.lineAt(block.from); ; line = doc.lineAt(line.to + 1)) {
+    const opening = NOTE.exec(line.text);
+    const to = Math.min(line.to, block.to);
+    if (opening) {
+      const label = opening[1].toLowerCase();
+      notes.push({ block, label, from: line.from, words: line.from + opening[0].length, to });
+    } else if (notes.length > 0) {
+      notes[notes.length - 1].to = to;
+    }
+    if (line.to >= block.to) return notes;
+  }
+}
+
+/**
+ * Pairs each `<div>` or `<p>` opened in a block of its own with the next block that closes one in
+ * the same container, as they nest, and keeps the pairs that align their body (#225).
+ */
+function pairAligned(doc: Text, drawn: SyntaxNode[]): Aligned[] {
+  const opened: { node: SyntaxNode; tag: string; align: string | undefined }[] = [];
+  const paired: Aligned[] = [];
+  const lines = (node: SyntaxNode) => ({
+    from: doc.lineAt(node.from).from,
+    to: doc.lineAt(node.to).to,
+  });
+  for (const node of drawn) {
+    if (node.name !== "HTMLBlock") continue;
+    const html = htmlOf(doc, node).trim();
+    const opens = OPENS_BOX.exec(html);
+    if (opens) {
+      const align = ALIGN.exec(opens[2] ?? "")?.[1].toLowerCase();
+      opened.push({ node, tag: opens[1].toLowerCase(), align });
+      continue;
+    }
+    const closes = CLOSES_BOX.exec(html);
+    if (!closes) continue;
+    const tag = closes[1].toLowerCase();
+    let at = opened.length - 1;
+    while (at >= 0 && !(sameContainer(opened[at].node, node) && opened[at].tag === tag)) at -= 1;
+    if (at < 0) continue;
+    const [{ node: head, align }] = opened.splice(at);
+    if (!align) continue;
+    const starts: number[] = [];
+    const last = doc.lineAt(node.from).number - 1;
+    for (let n = doc.lineAt(head.to).number + 1; n <= last; n += 1) starts.push(doc.line(n).from);
+    paired.push({
+      align: align as Aligned["align"],
+      head: { source: { from: head.from, to: head.to }, lines: lines(head) },
+      starts,
+      tail: { source: { from: node.from, to: node.to }, lines: lines(node) },
+    });
   }
   return paired.sort((a, b) => a.head.source.from - b.head.source.from);
 }

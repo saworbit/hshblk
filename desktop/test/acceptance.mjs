@@ -1942,6 +1942,45 @@ describe("a file that changes on disk", () => {
   });
 });
 
+describe("what GitHub draws besides markdown", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-github-"));
+  const file = join(folder, "github.md");
+  writeFileSync(
+    file,
+    '<div align="center">\n\n# Centred :rocket:\n\n</div>\n\nA note.[^1]\n\n[^1]: Its words.\n',
+  );
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelector(".pg-h1"));
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  test("centres a div's markdown, draws a shortcode's emoji, and numbers a footnote", async () => {
+    // #222: the emoji names are a chunk of their own, which must load under the page's policy.
+    const seen = await page.until(() => {
+      const heading = document.querySelector(".pg-h1");
+      if (!heading?.textContent.includes("🚀")) return null;
+      return {
+        heading: heading.textContent,
+        align: getComputedStyle(heading).textAlign,
+        reference: document.querySelector(".pg-note-reference")?.textContent,
+        note: document.querySelector(".pg-note")?.textContent,
+      };
+    });
+    assert.deepEqual(seen, {
+      heading: "Centred 🚀",
+      align: "center",
+      reference: "1",
+      note: "1.Its words.↩",
+    });
+  });
+});
+
 describe("a long table", () => {
   const folder = mkdtempSync(join(tmpdir(), "hshblk-table-"));
   const file = join(folder, "table.md");
