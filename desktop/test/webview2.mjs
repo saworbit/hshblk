@@ -32,17 +32,27 @@ const PORT = 9333;
 
 const keys = fileURLToPath(new URL("keys.ps1", import.meta.url));
 
-/** Tries `fn` every 100 ms until it gives something, for 15 seconds. */
-async function poll(fn, what) {
-  for (let tries = 0; tries < 150; tries += 1) {
-    const value = await fn().catch(() => null);
-    if (value) return value;
+/** Tries `fn` every 100 ms until it gives something, for `seconds`, and says what it last met. */
+async function poll(fn, what, seconds = 15) {
+  const end = Date.now() + seconds * 1000;
+  let met = "nothing";
+  while (Date.now() < end) {
+    try {
+      const value = await fn();
+      if (value) return value;
+      met = JSON.stringify(value);
+    } catch (error) {
+      met = error.message;
+    }
     await sleep(100);
   }
-  throw new Error(`timed out waiting for ${what}`);
+  throw new Error(`timed out waiting for ${what}, after ${met}`);
 }
 
 const list = () => fetch(`http://127.0.0.1:${PORT}/json/list`).then((answer) => answer.json());
+
+/** How long WebView2 may take to start: its first start on a fresh runner makes its profile. */
+const START = 90;
 
 /** The app on `file`, with its page's DevTools session. */
 async function launch(file) {
@@ -50,18 +60,36 @@ async function launch(file) {
   const browser = `${flags} --remote-debugging-port=${PORT}`;
   const child = spawn(app, [file], {
     env: { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: browser },
-    stdio: "ignore",
+    stdio: ["ignore", "pipe", "pipe"],
   });
+  // What the app says, for a launch that fails.
+  let said = "";
+  for (const stream of [child.stdout, child.stderr]) {
+    stream.on("data", (chunk) => (said = `${said}${chunk}`.slice(-4000)));
+  }
   const exited = once(child, "exit");
+  // The app goes when this script does, however it ends: a child left running holds node open.
+  const stop = () => child.kill();
+  process.once("exit", stop);
   // A Hash Block already running takes the file, as a second launch hands it over, and this
   // process ends with no port to read.
-  const gone = exited.then(() => {
-    throw new Error("The app ended at once. Is another Hash Block running?");
+  const gone = exited.then(([code]) => {
+    throw new Error(`The app ended at once, with ${code}. Is another Hash Block running?`);
   });
-  const target = await Promise.race([
-    poll(async () => (await list()).find((page) => page.type === "page"), "the page"),
-    gone,
-  ]);
+  let target;
+  try {
+    target = await Promise.race([
+      poll(async () => (await list()).find((page) => page.type === "page"), "the page", START),
+      gone,
+    ]);
+  } catch (error) {
+    child.kill();
+    const webviews = execFileSync("tasklist", ["/FI", "IMAGENAME eq msedgewebview2.exe"], {
+      encoding: "utf8",
+    });
+    const why = [error.message, "WebView2's processes:", webviews.trim(), "The app said:", said];
+    throw new Error(why.join("\n"), { cause: error });
+  }
   gone.catch(() => {});
   const socket = new WebSocket(target.webSocketDebuggerUrl);
   await once(socket, "open");
@@ -90,7 +118,7 @@ async function launch(file) {
   return {
     send,
     run,
-    until: (fn) => poll(() => run(fn), String(fn)),
+    until: (fn, seconds) => poll(() => run(fn), String(fn), seconds),
     /** Presses a key as Windows delivers one, `F5` or, with Ctrl, `R`. */
     press: (key, control = false) =>
       execFileSync("powershell", [
@@ -104,7 +132,7 @@ async function launch(file) {
         "-Key",
         key,
         ...(control ? ["-Control"] : []),
-      ]),
+      ], { timeout: 60_000 }),
     /** A right-click in the middle of what a selector names. */
     async rightClick(selector) {
       const at = await run(`() => {
@@ -119,6 +147,7 @@ async function launch(file) {
       socket.close();
       child.kill();
       await exited;
+      process.off("exit", stop);
       await poll(() => list().then(() => null, () => true), "the port to close");
     },
   };
@@ -142,7 +171,8 @@ function textRuns(pdf) {
   return runs;
 }
 
-describe("WebView2", () => {
+// Each step has a limit, so a page that stops answering fails the run rather than holding it.
+describe("WebView2", { timeout: 300_000 }, () => {
   const folder = mkdtempSync(join(tmpdir(), "hshblk-webview2-"));
   const file = join(folder, "webview2.md");
   writeFileSync(
@@ -153,7 +183,8 @@ describe("WebView2", () => {
 
   before(async () => {
     page = await launch(file);
-    await page.until(() => document.querySelector(".pg-h1") && document.querySelector(".status"));
+    const drawn = () => document.querySelector(".pg-h1") && document.querySelector(".status");
+    await page.until(drawn, START);
   });
   after(async () => {
     await page?.close();
