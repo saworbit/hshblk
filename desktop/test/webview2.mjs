@@ -14,7 +14,7 @@
  */
 import { execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -27,10 +27,8 @@ const app = resolve(process.argv[2] ?? "");
 if (!process.argv[2]) throw new Error("usage: webview2.mjs <app binary>");
 if (process.platform !== "win32") throw new Error("WebView2 runs on Windows only.");
 
-/** The DevTools port WebView2 opens for the app. */
-const PORT = 9333;
-
 const keys = fileURLToPath(new URL("keys.ps1", import.meta.url));
+const state = fileURLToPath(new URL("webview2-state.ps1", import.meta.url));
 
 /** Tries `fn` every 100 ms until it gives something, for `seconds`, and says what it last met. */
 async function poll(fn, what, seconds = 15) {
@@ -49,17 +47,42 @@ async function poll(fn, what, seconds = 15) {
   throw new Error(`timed out waiting for ${what}, after ${met}`);
 }
 
-const list = () => fetch(`http://127.0.0.1:${PORT}/json/list`).then((answer) => answer.json());
+/** What WebView2 lists on its DevTools port. */
+const list = (port) => fetch(`http://127.0.0.1:${port}/json/list`).then((answer) => answer.json());
 
 /** How long WebView2 may take to start: its first start on a fresh runner makes its profile. */
 const START = 90;
 
-/** The app on `file`, with its page's DevTools session. */
-async function launch(file) {
+/** What the app and WebView2 were doing, for a launch that failed. On CI, with the screen. */
+function report(pid, profile) {
+  const args = ["-ProcessId", String(pid), "-WebViewProfile", profile];
+  const screen = join(process.env.RUNNER_TEMP ?? tmpdir(), "webview2.png");
+  if (process.env.CI) args.push("-Screen", screen);
+  try {
+    return execFileSync(
+      "powershell",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", state, ...args],
+      { encoding: "utf8", timeout: 60_000 },
+    ).trim();
+  } catch (error) {
+    return `No report: ${error.message}`;
+  }
+}
+
+/**
+ * The app on `file`, with its page's DevTools session. WebView2 keeps its profile in `profile`
+ * and writes there the port it took. A fixed port may be taken, or kept back by Windows, which
+ * keeps ranges of ports for Hyper-V and WSL.
+ */
+async function launch(file, profile) {
+  mkdirSync(profile, { recursive: true });
   const flags = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
-  const browser = `${flags} --remote-debugging-port=${PORT}`;
   const child = spawn(app, [file], {
-    env: { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: browser },
+    env: {
+      ...process.env,
+      WEBVIEW2_USER_DATA_FOLDER: profile,
+      WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `${flags} --remote-debugging-port=0`,
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   // What the app says, for a launch that fails.
@@ -76,18 +99,23 @@ async function launch(file) {
   const gone = exited.then(([code]) => {
     throw new Error(`The app ended at once, with ${code}. Is another Hash Block running?`);
   });
+  const active = join(profile, "EBWebView", "DevToolsActivePort");
+  let port;
   let target;
   try {
     target = await Promise.race([
-      poll(async () => (await list()).find((page) => page.type === "page"), "the page", START),
+      (async () => {
+        port = await poll(() => readFileSync(active, "utf8").split("\n")[0], "the port", START);
+        return poll(
+          async () => (await list(port)).find((page) => page.type === "page"),
+          "the page",
+        );
+      })(),
       gone,
     ]);
   } catch (error) {
+    const why = [error.message, report(child.pid, profile), "The app said:", said];
     child.kill();
-    const webviews = execFileSync("tasklist", ["/FI", "IMAGENAME eq msedgewebview2.exe"], {
-      encoding: "utf8",
-    });
-    const why = [error.message, "WebView2's processes:", webviews.trim(), "The app said:", said];
     throw new Error(why.join("\n"), { cause: error });
   }
   gone.catch(() => {});
@@ -121,18 +149,22 @@ async function launch(file) {
     until: (fn, seconds) => poll(() => run(fn), String(fn), seconds),
     /** Presses a key as Windows delivers one, `F5` or, with Ctrl, `R`. */
     press: (key, control = false) =>
-      execFileSync("powershell", [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        keys,
-        "-ProcessId",
-        String(child.pid),
-        "-Key",
-        key,
-        ...(control ? ["-Control"] : []),
-      ], { timeout: 60_000 }),
+      execFileSync(
+        "powershell",
+        [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          keys,
+          "-ProcessId",
+          String(child.pid),
+          "-Key",
+          key,
+          ...(control ? ["-Control"] : []),
+        ],
+        { timeout: 60_000 },
+      ),
     /** A right-click in the middle of what a selector names. */
     async rightClick(selector) {
       const at = await run(`() => {
@@ -148,7 +180,7 @@ async function launch(file) {
       child.kill();
       await exited;
       process.off("exit", stop);
-      await poll(() => list().then(() => null, () => true), "the port to close");
+      await poll(async () => !(await list(port).catch(() => null)), "the port to close");
     },
   };
 }
@@ -175,6 +207,7 @@ function textRuns(pdf) {
 describe("WebView2", { timeout: 300_000 }, () => {
   const folder = mkdtempSync(join(tmpdir(), "hshblk-webview2-"));
   const file = join(folder, "webview2.md");
+  const profile = join(folder, "profile");
   writeFileSync(
     file,
     "# WebView2\n\nA paragraph.\n\n---\n\n> outer\n>\n> > inner\n\n```\ncode\n```\n",
@@ -182,12 +215,15 @@ describe("WebView2", { timeout: 300_000 }, () => {
   let page;
 
   before(async () => {
-    page = await launch(file);
+    page = await launch(file, profile);
     const drawn = () => document.querySelector(".pg-h1") && document.querySelector(".status");
     await page.until(drawn, START);
   });
   after(async () => {
-    await page?.close();
+    // A launch that failed leaves its folder, where WebView2 may still be, to be looked at.
+    if (!page) return;
+    await page.close();
+    rmSync(folder, { recursive: true, force: true, maxRetries: 10 });
   });
 
   test("F5 and Ctrl+R leave the page as the reader left it", async () => {

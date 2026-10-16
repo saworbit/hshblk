@@ -150,6 +150,14 @@ jobs:
       - run: npx tauri build --debug --no-bundle
       - name: F5 and Ctrl+R, the right-click menu, print's header and footer, a contrast theme
         run: node test/webview2.mjs src-tauri/target/debug/hshblk.exe
+      # A launch the test gives up on leaves a picture of the screen (test/webview2-state.ps1).
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: webview2-screen
+          path: ${{ runner.temp }}/webview2.png
+          if-no-files-found: ignore
+          retention-days: 7
 
   bundle:
     # A job its condition skips never expands its matrix, so the name holds no matrix value.
