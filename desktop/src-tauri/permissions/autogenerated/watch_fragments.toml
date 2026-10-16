@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-watch-fragments"
+description = "Enables the watch_fragments command without any pre-configured scope."
+commands.allow = ["watch_fragments"]
+
+[[permission]]
+identifier = "deny-watch-fragments"
+description = "Denies the watch_fragments command without any pre-configured scope."
+commands.deny = ["watch_fragments"]

@@ -831,9 +831,13 @@ describe("following a link", () => {
     assert.deepEqual(destinationOf(state, "#install"), { heading: 0 });
     assert.deepEqual(destinationOf(state, "https://x.y/a"), { url: "https://x.y/a" });
     assert.deepEqual(destinationOf(state, "MAILTO:me@x.y"), { url: "MAILTO:me@x.y" });
-    // #156: a file is named as the link names it, decoded, less its query and fragment.
+    // #156: a file is named as the link names it, decoded, less its query and fragment, and
+    // #285: the fragment goes with it, for the place in the file it names.
     assert.deepEqual(destinationOf(state, "docs/desktop.md"), { file: "docs/desktop.md" });
-    assert.deepEqual(destinationOf(state, "the%20guide.md#install"), { file: "the guide.md" });
+    assert.deepEqual(destinationOf(state, "the%20guide.md#install"), {
+      file: "the guide.md",
+      fragment: "#install",
+    });
     assert.deepEqual(destinationOf(state, "/README.md?plain=1"), { file: "/README.md" });
     assert.deepEqual(destinationOf(state, "#no-such-heading"), {
       refused: "Nothing in this file is named #no-such-heading.",

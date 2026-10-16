@@ -10,6 +10,7 @@ import {
 import { type Command, EditorView, type Rect, showTooltip, type Tooltip } from "@codemirror/view";
 import type { SyntaxNode, Tree } from "@lezer/common";
 import { filePath, isLocal } from "./assets.ts";
+import { finishParse } from "./complete.ts";
 import { autolinkHref, destination, headingAt, type Definitions } from "./references.ts";
 import { htmlAt } from "./widgets.ts";
 
@@ -67,11 +68,15 @@ export const linkOpener = Facet.define<(href: string) => void, ((href: string) =
   combine: (values) => values[0] ?? null,
 });
 
+/** Opens a file a link names, and goes to the place its fragment names, if it names one. */
+type FileOpener = (file: string, fragment?: string) => void;
+
 /**
  * What the shell does with a link to a file in the repository: opens it in a window of its own
- * (#156). It is handed the file as the link names it, decoded, never a path.
+ * (#156), at the heading or anchor its fragment names (#285). It is handed the file as the link
+ * names it, decoded, never a path.
  */
-export const fileOpener = Facet.define<(file: string) => void, ((file: string) => void) | null>({
+export const fileOpener = Facet.define<FileOpener, FileOpener | null>({
   combine: (values) => values[0] ?? null,
 });
 
@@ -93,7 +98,7 @@ export function opens(href: string): boolean {
 export type Destination =
   | { heading: number }
   | { url: string }
-  | { file: string }
+  | { file: string; fragment?: string }
   | { refused: string };
 
 export function destinationOf(state: EditorState, href: string): Destination {
@@ -104,7 +109,9 @@ export function destinationOf(state: EditorState, href: string): Destination {
   if (href.startsWith("#")) return { refused: `Nothing in this file is named ${href}.` };
   // Whether the file is in the repository, and opens, is the shell's to say.
   const file = filePath(href);
-  if (isLocal(file)) return { file };
+  // #285: the place in the file it names goes with it, as a link in this file names one.
+  const fragment = /#.+/.exec(href)?.[0];
+  if (isLocal(file)) return fragment ? { file, fragment } : { file };
   return { refused: "Only web and mail links open, and links to files in the repository." };
 }
 
@@ -202,9 +209,26 @@ function follow(view: EditorView, href: string): (() => void) | string | null {
     };
   }
   if ("refused" in to) return to.refused;
-  const open = "url" in to ? view.state.facet(linkOpener) : view.state.facet(fileOpener);
-  const target = "url" in to ? to.url : to.file;
-  return open ? () => open(target) : null;
+  if ("url" in to) {
+    const open = view.state.facet(linkOpener);
+    return open ? () => open(to.url) : null;
+  }
+  const open = view.state.facet(fileOpener);
+  return open ? () => open(to.file, to.fragment) : null;
+}
+
+/**
+ * #285: goes to the heading or anchor a link in another file named, as a link in this file goes
+ * to one, which Alt+Left comes back from. It may be past what the page has parsed, so the page
+ * reads every line first, as print does. Returns why it cannot, or null.
+ */
+export function goToFragment(view: EditorView, fragment: string): string | null {
+  finishParse(view);
+  const heading = headingAt(view.state, fragment);
+  if (heading === undefined) return `Nothing in this file is named ${fragment}.`;
+  view.dispatch(jumpTo(view.state, placeOf(view), heading));
+  view.focus();
+  return null;
 }
 
 /** A place on the page: where the caret is, and where the line at the top of the window starts. */

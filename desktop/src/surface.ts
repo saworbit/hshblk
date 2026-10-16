@@ -44,7 +44,7 @@ export type SurfaceOptions = {
   /** Where a link goes when the reader opens it. Without one, links only show their address. */
   openLink?: (href: string) => void;
   /** Where a link to a file in the repository goes, named as the link names it, decoded. */
-  openFile?: (file: string) => void;
+  openFile?: (file: string, fragment?: string) => void;
   /** Where the shell says why a link the reader followed does not open. */
   linkRefused?: (reason: string) => void;
   /** The CSP nonce CodeMirror puts on the styles it injects. */
