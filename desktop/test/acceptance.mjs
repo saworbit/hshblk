@@ -1857,6 +1857,41 @@ describe("a long file name", () => {
   });
 });
 
+describe("a long table", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-table-"));
+  const file = join(folder, "table.md");
+  const rows = Array.from({ length: 1500 }, (_, i) => `| ${i} | **row ${i}** | [link](#${i}) |`);
+  writeFileSync(file, `# Table\n\n| # | Name | Link |\n|---|---|---|\n${rows.join("\n")}\n`);
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelector(".pg-table"));
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  test("draws its first rows at once and the rest after, in columns that line up", async () => {
+    // #173: 20,000 rows drawn at once held first paint for 1.7 s.
+    const seen = await page.until(() => {
+      const rows = [...document.querySelectorAll(".pg-table tbody tr")];
+      if (rows.length < 1500) return null;
+      rows[199].scrollIntoView({ block: "center" });
+      const edges = (row) =>
+        [...row.cells].map((cell) => Math.round(cell.getBoundingClientRect().left)).join();
+      return {
+        rows: rows.length,
+        tables: document.querySelectorAll(".pg-table table").length,
+        seam: edges(rows[199]) === edges(rows[200]),
+        last: rows.at(-1).cells[0].textContent,
+      };
+    });
+    assert.deepEqual(seen, { rows: 1500, tables: 3, seam: true, last: "1499" });
+  });
+});
+
 describe("layout", () => {
   const folder = mkdtempSync(join(tmpdir(), "hshblk-layout-"));
   const file = join(folder, "layout.md");

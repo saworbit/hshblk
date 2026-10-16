@@ -170,12 +170,90 @@ export class TableWidget extends WidgetType {
       );
     }
     const body = table.appendChild(document.createElement("tbody"));
-    for (const cells of this.table.rows) row(view, body, "td", cells, this.table.align);
+    const { rows, align } = this.table;
+    let drawn = 0;
+    const draw = (count: number): boolean => {
+      const end = Math.min(rows.length, drawn + count);
+      for (; drawn < end; drawn += 1) row(view, body, "td", rows[drawn], align);
+      return drawn === rows.length;
+    };
+    // Print takes the whole table now. On screen the rest follows a chunk at a time, each a table
+    // of its own under the first, with the first's columns, fixed. A row added to a table lays out
+    // every row before it again, and 20,000 rows took 1.7 s each time.
+    if (draw(printed.has(view) ? Infinity : FIRST_ROWS)) return wrap;
+    let columns: { widths: string[]; width: string } | null = null;
+    const fixed = (into: HTMLTableElement) => {
+      into.style.tableLayout = "fixed";
+      into.style.width = columns!.width;
+      const cols = columns!.widths.map((width) => {
+        const col = document.createElement("col");
+        col.style.width = width;
+        return col;
+      });
+      into.prepend(element("colgroup", "", cols));
+    };
+    // The first table's columns, as shares of its width, once it is laid out.
+    const measure = (): boolean => {
+      const cells = table.rows[0]?.cells;
+      const whole = table.getBoundingClientRect().width;
+      if (!cells || whole === 0) return false;
+      const share = (cell: Element) => (cell.getBoundingClientRect().width / whole) * 100;
+      const widths = [...cells].map((cell) => `${share(cell)}%`);
+      columns = { widths, width: whole > wrap.clientWidth + 1 ? `${whole}px` : "100%" };
+      fixed(table);
+      return true;
+    };
+    const chunk = (count: number): boolean => {
+      // Off the screen, a chunk is neither laid out nor painted, and holds its rows' height.
+      const block = wrap.appendChild(element("div", "pg-table-chunk"));
+      const more = block.appendChild(document.createElement("table"));
+      fixed(more);
+      const end = Math.min(rows.length, drawn + count);
+      const into = more.appendChild(document.createElement("tbody"));
+      const height = (table.tBodies[0]?.getBoundingClientRect().height ?? 0) / FIRST_ROWS;
+      block.style.containIntrinsicSize = `auto ${Math.round(height * (end - drawn))}px`;
+      for (; drawn < end; drawn += 1) row(view, into, "td", rows[drawn], align);
+      return drawn === rows.length;
+    };
+    const next = () => {
+      if (!unbuilt.has(wrap)) return;
+      if ((columns || measure()) && chunk(ROW_CHUNK)) unbuilt.delete(wrap);
+      else setTimeout(next);
+      view.requestMeasure();
+    };
+    unbuilt.set(wrap, () => {
+      if (columns || measure()) chunk(Infinity);
+      else draw(Infinity);
+    });
+    setTimeout(next);
     return wrap;
+  }
+
+  destroy(dom: HTMLElement): void {
+    unbuilt.delete(dom);
   }
 
   ignoreEvent(): boolean {
     return false;
+  }
+}
+
+/**
+ * #173: how many of a table's rows draw with it, and how many follow at a time after, so a table
+ * of thousands of rows holds up no first paint. All 20,001 rows of one took 1.7 s to first paint.
+ */
+const FIRST_ROWS = 200;
+const ROW_CHUNK = 1000;
+
+/** What draws the rest of each table still being drawn, to stop when it goes or for print. */
+const unbuilt = new Map<HTMLElement, () => void>();
+
+/** Draws every row of each table in the page still being drawn, for print. */
+function finishTables(view: EditorView): void {
+  for (const [wrap, rest] of unbuilt) {
+    if (!view.contentDOM.contains(wrap)) continue;
+    rest();
+    unbuilt.delete(wrap);
   }
 }
 
@@ -522,6 +600,8 @@ export function printFrames(view: EditorView, on: boolean): void {
   }
   if (!printed.has(view)) printed.set(view, new Map());
   for (const frame of frames(view)) openForPrint(frame, view);
+  // A table drawn while print waits is drawn whole, and one still being drawn is finished (#173).
+  finishTables(view);
 }
 
 function openForPrint(frame: HTMLIFrameElement, view: EditorView): void {

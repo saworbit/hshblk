@@ -224,6 +224,8 @@ export const pageTheme = EditorView.theme({
   ".pg-summary-open::before": { content: '"▾"' },
   ".pg-table": { overflowX: "auto", padding: "0.6em 0" },
   ".pg-table table": { borderCollapse: "collapse", width: "100%", fontSize: "0.95em" },
+  // #173: a long table's later rows, a chunk at a time, skipped while off the screen.
+  ".pg-table-chunk": { contentVisibility: "auto" },
   ".pg-table th, .pg-table td": {
     textAlign: "left",
     verticalAlign: "top",
@@ -341,6 +343,7 @@ export const pageTheme = EditorView.theme({
     "&": { display: "block", "--pg-size": "1 !important" },
     ".cm-scroller": { overflow: "visible" },
     ".cm-panels": { display: "none" },
+    ".pg-table-chunk": { contentVisibility: "visible" },
     ".pg-link[data-print]::after": {
       content: '" (" attr(data-print) ")"',
       display: "inline-block",
