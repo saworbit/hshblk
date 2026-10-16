@@ -162,6 +162,25 @@ export const pageTheme = EditorView.theme({
   // A setext underline, hidden with its line until the selection opens it.
   ".pg-collapsed": { fontSize: "0", lineHeight: "0" },
   ".pg-figure": { display: "block" },
+  // #218: a reference to a footnote is its number, raised. A footnote is small and quiet, and
+  // the first is set apart by a rule. Padding, not margin, which CodeMirror's heights miss.
+  ".pg-note-reference": {
+    fontSize: "0.75em",
+    lineHeight: "0",
+    padding: "0 0.1em",
+    color: "var(--accent)",
+    cursor: "pointer",
+  },
+  ".pg-note": { fontSize: "0.9em", color: "var(--muted)" },
+  ".pg-note-first": { borderTop: "1px solid var(--rule)", paddingTop: "0.75em" },
+  ".pg-note-number": { color: "var(--ink)", marginInlineEnd: "0.4em" },
+  ".pg-note-back": { color: "var(--accent)", marginInlineStart: "0.3em", cursor: "pointer" },
+  // #225: markdown in a `<div align>` takes its alignment, a block image too.
+  ".pg-align-center": { textAlign: "center" },
+  ".pg-align-right": { textAlign: "right" },
+  ".pg-align-left": { textAlign: "left" },
+  ".pg-align-center .pg-image": { marginInline: "auto" },
+  ".pg-align-right .pg-image": { marginLeft: "auto", marginRight: "0" },
   ".pg-image": { display: "block", maxWidth: "100%", margin: "0.6em 0" },
   ".pg-image-missing": {
     display: "block",

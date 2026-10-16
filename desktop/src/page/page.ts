@@ -20,8 +20,9 @@ import {
 } from "@codemirror/view";
 import type { SyntaxNode, Tree } from "@lezer/common";
 import { decodeHTML } from "entities";
-import { type Blocks, scanNow } from "./blocks.ts";
+import { type Blocks, type Footnote, scanNow } from "./blocks.ts";
 import { pageTree, wholeBlocks } from "./complete.ts";
+import { emojiOf } from "./emoji.ts";
 import { inlinesOf, plainText } from "./inlines.ts";
 import { addressTooltip, linkAt, linkSpan, printedAddress } from "./links.ts";
 import { destination, headings, titleOf, type Definitions } from "./references.ts";
@@ -29,6 +30,8 @@ import {
   type Alert,
   AlertWidget,
   ImageWidget,
+  NoteMarkWidget,
+  NoteReferenceWidget,
   SummaryWidget,
   TaskWidget,
   TextWidget,
@@ -313,7 +316,7 @@ function draw(
   if (source) return Decoration.none;
   const folds = unfold(blocks.folds, opening);
   const { frontmatter } = blocks;
-  if (blocks.details.length === 0 && !frontmatter) return folds;
+  if (blocks.details.length === 0 && blocks.aligned.length === 0 && !frontmatter) return folds;
   const reached = (span: Fold) =>
     opening?.ranges.some((range) => range.from <= span.to && range.to >= span.from) ?? false;
   const add: Range<Decoration>[] = [];
@@ -337,6 +340,15 @@ function draw(
       add.push(Decoration.replace({ block: true }).range(tail.lines.from, tail.lines.to));
     }
   }
+  // #225: a `<div align>` or a `<p align>` around markdown aligns it, and its tags fold away.
+  for (const { align, head, starts, tail } of blocks.aligned) {
+    for (const tag of [head, tail]) {
+      if (reached(tag.source)) continue;
+      add.push(Decoration.replace({ block: true }).range(tag.lines.from, tag.lines.to));
+    }
+    const line = Decoration.line({ class: `pg-align-${align}` });
+    for (const start of starts) add.push(line.range(start));
+  }
   return folds.update({ add, sort: true });
 }
 
@@ -344,7 +356,7 @@ function draw(
 export function paint(state: EditorState, { from, to }: { from: number; to: number }): Painted {
   const { tree, blocks, opening, ticked, source } = state.field(page);
   const skip = blocks.frontmatter?.to ?? -1;
-  const painter = new Painter(state.doc, blocks.definitions, ticked, skip, source, from, to);
+  const painter = new Painter(state.doc, blocks, ticked, skip, source, from, to);
   const { styles, folds } = painter.paint(tree);
   return { styles, folds, shown: source ? Decoration.none : unfold(folds, opening) };
 }
@@ -388,6 +400,9 @@ function alertOf(doc: Text, quote: SyntaxNode): (Fold & { kind: Alert }) | null 
 class Painter {
   readonly doc: Text;
   readonly definitions: Definitions;
+  /** Each footnote a reference uses, by label, and by where each starts (#218). */
+  readonly footnotes: ReadonlyMap<string, Footnote>;
+  readonly #notes = new Map<number, [string, Footnote]>();
   /** The task boxes the reader ticked or unticked. */
   readonly ticked: ReadonlySet<number>;
   /** Where the frontmatter ends. It shows as written, and nothing in it is markdown. */
@@ -405,7 +420,7 @@ class Painter {
 
   constructor(
     doc: Text,
-    definitions: Definitions,
+    blocks: Pick<Blocks, "definitions" | "footnotes">,
     ticked: ReadonlySet<number>,
     skip: number,
     source: boolean,
@@ -413,7 +428,9 @@ class Painter {
     to: number,
   ) {
     this.doc = doc;
-    this.definitions = definitions;
+    this.definitions = blocks.definitions;
+    this.footnotes = blocks.footnotes;
+    for (const [label, note] of blocks.footnotes) this.#notes.set(note.from, [label, note]);
     this.ticked = ticked;
     this.skip = skip;
     this.source = source;
@@ -472,7 +489,11 @@ class Painter {
         this.#codePadding(node, fold);
         return false;
       case "Link":
+        if (this.#noteReference(node)) return false;
         this.#link(node);
+        return;
+      case "Paragraph":
+        this.#note(node);
         return;
       case "Image": {
         const reference = destination(this.doc, node, this.definitions);
@@ -491,6 +512,12 @@ class Painter {
       case "Escape":
         this.#hide(fold, node.from, node.from + 1);
         return false;
+      case "Emoji": {
+        // #222: a shortcode GitHub knows shows its emoji. The keys and find show it as written.
+        const emoji = emojiOf(this.#slice(node).slice(1, -1));
+        if (emoji) this.#hide(fold, node.from, node.to, new TextWidget(emoji));
+        return false;
+      }
       case "Comment": {
         // #224: a comment in a line is written not to be seen. A space before it goes with it,
         // when a space or the line's end follows, so the words around it keep one between them.
@@ -577,12 +604,48 @@ class Painter {
         this.#foldLine(fold, node.from, "pg-rule");
         this.#hide(fold, node.from, node.to);
         return false;
-      case "Table":
       case "LinkReference":
-        // Drawn as blocks, from the state. Their source shows when the selection opens them.
+        // A footnote is drawn here. A definition is drawn as a block, from the state.
+        if (this.#note(node)) return false;
+        this.#quoteMarks(node);
+        return false;
+      case "Table":
+        // Drawn as a block, from the state. Its source shows when the selection opens it.
         this.#quoteMarks(node);
         return false;
     }
+  }
+
+  /**
+   * #218: a reference to a footnote shows its number, raised. Its source shows when the keys or
+   * find reach it. A footnote's own opening is drawn by `#note`, not here.
+   */
+  #noteReference(node: SyntaxNode): boolean {
+    const label = /^\[\^([^\]\s]+)\]$/.exec(this.#slice(node))?.[1].toLowerCase();
+    const note = label === undefined ? undefined : this.footnotes.get(label);
+    if (!label || !note || this.#notes.has(node.from)) return false;
+    const widget = new NoteReferenceWidget(label, note.number, note.text);
+    this.#hide({ from: node.from, to: node.to }, node.from, node.to, widget);
+    return true;
+  }
+
+  /**
+   * #218: a footnote, `[^1]: Its words.`, shows its number in place of its opening, small and
+   * quiet, and a way back to its first reference after its words. The first has a rule above
+   * it, as GitHub sets its footnotes apart. Its opening shows when the keys or find reach it.
+   */
+  #note(node: SyntaxNode): boolean {
+    let drawn = false;
+    for (const [from, [label, note]] of this.#notes) {
+      if (from < node.from || note.to > node.to) continue;
+      const opening = { from, to: note.words - 1 };
+      this.#hide(opening, from, note.words, new NoteMarkWidget(label, note.number));
+      const back = new NoteMarkWidget(label, null);
+      this.#folds.push(Decoration.widget({ widget: back, side: 1, fold: opening }).range(note.to));
+      this.#lines(from, note.to, note.first ? "pg-note pg-note-first" : "pg-note");
+      drawn = true;
+    }
+    return drawn;
   }
 
   /** A quote's mark, and the space after it, hidden while the selection is off its line. */

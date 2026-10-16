@@ -1,6 +1,7 @@
 import type { Text } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
 import { decodeHTML } from "entities";
+import { emojiOf } from "./emoji.ts";
 import { autolinkHref, destination, titleOf, type Definitions } from "./references.ts";
 
 /**
@@ -114,6 +115,8 @@ function inline(doc: Text, definitions: Definitions, node: SyntaxNode): Inline[]
     }
     case "Escape":
       return [text(source.slice(1))];
+    case "Emoji":
+      return [text(emojiOf(source.slice(1, -1)) ?? source)];
     case "Entity":
       return [text(decodeHTML(source))];
     case "HardBreak":

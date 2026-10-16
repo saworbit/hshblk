@@ -36,9 +36,27 @@ const SingleTilde: MarkdownConfig = {
 };
 
 /**
- * docs/hld.md §7: CommonMark, GFM tables, strikethrough by `~` or `~~`, and task lists.
- * Anything else is source.
+ * A shortcode, `:tada:`, as a node of its own: a colon, letters, digits, `_`, `+`, or `-`, and a
+ * colon (#222). Which names are emoji is the page's to know, so an unknown one shows as written.
  */
-export const dialect = parser.configure([Table, Strikethrough, SingleTilde, TaskList]);
+const Shortcode: MarkdownConfig = {
+  defineNodes: [{ name: "Emoji" }],
+  parseInline: [
+    {
+      name: "Emoji",
+      parse(cx, next, pos) {
+        if (next !== 58) return -1;
+        const code = /^:[a-z0-9_+-]+:/.exec(cx.slice(pos, Math.min(cx.end, pos + 64)));
+        return code ? cx.addElement(cx.elt("Emoji", pos, pos + code[0].length)) : -1;
+      },
+    },
+  ],
+};
+
+/**
+ * docs/hld.md §7: CommonMark, GFM tables, strikethrough by `~` or `~~`, task lists, and GitHub's
+ * emoji shortcodes. Anything else is source.
+ */
+export const dialect = parser.configure([Table, Strikethrough, SingleTilde, TaskList, Shortcode]);
 
 export const markdown = new Language(defineLanguageFacet(), dialect, [], "markdown");
