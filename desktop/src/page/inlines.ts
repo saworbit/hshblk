@@ -13,20 +13,28 @@ export type Inline =
   | { kind: "emphasis" | "strong" | "strikethrough"; children: Inline[] }
   | { kind: "code"; text: string }
   | { kind: "link"; href: string; title?: string; children: Inline[] }
-  | { kind: "image"; reference: string; alt: string; title?: string };
+  | { kind: "image"; reference: string; alt: string; title?: string }
+  | { kind: "note"; label: string; number: number; words: string };
+
+/** Each footnote a reference uses, by its label in lower case: its number and its words. */
+export type Notes = ReadonlyMap<string, { number: number; text: string }>;
 
 /** Syntax, not content. These characters never paint. */
 const MARKS = new Set(["EmphasisMark", "CodeMark", "LinkMark", "StrikethroughMark", "QuoteMark"]);
 
-/** The inline content of a node between two positions, trimmed as CommonMark trims a block. */
+/**
+ * The inline content of a node between two positions, trimmed as CommonMark trims a block. Given
+ * the footnotes, a reference to one is its number, as the page draws it (#283).
+ */
 export function inlinesOf(
   doc: Text,
   definitions: Definitions,
   node: SyntaxNode,
   from = node.from,
   to = node.to,
+  notes: Notes = new Map(),
 ): Inline[] {
-  const out = run(doc, definitions, node, from, to);
+  const out = run(doc, definitions, notes, node, from, to);
   const first = out[0];
   if (first?.kind === "text") out[0] = text(first.text.trimStart());
   const last = out.at(-1);
@@ -50,36 +58,45 @@ export function plainText(inlines: Inline[]): string {
     .map((inline) =>
       inline.kind === "image"
         ? inline.alt
-        : "text" in inline
-          ? inline.text
-          : plainText(inline.children),
+        : inline.kind === "note"
+          ? String(inline.number)
+          : "text" in inline
+            ? inline.text
+            : plainText(inline.children),
     )
     .join("")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function run(doc: Text, definitions: Definitions, node: SyntaxNode, from: number, to: number) {
+function run(
+  doc: Text,
+  definitions: Definitions,
+  notes: Notes,
+  node: SyntaxNode,
+  from = node.from,
+  to = node.to,
+) {
   const out: Inline[] = [];
   let pos = from;
   for (let child = node.firstChild; child; child = child.nextSibling) {
     if (child.from < from || child.to > to) continue;
-    append(out, text(doc.sliceString(pos, child.from)), ...inline(doc, definitions, child));
+    append(out, text(doc.sliceString(pos, child.from)), ...inline(doc, definitions, notes, child));
     pos = child.to;
   }
   append(out, text(doc.sliceString(pos, to)));
   return out;
 }
 
-function inline(doc: Text, definitions: Definitions, node: SyntaxNode): Inline[] {
+function inline(doc: Text, definitions: Definitions, notes: Notes, node: SyntaxNode): Inline[] {
   const source = doc.sliceString(node.from, node.to);
   switch (node.name) {
     case "Emphasis":
-      return [{ kind: "emphasis", children: run(doc, definitions, node, node.from, node.to) }];
+      return [{ kind: "emphasis", children: run(doc, definitions, notes, node) }];
     case "StrongEmphasis":
-      return [{ kind: "strong", children: run(doc, definitions, node, node.from, node.to) }];
+      return [{ kind: "strong", children: run(doc, definitions, notes, node) }];
     case "Strikethrough":
-      return [{ kind: "strikethrough", children: run(doc, definitions, node, node.from, node.to) }];
+      return [{ kind: "strikethrough", children: run(doc, definitions, notes, node) }];
     case "InlineCode": {
       const open = node.firstChild?.to ?? node.from;
       const close = node.lastChild?.from ?? node.to;
@@ -90,8 +107,12 @@ function inline(doc: Text, definitions: Definitions, node: SyntaxNode): Inline[]
     }
     case "Link":
     case "Image": {
+      // A reference to a footnote is its number, as the page draws it (#283).
+      const label = /^\[\^([^\]\s]+)\]$/.exec(source)?.[1].toLowerCase();
+      const note = node.name === "Link" && label ? notes.get(label) : undefined;
+      if (label && note) return [{ kind: "note", label, number: note.number, words: note.text }];
       const [open, close] = node.getChildren("LinkMark");
-      const words = run(doc, definitions, node, open.to, close.from);
+      const words = run(doc, definitions, notes, node, open.to, close.from);
       const href = destination(doc, node, definitions);
       if (href === null) {
         return [

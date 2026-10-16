@@ -50,6 +50,24 @@ export function headingOver(outline: readonly Heading[], pos: number): number {
   return low - 1;
 }
 
+/** Where the reader is: the caret, and the first and last lines in the window. */
+type Place = { caret: number; top: number; bottom: number };
+
+/**
+ * The heading the reader is in: the one the caret is under while the caret is in the window, and
+ * otherwise the one the window's top line is under. Near a file's end the window cannot bring a
+ * heading gone to up to its top, so its top line is still in the section above (#286).
+ */
+export function markedHeading(outline: readonly Heading[], { caret, top, bottom }: Place): number {
+  return headingOver(outline, top <= caret && caret <= bottom ? caret : top);
+}
+
+function placeIn(view: EditorView): Place {
+  const { top, bottom } = view.scrollDOM.getBoundingClientRect();
+  const line = (y: number) => view.lineBlockAtHeight(Math.max(y - view.documentTop, 0));
+  return { caret: view.state.selection.main.head, top: line(top).from, bottom: line(bottom).to };
+}
+
 function panel(view: EditorView): Panel {
   const dom = element("nav", "pg-outline");
   dom.setAttribute("aria-label", "Outline");
@@ -87,13 +105,13 @@ function panel(view: EditorView): Panel {
   };
 
   /**
-   * Marks the heading the window's top line is under, as the current place. The window is read
-   * when the view next measures, since it may not be read while CodeMirror updates.
+   * Marks the heading the reader is in, as the current place. The window is read when the view
+   * next measures, since it may not be read while CodeMirror updates.
    */
   const mark = () =>
     view.requestMeasure({
       key: list,
-      read: () => headingOver(outlineOf(view.state), placeOf(view).top),
+      read: () => markedHeading(outlineOf(view.state), placeIn(view)),
       write: (current) => {
         [...list.children].forEach((entry, i) => {
           const go = entry.firstElementChild!;
@@ -118,7 +136,13 @@ function panel(view: EditorView): Panel {
     },
     update(update: ViewUpdate) {
       if (outlineOf(update.state) !== outlineOf(update.startState)) render();
-      else if (update.viewportChanged || update.geometryChanged || update.docChanged) mark();
+      else if (
+        update.viewportChanged ||
+        update.geometryChanged ||
+        update.docChanged ||
+        update.selectionSet
+      )
+        mark();
     },
     destroy() {
       view.scrollDOM.removeEventListener("scroll", mark);

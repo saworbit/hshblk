@@ -525,7 +525,7 @@ class Painter {
         if (this.#noteReference(node)) return false;
         this.#link(node);
         return;
-      case "Paragraph":
+      case "Footnote":
         this.#note(node);
         return;
       case "Image": {
@@ -639,8 +639,7 @@ class Painter {
         this.#hide(fold, node.from, node.to);
         return false;
       case "LinkReference":
-        // A footnote is drawn here. A definition is drawn as a block, from the state.
-        if (this.#note(node)) return false;
+        // A definition is drawn as a block, from the state.
         this.#quoteMarks(node);
         return false;
       case "Table":
@@ -657,7 +656,7 @@ class Painter {
   #noteReference(node: SyntaxNode): boolean {
     const label = /^\[\^([^\]\s]+)\]$/.exec(this.#slice(node))?.[1].toLowerCase();
     const note = label === undefined ? undefined : this.footnotes.get(label);
-    if (!label || !note || this.#notes.has(node.from)) return false;
+    if (!label || !note) return false;
     const widget = new NoteReferenceWidget(label, note.number, note.text);
     this.#hide({ from: node.from, to: node.to }, node.from, node.to, widget);
     return true;
@@ -667,19 +666,28 @@ class Painter {
    * #218: a footnote, `[^1]: Its words.`, shows its number in place of its opening, small and
    * quiet, and a way back to its first reference after its words. The first has a rule above
    * it, as GitHub sets its footnotes apart. Its opening shows when the keys or find reach it.
+   * The blocks it runs on to are indented under it, and their indent folds away a line at a
+   * time, as a list item's does (#284).
    */
-  #note(node: SyntaxNode): boolean {
-    let drawn = false;
-    for (const [from, [label, note]] of this.#notes) {
-      if (from < node.from || note.to > node.to) continue;
-      const opening = { from, to: note.words - 1 };
-      this.#hide(opening, from, note.words, new NoteMarkWidget(label, note.number));
-      const back = new NoteMarkWidget(label, null);
-      this.#folds.push(Decoration.widget({ widget: back, side: 1, fold: opening }).range(note.to));
-      this.#lines(from, note.to, note.first ? "pg-note pg-note-first" : "pg-note");
-      drawn = true;
+  #note(node: SyntaxNode): void {
+    const [label, note] = this.#notes.get(node.from) ?? [];
+    if (!label || !note) return;
+    const opening = { from: node.from, to: note.words - 1 };
+    this.#hide(opening, node.from, note.words, new NoteMarkWidget(label, note.number));
+    const back = new NoteMarkWidget(label, null);
+    this.#folds.push(Decoration.widget({ widget: back, side: 1, fold: opening }).range(note.to));
+    this.#lines(node.from, note.to, note.first ? "pg-note pg-note-first" : "pg-note");
+    const after = this.doc.lineAt(node.from).to + 1;
+    for (let pos = Math.max(after, this.from); pos <= Math.min(note.to, this.to); ) {
+      const line = this.doc.lineAt(pos);
+      pos = line.to + 1;
+      const column = (to: number) => countColumn(this.doc.sliceString(line.from, to), 4);
+      let end = line.from;
+      while (end < line.to && /[ \t]/.test(line.text[end - line.from]) && column(end + 1) <= 4) {
+        end += 1;
+      }
+      this.#hide({ from: line.from, to: line.to }, line.from, end);
     }
-    return drawn;
   }
 
   /**
@@ -828,10 +836,12 @@ class Painter {
       top = link;
     }
     const block = top.parent;
-    // In a list item it stays beside the marker, as on GitHub, not below it (#214).
+    // In a list item it stays beside the marker, as on GitHub, not below it (#214). In a
+    // footnote, beside its number.
     return (
       block?.name === "Paragraph" &&
       block.parent?.name !== "ListItem" &&
+      block.parent?.name !== "Footnote" &&
       !this.doc.sliceString(block.from, top.from).trim() &&
       !this.doc.sliceString(top.to, block.to).trim()
     );

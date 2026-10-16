@@ -1,7 +1,8 @@
 import type { Range, Text } from "@codemirror/state";
 import { Decoration, type DecorationSet } from "@codemirror/view";
 import type { SyntaxNode, Tree } from "@lezer/common";
-import { inlinesOf, plainText, unescapePipes, type Inline } from "./inlines.ts";
+import { FOOTNOTE } from "./dialect.ts";
+import { inlinesOf, plainText, unescapePipes, type Inline, type Notes } from "./inlines.ts";
 import { anchorOf, define, type Definitions } from "./references.ts";
 import { HtmlWidget, TableWidget, type Align, type TableModel } from "./widgets.ts";
 
@@ -51,9 +52,6 @@ export type Footnote = {
 /** A footnote as written: its block, its label, and where it and its words start and end. */
 type WrittenNote = { block: SyntaxNode; label: string; from: number; words: number; to: number };
 
-/** A footnote's opening, `[^label]:`, and its label. */
-const NOTE = /^\[\^([^\]\s]+)\]:[ \t]*/;
-
 /** A reference to a footnote, `[^label]`, which no colon follows. */
 const NOTE_REFERENCE = /\[\^([^\]\s]+)\](?!:)/g;
 
@@ -88,7 +86,14 @@ export type Details = {
 };
 
 /** The blocks that hold other blocks. The scan goes into these and no others. */
-const CONTAINERS = new Set(["Document", "Blockquote", "BulletList", "OrderedList", "ListItem"]);
+const CONTAINERS = new Set([
+  "Document",
+  "Blockquote",
+  "BulletList",
+  "OrderedList",
+  "ListItem",
+  "Footnote",
+]);
 
 /** Raw HTML, drawn in a frame. A comment or an instruction draws nothing there. */
 const HTML = new Set(["HTMLBlock", "CommentBlock", "ProcessingInstructionBlock"]);
@@ -129,15 +134,8 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
     const name = cursor.name;
     // Lezer reads frontmatter as a rule and a heading. The page notes nothing in it.
     const noted = !front || cursor.to > front.to;
-    const note =
-      noted &&
-      (name === "Paragraph" || name === "LinkReference") &&
-      cursor.node.parent?.name === "Document" &&
-      NOTE.exec(doc.sliceString(cursor.from, Math.min(cursor.to, cursor.from + 200)));
-    if (note) {
-      // A footnote, which is no link definition, though `[^1]: word` reads as one (#218). Lezer
-      // reads the next line's `[^2]:` as more of the same paragraph, where GitHub starts another.
-      notes.push(...notesIn(doc, cursor.node));
+    if (noted && name === "Footnote" && cursor.node.parent?.name === "Document") {
+      notes.push(writtenNote(doc, cursor.node));
     } else if (noted && name === "LinkReference") {
       define(definitions, doc, cursor.node);
       drawn.push(cursor.node);
@@ -166,7 +164,7 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
   // #228: an id or a name in the document's HTML is a place a link can go, after the headings.
   for (const [from, name] of htmlAnchors(doc, tree))
     if (!anchors.has(name)) anchors.set(name, from);
-  const footnotes = numberNotes(doc, definitions, notes);
+  const footnotes = numberNotes(doc, tree, definitions, notes);
   for (const [label, { from, reference }] of footnotes) {
     if (!anchors.has(`fn-${label}`)) anchors.set(`fn-${label}`, from);
     if (!anchors.has(`fnref-${label}`)) anchors.set(`fnref-${label}`, reference);
@@ -183,7 +181,7 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
     // A definition is not drawn: the links that use it carry its address.
     const widget =
       node.name === "Table"
-        ? new TableWidget(table(doc, definitions, node))
+        ? new TableWidget(table(doc, definitions, footnotes, node))
         : HTML.has(node.name)
           ? new HtmlWidget(htmlOf(doc, node))
           : undefined;
@@ -286,10 +284,12 @@ function pairDetails(doc: Text, drawn: SyntaxNode[]): Details[] {
 
 /**
  * Numbers each footnote a reference uses, in the order references first use them, as GitHub
- * does. One no reference uses is not a footnote, and shows as written.
+ * does. One no reference uses is not a footnote, and shows as written. A reference counts only
+ * where the page draws one, as a link: in code it is code, and takes no number (#282).
  */
 function numberNotes(
   doc: Text,
+  tree: Tree,
   definitions: Definitions,
   notes: WrittenNote[],
 ): Map<string, Footnote> {
@@ -301,11 +301,10 @@ function numberNotes(
     const label = match[1].toLowerCase();
     const note = written.get(label);
     if (!note || footnotes.has(label)) continue;
+    const link = tree.resolveInner(match.index, 1).parent;
+    if (link?.name !== "Link" || link.from !== match.index) continue;
     const { block, from, words, to } = note;
-    const text =
-      block.name === "Paragraph"
-        ? plainText(inlinesOf(doc, definitions, block, words, to))
-        : doc.sliceString(words, to).trim();
+    const text = noteText(doc, definitions, block);
     const number = footnotes.size + 1;
     footnotes.set(label, { from, to, words, number, text, reference: match.index, first: false });
   }
@@ -315,20 +314,24 @@ function numberNotes(
   return footnotes;
 }
 
-/** The footnotes a block holds, one from each line that opens one, to the next. */
-function notesIn(doc: Text, block: SyntaxNode): WrittenNote[] {
-  const notes: WrittenNote[] = [];
-  for (let line = doc.lineAt(block.from); ; line = doc.lineAt(line.to + 1)) {
-    const opening = NOTE.exec(line.text);
-    const to = Math.min(line.to, block.to);
-    if (opening) {
-      const label = opening[1].toLowerCase();
-      notes.push({ block, label, from: line.from, words: line.from + opening[0].length, to });
-    } else if (notes.length > 0) {
-      notes[notes.length - 1].to = to;
-    }
-    if (line.to >= block.to) return notes;
+/** A footnote's block as written: its label, and where its words start, after its opening. */
+function writtenNote(doc: Text, block: SyntaxNode): WrittenNote {
+  const mark = block.firstChild!;
+  const label = FOOTNOTE.exec(doc.sliceString(mark.from, mark.to))![1].toLowerCase();
+  return { block, label, from: block.from, words: mark.to, to: block.to };
+}
+
+/** A footnote's words, every paragraph of them, for a hover over a reference to it. */
+function noteText(doc: Text, definitions: Definitions, block: SyntaxNode): string {
+  const parts: string[] = [];
+  for (let child = block.firstChild?.nextSibling; child; child = child.nextSibling) {
+    parts.push(
+      child.name === "Paragraph"
+        ? plainText(inlinesOf(doc, definitions, child))
+        : doc.sliceString(child.from, child.to).trim(),
+    );
   }
+  return parts.join(" ");
 }
 
 /**
@@ -411,25 +414,25 @@ function headingWords(heading: SyntaxNode): [number, number] {
   return [marks[0]?.to ?? heading.from, closing?.from ?? heading.to];
 }
 
-function table(doc: Text, definitions: Definitions, node: SyntaxNode): TableModel {
+function table(doc: Text, definitions: Definitions, notes: Notes, node: SyntaxNode): TableModel {
   const delimiter = node.getChild("TableDelimiter");
   const align = delimiter ? alignments(doc.sliceString(delimiter.from, delimiter.to)) : [];
   const fit = (cells: Inline[][]) => align.map((_, i) => cells[i] ?? []);
   const header = node.getChild("TableHeader");
   return {
     align,
-    head: header ? fit(cells(doc, definitions, header)) : [],
-    rows: node.getChildren("TableRow").map((row) => fit(cells(doc, definitions, row))),
+    head: header ? fit(cells(doc, definitions, notes, header)) : [],
+    rows: node.getChildren("TableRow").map((row) => fit(cells(doc, definitions, notes, row))),
   };
 }
 
 /** A row's cells in order. Two pipes with nothing between them are an empty cell. */
-function cells(doc: Text, definitions: Definitions, row: SyntaxNode): Inline[][] {
+function cells(doc: Text, definitions: Definitions, notes: Notes, row: SyntaxNode): Inline[][] {
   const out: Inline[][] = [];
   let cell: Inline[] | null = row.firstChild?.name === "TableDelimiter" ? null : [];
   for (let child = row.firstChild; child; child = child.nextSibling) {
     if (child.name === "TableCell") {
-      cell = unescapePipes(inlinesOf(doc, definitions, child));
+      cell = unescapePipes(inlinesOf(doc, definitions, child, child.from, child.to, notes));
     } else if (child.name === "TableDelimiter") {
       if (cell) out.push(cell);
       cell = [];

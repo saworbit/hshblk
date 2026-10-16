@@ -503,8 +503,11 @@ describe("the page", () => {
   });
 
   it("draws an image alone in a list item beside its marker, not below it", () => {
-    // #214: a lone image is a block, so it dropped under the marker.
-    const state = open("- [link item](https://x.y)\n- ![image item](logo.png)\n\n![alone](a.png)");
+    // #214: a lone image is a block, so it dropped under the marker. A footnote's number too.
+    const state = open(
+      "- [link item](https://x.y)\n- ![image item](logo.png)\n\n![alone](a.png)\n\n" +
+        "See[^1].\n\n[^1]: ![note](n.png)",
+    );
     const inline: boolean[] = [];
     shown(state).between(0, state.doc.length, (_from, _to, decoration) => {
       if (decoration.spec.widget instanceof ImageWidget) inline.push(decoration.spec.widget.inline);
@@ -512,7 +515,7 @@ describe("the page", () => {
     styles(state).between(0, state.doc.length, (_from, _to, decoration) => {
       if (decoration.spec.widget instanceof ImageWidget) inline.push(decoration.spec.widget.inline);
     });
-    assert.deepEqual(inline.sort(), [false, true]);
+    assert.deepEqual(inline.sort(), [false, true, true]);
   });
 
   it("hangs a list item's lines under its text, at every level", () => {
@@ -1109,6 +1112,64 @@ describe("a footnote", () => {
     // `[^1]: word` is a footnote too, not a link definition that turns `[^1]` into a link.
     const one = open("See[^1].\n\n[^1]: word");
     assert.equal(visible(one), "See[ref 1].\n\n[note 1]word[back]");
+  });
+
+  it("counts no reference in code, which shows as code", () => {
+    // #282: `[^b]` in a code span or a fenced block took number 1, ahead of the first cited.
+    const doc = [
+      "Write `[^b]` for a note.",
+      "",
+      "```",
+      "[^b]",
+      "```",
+      "",
+      "First.[^a] Then.[^b]",
+      "",
+      "[^a]: A.",
+      "[^b]: B.",
+    ].join("\n");
+    const { footnotes } = open(doc).field(page).blocks;
+    assert.deepEqual(
+      [...footnotes].map(([label, { number }]) => [label, number]),
+      [
+        ["a", 1],
+        ["b", 2],
+      ],
+    );
+    assert.match(visible(open(doc)), /First\.\[ref 1\] Then\.\[ref 2\]/);
+  });
+
+  it("raises a reference in a table cell to its number", () => {
+    // #283: `x[^1]` in a cell showed as written, a link with no definition.
+    const doc = "| A |\n|---|\n| x[^1] |\n\n[^1]: The **note**.";
+    const cell = open(doc).field(page).blocks.folds.iter().value?.spec.widget.table.rows[0][0];
+    assert.deepEqual(cell, [
+      { kind: "text", text: "x" },
+      { kind: "note", label: "1", number: 1, words: "The note." },
+    ]);
+  });
+
+  it("runs on to the indented paragraphs under it, as one note", () => {
+    // #284: a footnote's second paragraph showed as a code block, after its `↩`.
+    const doc = [
+      "Ref.[^1]",
+      "",
+      "[^1]: First paragraph.",
+      "",
+      "    Second **paragraph**.",
+      "",
+      "After.",
+    ].join("\n");
+    const state = open(doc);
+    assert.equal(
+      visible(state),
+      "Ref.[ref 1]\n\n[note 1]First paragraph.\n\nSecond paragraph.[back]\n\nAfter.",
+    );
+    const note = "pg-note pg-note-first";
+    assert.deepEqual(lineClasses(state, styles).slice(2), [note, note, note, "", ""]);
+    // The keys show the indent of the line they are on.
+    assert.match(visible(select(state, doc.indexOf("Second"))), /\n {4}Second paragraph\./);
+    assert.match(state.field(page).blocks.footnotes.get("1")!.text, /^First paragraph\. Second/);
   });
 });
 
