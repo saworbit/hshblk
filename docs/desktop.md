@@ -46,6 +46,7 @@ Each file opens in a window of its own. A second file opens a second window in t
 | `Ctrl+F` (`⌘F`) | Find, in the source. On macOS, so does Edit > Find |
 | `Ctrl+/` (`⌘/`) | Show all the syntax, or hide it again |
 | `Ctrl+Shift+M` (`⌘⇧M`) | Show or hide the frontmatter's panel |
+| `F1`, `Ctrl+?` (`F1`, `⌘?`) | Show or hide this list of keys |
 | `Ctrl+P` (`⌘P`) | Print the whole page. On macOS, so does File > Print |
 | `Ctrl+=`, `Ctrl+-` (`⌘=`, `⌘-`) | Make the text bigger or smaller |
 | `Ctrl+0` (`⌘0`) | Put the text back to its own size |
@@ -57,7 +58,8 @@ Each file opens in a window of its own. A second file opens a second window in t
 | `Enter` | Open or close a `<details>`, with the caret on its tags. Tick or untick a task box, with the caret in its text |
 
 - Dropping a file on a window opens it in a new window. A file that is already open brings its window to the front instead. `Ctrl+O` starts in the folder of the window's document, offers every file after the markdown ones on Linux and Windows, and takes several at once. Two windows of files with the same name add the folder to their titles. A file that is not text, such as an image, does not open, and the message names it.
-- On macOS, the menu bar's File menu has Open, with ⌘O, above Tauri's own items, and Print, with ⌘P, below them. Edit keeps Tauri's Copy and Select All, and ends with Find, with ⌘F. Each new window opens a step down and right of the one before. Linux and Windows have no menu bar, which would sit above the page in every window.
+- On macOS, the menu bar's File menu has Open, with ⌘O, above Tauri's own items, and Print, with ⌘P, below them. Edit keeps Tauri's Copy and Select All, and ends with Find, with ⌘F. Linux and Windows have no menu bar, which would sit above the page in every window. `F1` lists the keys in a panel below the page on every system, and the welcome window lists them under its button.
+- A new window opens at the size of the window last moved or resized. On macOS and Windows it steps down and right of the one in front, and the first of a launch opens where the last one was left. The welcome window lists the files opened last, each a click away. That size and place, and those files, are kept in the app's data folder, never beside a file.
 - Move the caret into a construct with the keys, or find in it, and its syntax shows, so `**bold**` reads as written. A click places the caret and opens nothing, so the text holds still under the pointer. A link never unfolds: its address shows in a popover under it, with **Open** for web and mail addresses and for files in the repository, which open in a window of their own. A link that cannot open says why in its popover, and in the status line after `Ctrl` or `⌘` and a click. After following a link to a heading, `Alt+Left` (`⌘[`) goes back to where it was followed from. Print shows a web or mail link's address after its words. A find match in the address shows there, marked.
 - Copy and find work on the source, hidden syntax included. The status line says so, after the file's name and when it was last modified. The find box says how many matches there are and which one is current, and marks that one apart from the rest. In a file over a million characters it counts between events, and says "Counting" until it is done.
 - Keyboard focus on the app's own buttons and fields shows as a ring in the accent colour.
@@ -130,12 +132,14 @@ The app has no updater, by choice ([hld.md](hld.md) §12, question 1). It makes 
 | `desktop/src-tauri/src/documents.rs` | Opening a file: its facts, its scope, its handle. |
 | `desktop/src-tauri/src/assets.rs` | The resource channel for images. |
 | `desktop/src-tauri/src/windows.rs` | Where files come from (the command line, a double-click, the dialog, a drop) and the window each gets, and where it opens on macOS. |
-| `desktop/src-tauri/src/lib.rs` | The ten commands the page may call, and the app, with its menu bar on macOS. |
+| `desktop/src-tauri/src/lib.rs` | The twelve commands the page may call, and the app, with its menu bar on macOS. |
+| `desktop/src-tauri/src/memory.rs` | What the app keeps between runs in its own data folder: the last window's size and place, and the files opened last. |
 | `desktop/src-tauri/src/watch.rs` | Looking at each open file twice a second, and telling its window when it has new text. |
 | `desktop/src-tauri/linux/hshblk.desktop` | The Linux desktop entry, which passes the double-clicked file. |
 | `desktop/src-tauri/icons/` | The app icon: [`brand/app-icon/`](../brand/app-icon/), file for file. 16 and 32 px are a drawing of their own, so it is copied, never regenerated with `tauri icon`. |
 | `desktop/src/main.ts` | The window: open, print, the status line, and the welcome, which names the version. |
 | `desktop/src/surface.ts` | The CodeMirror surface, with editing turned off. |
+| `desktop/src/keys.ts` | The keys, read from the README's key table, for the panel `F1` opens and the welcome window. |
 | `desktop/src/page/` | The page: the dialect, its decorations, links, images, tables, the frontmatter panel, find's count, the text size, each line's direction, the whole-document parse, and the theme. |
 | `desktop/scripts/` | What CI runs: the unit tests' runner, which fails when no test file matches, the licence check, and the check that a release tag names the version. |
 

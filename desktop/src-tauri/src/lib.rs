@@ -2,6 +2,7 @@
 
 mod assets;
 mod documents;
+mod memory;
 mod watch;
 mod windows;
 
@@ -19,6 +20,7 @@ use std::sync::{Arc, Mutex};
 use tauri::ipc::Channel;
 
 use documents::{Document, Documents};
+use memory::Memory;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -198,6 +200,54 @@ fn watch_document(
     Ok(())
 }
 
+/// A recent file, as the welcome window lists it: its name, with as many folders as tell it from
+/// another of the same name, and a token that names it for `open_recent`. Never its path.
+#[derive(Serialize)]
+struct Recent {
+    name: String,
+    token: String,
+}
+
+/// The files opened last, for the welcome window (#242). Rust keeps their paths.
+#[tauri::command]
+fn recent_files(memory: State<'_, Memory>) -> Vec<Recent> {
+    let listed = memory.recent(token);
+    let files: Vec<(String, std::path::PathBuf)> = listed
+        .iter()
+        .map(|(_, path)| {
+            let name = path.file_name().unwrap_or_default();
+            (name.to_string_lossy().into_owned(), path.clone())
+        })
+        .collect();
+    listed
+        .into_iter()
+        .zip(windows::titles(&files))
+        .map(|((token, _), name)| Recent { name, token })
+        .collect()
+}
+
+/// Opens the recent file a token names, as the Open dialog opens one (#242). Async, since a
+/// window made from a synchronous command deadlocks on Windows.
+#[tauri::command]
+async fn open_recent(
+    app: AppHandle,
+    memory: State<'_, Memory>,
+    token: String,
+) -> Result<(), String> {
+    let file = memory
+        .take(&token)
+        .ok_or("That file is no longer in the list.")?;
+    windows::open_all(&app, &[file]);
+    Ok(())
+}
+
+/// A token for the page to name a recent file by: 64 random bits, as hex.
+fn token() -> String {
+    let mut bytes = [0u8; 8];
+    getrandom::fill(&mut bytes).expect("the operating system provides random bytes");
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 /// A link goes to the system browser, after a click. The page itself never navigates.
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
@@ -311,6 +361,8 @@ pub fn run() {
             document_text,
             pick_document,
             open_url,
+            recent_files,
+            open_recent,
             open_link,
             image_refusal,
             print_page,
@@ -328,6 +380,9 @@ pub fn run() {
                 }
             }
             watch::start(app.handle().clone());
+            // What the app kept from the last run: the last window's size and place, and the
+            // recent files, in its own data folder (#240, #242).
+            app.manage(Memory::load(app.path().app_local_data_dir().ok()));
             let argv: Vec<String> = std::env::args().collect();
             windows::open_arguments(
                 app.handle(),

@@ -12,6 +12,7 @@ use tauri::{
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::documents::Documents;
+use crate::memory::{Geometry, Memory};
 use crate::watch::Watchers;
 use crate::MenuChannels;
 
@@ -107,22 +108,33 @@ pub fn show(app: &AppHandle, path: &Path) -> Result<(), String> {
         if let Err(error) = window.set_focus() {
             eprintln!("A window could not take the focus: {error}");
         }
+        if let Some(document) = handle_of(window.label()).and_then(|handle| documents.get(handle)) {
+            opened(app, &document.path);
+        }
         return Ok(());
     }
     let (handle, document) = documents.open(path).map_err(|error| {
         let name = path.file_name().unwrap_or(path.as_os_str());
         error.message(&name.to_string_lossy())
     })?;
+    opened(app, &document.path);
     let waiting = app
         .webview_windows()
         .into_values()
         .find(|window| window.label().starts_with(EMPTY));
     // A file that replaces the welcome window takes its place.
+    let size = size_of_next(app);
     let place = match &waiting {
-        Some(window) if cfg!(target_os = "macos") => place_of(window),
-        _ => next_place(app),
+        Some(window) if !cfg!(target_os = "linux") => place_of(window),
+        _ => next_place(app, size),
     };
-    build(app, &format!("{DOCUMENT}{handle}"), &document.name, place);
+    build(
+        app,
+        &format!("{DOCUMENT}{handle}"),
+        &document.name,
+        size,
+        place,
+    );
     retitle(app);
     if let Some(window) = waiting {
         let _ = window.close();
@@ -130,18 +142,50 @@ pub fn show(app: &AppHandle, path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Puts a file at the top of the recent files, which the welcome window lists (#242).
+fn opened(app: &AppHandle, path: &Path) {
+    if let Some(memory) = app.try_state::<Memory>() {
+        memory.opened(path);
+    }
+}
+
 fn empty(app: &AppHandle) {
     static COUNT: AtomicU32 = AtomicU32::new(0);
+    let size = size_of_next(app);
     build(
         app,
         &format!("{EMPTY}{}", COUNT.fetch_add(1, Ordering::Relaxed)),
         "Hash Block",
-        next_place(app),
+        size,
+        next_place(app, size),
     );
 }
 
-/// A window's size, in points.
+/// A window's size, in points, until the reader resizes one.
 const SIZE: (f64, f64) = (880.0, 760.0);
+
+/// The smallest a window may be, in points.
+const MIN: (f64, f64) = (420.0, 320.0);
+
+/// A new window's size: the one the reader last moved or resized, as far as the main screen
+/// holds it, or the app's own (#240).
+fn size_of_next(app: &AppHandle) -> (f64, f64) {
+    let Some(kept) = app.try_state::<Memory>().and_then(|memory| memory.window()) else {
+        return SIZE;
+    };
+    let most = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|monitor| area_of(&monitor))
+        .map_or((f64::INFINITY, f64::INFINITY), |area| {
+            (area.width, area.height)
+        });
+    (
+        kept.width.clamp(MIN.0, most.0.max(MIN.0)),
+        kept.height.clamp(MIN.1, most.1.max(MIN.1)),
+    )
+}
 
 /// How far each new window steps down and right of the one before, in points.
 const CASCADE: f64 = 24.0;
@@ -165,13 +209,21 @@ struct Area {
     height: f64,
 }
 
+/// Whether a window of `size` at `place` fits in `area`.
+fn fits(place: Place, size: (f64, f64), area: Area) -> bool {
+    place.x >= area.x
+        && place.y >= area.y
+        && place.x + size.0 <= area.x + area.width
+        && place.y + size.1 <= area.y + area.height
+}
+
 /// One step down and right of `from`, or the work area's top left when a window would not fit.
-fn cascade(from: Place, area: Area) -> Place {
+fn cascade(from: Place, area: Area, size: (f64, f64)) -> Place {
     let next = Place {
         x: from.x + CASCADE,
         y: from.y + CASCADE,
     };
-    if next.x + SIZE.0 <= area.x + area.width && next.y + SIZE.1 <= area.y + area.height {
+    if fits(next, size, area) {
         next
     } else {
         Place {
@@ -181,11 +233,14 @@ fn cascade(from: Place, area: Area) -> Place {
     }
 }
 
-/// Where a new window goes. On macOS, AppKit cascades a document window from the one in front,
-/// but not a window made in code, so every window opened on top of the last (#181). Windows and
-/// Linux's window managers place a new window themselves.
-fn next_place(app: &AppHandle) -> Option<Place> {
-    if !cfg!(target_os = "macos") {
+/// Where a new window of `size` goes. On macOS, AppKit cascades a document window from the one in
+/// front, but not a window made in code, so every window opened on top of the last (#181).
+/// Windows puts each new one on its main screen, wherever the reader works. So on both, a new
+/// window steps down and right of the one in front, or of the last one opened, on its screen,
+/// and the first of a launch goes where the reader left the last (#240). Linux's window managers
+/// place a new window themselves, and Wayland lets no app place one.
+fn next_place(app: &AppHandle, size: (f64, f64)) -> Option<Place> {
+    if cfg!(target_os = "linux") {
         return None;
     }
     let windows = app.webview_windows();
@@ -195,18 +250,59 @@ fn next_place(app: &AppHandle) -> Option<Place> {
         .or_else(|| {
             let last = LAST.lock().expect("last window lock");
             last.as_ref().and_then(|label| windows.get(label))
-        })?;
-    let monitor = from.current_monitor().ok()??;
+        });
+    let Some(from) = from else {
+        return kept_place(app, size);
+    };
+    let area = area_of(&from.current_monitor().ok()??);
+    Some(cascade(place_of(from)?, area, size))
+}
+
+/// Where the reader left the last window, when it fits on a screen that is there now.
+fn kept_place(app: &AppHandle, size: (f64, f64)) -> Option<Place> {
+    let kept = app.try_state::<Memory>()?.window()?;
+    let place = Place {
+        x: kept.x,
+        y: kept.y,
+    };
+    let monitors = app.available_monitors().ok()?;
+    monitors
+        .iter()
+        .any(|monitor| fits(place, size, area_of(monitor)))
+        .then_some(place)
+}
+
+/// A screen's work area, in points.
+fn area_of(monitor: &tauri::Monitor) -> Area {
     let scale = monitor.scale_factor();
     let origin = monitor.work_area().position.to_logical::<f64>(scale);
     let size = monitor.work_area().size.to_logical::<f64>(scale);
-    let area = Area {
+    Area {
         x: origin.x,
         y: origin.y,
         width: size.width,
         height: size.height,
-    };
-    Some(cascade(place_of(from)?, area))
+    }
+}
+
+/// A window's size and place, as the reader left it, or none while it is minimized, maximized,
+/// or full screen, which a new window does not take.
+fn geometry_of(window: &Window) -> Option<Geometry> {
+    let set_aside = window.is_minimized().unwrap_or(true)
+        || window.is_maximized().unwrap_or(true)
+        || window.is_fullscreen().unwrap_or(true);
+    if set_aside {
+        return None;
+    }
+    let scale = window.scale_factor().ok()?;
+    let size = window.inner_size().ok()?.to_logical::<f64>(scale);
+    let at = window.outer_position().ok()?.to_logical::<f64>(scale);
+    (size.width >= MIN.0 && size.height >= MIN.1).then_some(Geometry {
+        width: size.width,
+        height: size.height,
+        x: at.x,
+        y: at.y,
+    })
 }
 
 fn place_of(window: &WebviewWindow) -> Option<Place> {
@@ -215,11 +311,11 @@ fn place_of(window: &WebviewWindow) -> Option<Place> {
     Some(Place { x: at.x, y: at.y })
 }
 
-fn build(app: &AppHandle, label: &str, title: &str, place: Option<Place>) {
+fn build(app: &AppHandle, label: &str, title: &str, size: (f64, f64), place: Option<Place>) {
     let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
         .title(title)
-        .inner_size(SIZE.0, SIZE.1)
-        .min_inner_size(420.0, 320.0)
+        .inner_size(size.0, size.1)
+        .min_inner_size(MIN.0, MIN.1)
         // A link in a document never takes the window anywhere. open_url sends it to the browser.
         .on_navigation(is_the_app);
     if let Some(place) = place {
@@ -241,7 +337,7 @@ fn build(app: &AppHandle, label: &str, title: &str, place: Option<Place>) {
 /// A document window's title: its file's name, and, when another window shows a file of the same
 /// name, as many of its folders as tell them apart, so the taskbar can (#167). Rust holds the
 /// paths, so the page still never sees one.
-fn titles(files: &[(String, PathBuf)]) -> Vec<String> {
+pub fn titles(files: &[(String, PathBuf)]) -> Vec<String> {
     let folders = |path: &Path| -> Vec<String> {
         let parent = path.parent().unwrap_or(path);
         let parts = parent
@@ -303,11 +399,18 @@ fn is_the_app(url: &Url) -> bool {
         || (cfg!(debug_assertions) && url.host_str() == Some("localhost"))
 }
 
-/// Drops open their files, and a closed window lets its document go.
+/// Drops open their files, a window moved or resized is kept for the next, and a closed window
+/// lets its document go and writes what the app keeps.
 pub fn on_event(window: &Window, event: &WindowEvent) {
     let paths = dropped(event);
     if !paths.is_empty() {
         open_all(window.app_handle(), paths);
+    }
+    if matches!(event, WindowEvent::Resized(_) | WindowEvent::Moved(_)) {
+        if let (Some(memory), Some(geometry)) = (window.try_state::<Memory>(), geometry_of(window))
+        {
+            memory.moved(geometry);
+        }
     }
     if let WindowEvent::Destroyed = event {
         if let Some(handle) = handle_of(window.label()) {
@@ -316,6 +419,9 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
         }
         window.state::<MenuChannels>().forget(window.label());
         window.state::<Watchers>().forget(window.label());
+        if let Some(memory) = window.try_state::<Memory>() {
+            memory.save();
+        }
     }
 }
 
@@ -381,7 +487,7 @@ mod tests {
             width: 1920.0,
             height: 980.0,
         };
-        let next = cascade(Place { x: 520.0, y: 80.0 }, area);
+        let next = cascade(Place { x: 520.0, y: 80.0 }, area, SIZE);
         assert_eq!(
             next,
             Place {
@@ -395,7 +501,7 @@ mod tests {
             y: 1005.0 - SIZE.1 - CASCADE + 1.0,
         };
         assert_eq!(
-            cascade(low, area),
+            cascade(low, area, SIZE),
             Place {
                 x: CASCADE,
                 y: 25.0 + CASCADE
@@ -407,7 +513,7 @@ mod tests {
             y: 80.0,
         };
         assert_eq!(
-            cascade(right, area),
+            cascade(right, area, SIZE),
             Place {
                 x: CASCADE,
                 y: 25.0 + CASCADE
@@ -426,7 +532,8 @@ mod tests {
                     x: -1400.0,
                     y: 10.0
                 },
-                left
+                left,
+                SIZE
             ),
             Place {
                 x: -1376.0,

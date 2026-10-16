@@ -1531,6 +1531,23 @@ describe("a file that does not open", () => {
       await gone();
     }
   });
+
+  test("the welcome window lists the keys, from the README's table", { timeout }, async () => {
+    // #239: on Linux and Windows the keys could be learnt only from the README.
+    const page = await launch(app, [join(work, "missing.md")]);
+    try {
+      // An empty list is truthy, and the page has none until its script runs.
+      const keys = await page.until(() => {
+        const listed = [...document.querySelectorAll(".welcome-keys dt")];
+        return listed.length > 0 && listed.map((dt) => dt.textContent);
+      });
+      assert.ok(keys.includes("Ctrl+O"), keys.join(", "));
+      assert.ok(keys.some((key) => key.startsWith("F1")), keys.join(", "));
+    } finally {
+      await page.close();
+      await gone();
+    }
+  });
 });
 
 describe("quit and reopen", () => {
