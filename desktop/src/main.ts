@@ -9,9 +9,14 @@ import { sourceShown, toggleSource } from "./page/page.ts";
 import { setTextSize, stepSize, textSize } from "./page/size.ts";
 import { createSurface, printPage, takeText } from "./surface.ts";
 import glyph from "../../brand/logo/svg/glyph-current.svg?raw";
+import readme from "../../README.md?raw";
+import { closeKeys, keyList, keyRows, keysPanel, toggleKeys } from "./keys.ts";
 import { element } from "./page/dom.ts";
 
 type Opened = { name: string; modified: number | null; readOnlyReason: string | null };
+
+/** A recent file, by its name and the token Rust gave it. */
+type Recent = { name: string; token: string };
 
 const root = document.querySelector<HTMLElement>("#page")!;
 const nonce = document.querySelector<HTMLMetaElement>('meta[name="style-nonce"]')?.content;
@@ -26,6 +31,13 @@ const close = () => void invoke("close_window");
 // macOS, Ctrl and those letters are CodeMirror's Emacs keys, even where they have nothing to move.
 const mac = /Mac/.test(navigator.platform);
 const command = (event: KeyboardEvent) => (mac ? event.metaKey : event.ctrlKey);
+
+/** The keys, from the README's own table, in this system's forms (#239). */
+const rows = keyRows(readme, mac);
+
+/** F1, or Ctrl+? (⌘? on macOS), which shows the keys. */
+const asksForKeys = (event: KeyboardEvent) =>
+  event.key === "F1" || (command(event) && event.key === "?");
 
 // The webview's reload keys and right-click menu are a browser's. Reload brought back the text
 // Rust read when the window opened, and the menu's Save as and Print were not the app's (#161,
@@ -63,7 +75,10 @@ if (handle) {
     openFile: (reference) =>
       void invoke("open_link", { reference }).catch((error) => say(status, `${error}`)),
     linkRefused: (reason) => say(status, reason),
-    extensions: EditorView.updateListener.of((update) => reflect(status, update.state)),
+    extensions: [
+      EditorView.updateListener.of((update) => reflect(status, update.state)),
+      keysPanel(rows),
+    ],
   });
   reflect(status, view.state);
   status
@@ -91,8 +106,15 @@ if (handle) {
     "0": () => size(0),
   };
   document.addEventListener("keydown", (event) => {
+    if (event.defaultPrevented) return;
+    // The keys' panel opens from F1 or Ctrl+?, and closes from either or Escape (#239).
+    if (asksForKeys(event) || (event.key === "Escape" && closeKeys(view))) {
+      event.preventDefault();
+      if (event.key !== "Escape") toggleKeys(view);
+      return;
+    }
     const run = keys[event.key];
-    if (!run || event.defaultPrevented || !command(event) || event.altKey) return;
+    if (!run || !command(event) || event.altKey) return;
     event.preventDefault();
     run();
   });
@@ -123,6 +145,12 @@ if (handle) {
 } else {
   root.append(welcome());
   document.addEventListener("keydown", (event) => {
+    if (asksForKeys(event)) {
+      event.preventDefault();
+      const keys = document.querySelector<HTMLDetailsElement>(".welcome-keys");
+      if (keys) keys.open = !keys.open;
+      return;
+    }
     const run = mac ? undefined : { o: pick, w: close }[event.key];
     if (run && command(event)) {
       event.preventDefault();
@@ -198,10 +226,30 @@ function welcome(): HTMLElement {
   const box = element("section", "welcome");
   const open = element("button", "welcome-open", "Open a markdown file");
   open.addEventListener("click", pick);
+  // #242: the files opened last, by name, each a click away. Rust keeps their paths.
+  const recent = element("nav", "welcome-recent");
+  recent.setAttribute("aria-label", "Recent files");
+  recent.hidden = true;
+  void invoke<Recent[]>("recent_files").then((files) => {
+    if (files.length === 0) return;
+    const list = element("ul");
+    for (const { name, token } of files) {
+      const file = element("button", "welcome-file", name);
+      file.setAttribute("type", "button");
+      file.addEventListener("click", () => void invoke("open_recent", { token }));
+      list.append(element("li", "", [file]));
+    }
+    recent.replaceChildren(element("h2", "", "Recent"), list);
+    recent.hidden = false;
+  });
+  // #239: the keys, where a new reader looks first. F1 opens them too.
+  const keys = element("details", "welcome-keys", [element("summary", "", "Keys"), keyList(rows)]);
   box.append(
     mark(),
     open,
     element("p", "welcome-hint", "or drop one on this window"),
+    recent,
+    keys,
     // Which one is running, for a bug report or the release page. There is no updater (#238).
     element("p", "welcome-version", `Version ${__VERSION__}`),
   );

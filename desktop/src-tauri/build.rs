@@ -5,6 +5,8 @@ fn main() {
         "document_text",
         "pick_document",
         "open_url",
+        "recent_files",
+        "open_recent",
         "open_link",
         "image_refusal",
         "print_page",
