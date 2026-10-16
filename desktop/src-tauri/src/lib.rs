@@ -6,7 +6,7 @@ mod memory;
 mod watch;
 mod windows;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use tauri::ipc::Response;
@@ -104,13 +104,18 @@ const OPEN: &str = "open";
 const PRINT: &str = "print";
 const FIND: &str = "find";
 
+/// What a recent file's item in File > Open Recent is named by, before its place in the list.
+const RECENT_ITEM: &str = "recent-";
+
 /// macOS's menu bar: Tauri's own, which holds Edit's Copy and Select All, with Open at the top of
-/// File, Print at its foot, and Find at the foot of Edit (#182). Their keys are the menu's there,
-/// so the page stands down for them. Linux and Windows get no menu bar, which would sit above the
-/// page in every window. They keep the keys and the welcome window's button.
-fn file_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
+/// File, then Open Recent (#288), Print at its foot, and Find at the foot of Edit (#182). Their
+/// keys are the menu's there, so the page stands down for them. Linux and Windows get no menu
+/// bar, which would sit above the page in every window. They keep the keys and the welcome
+/// window's button.
+fn file_menu(app: &AppHandle) -> tauri::Result<(Menu<Wry>, Submenu<Wry>)> {
     let menu = Menu::default(app)?;
     let open = MenuItem::with_id(app, OPEN, "Open…", true, Some("CmdOrCtrl+O"))?;
+    let recent = Submenu::new(app, "Open Recent", false)?;
     let print = MenuItem::with_id(app, PRINT, "Print…", true, Some("CmdOrCtrl+P"))?;
     let find = MenuItem::with_id(app, FIND, "Find…", true, Some("CmdOrCtrl+F"))?;
     let mut has_file = false;
@@ -118,7 +123,8 @@ fn file_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         if let MenuItemKind::Submenu(submenu) = item {
             match submenu.text()?.as_str() {
                 "File" => {
-                    submenu.insert_items(&[&open, &PredefinedMenuItem::separator(app)?], 0)?;
+                    let separator = PredefinedMenuItem::separator(app)?;
+                    submenu.insert_items(&[&open, &recent, &separator], 0)?;
                     submenu.append_items(&[&PredefinedMenuItem::separator(app)?, &print])?;
                     has_file = true;
                 }
@@ -130,11 +136,81 @@ fn file_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     // Tauri's menu has a File menu on macOS. Should it lose it, Open still has one, after the app's.
     if !has_file {
         menu.insert(
-            &Submenu::with_items(app, "File", true, &[&open, &print])?,
+            &Submenu::with_items(app, "File", true, &[&open, &recent, &print])?,
             1,
         )?;
     }
-    Ok(menu)
+    Ok((menu, recent))
+}
+
+/// #288: File > Open Recent on macOS: the files the welcome window lists, and the paths its items
+/// stand for, which stay in Rust.
+pub struct RecentMenu {
+    submenu: Submenu<Wry>,
+    files: Mutex<Vec<PathBuf>>,
+}
+
+impl RecentMenu {
+    /// Lists the recent files again, on the main thread, which the menu bar is AppKit's on.
+    pub fn refresh(app: &AppHandle) {
+        if app.try_state::<RecentMenu>().is_none() {
+            return;
+        }
+        let handle = app.clone();
+        let refreshed = app.run_on_main_thread(move || {
+            let menu = handle.state::<RecentMenu>();
+            if let Err(error) = menu.list(&handle) {
+                eprintln!("File > Open Recent could not be made: {error}");
+            }
+        });
+        if let Err(error) = refreshed {
+            eprintln!("File > Open Recent could not be made: {error}");
+        }
+    }
+
+    fn list(&self, app: &AppHandle) -> tauri::Result<()> {
+        let files = app.state::<Memory>().files();
+        while self.submenu.remove_at(0)?.is_some() {}
+        for (id, name) in recent_items(&files) {
+            let item = MenuItem::with_id(app, id, name, true, None::<&str>)?;
+            self.submenu.append(&item)?;
+        }
+        self.submenu.set_enabled(!files.is_empty())?;
+        *self.files.lock().expect("recent menu lock") = files;
+        Ok(())
+    }
+
+    /// The file an item names, in the list the menu was last made from.
+    fn file(&self, id: &str) -> Option<PathBuf> {
+        recent_file(&self.files.lock().expect("recent menu lock"), id)
+    }
+}
+
+/// Each recent file's item: its id, by its place in the list, and its name, as the welcome window
+/// names it.
+fn recent_items(files: &[PathBuf]) -> Vec<(String, String)> {
+    let names = recent_names(files);
+    let ids = (0..files.len()).map(|n| format!("{RECENT_ITEM}{n}"));
+    ids.zip(names).collect()
+}
+
+/// The file a recent file's item names, by its place in `files`.
+fn recent_file(files: &[PathBuf], id: &str) -> Option<PathBuf> {
+    let place: usize = id.strip_prefix(RECENT_ITEM)?.parse().ok()?;
+    files.get(place).cloned()
+}
+
+/// The recent files' names, each as a window's title names its file: as many of its folders as
+/// tell it from another of the same name (#167).
+fn recent_names(files: &[PathBuf]) -> Vec<String> {
+    let named: Vec<(String, PathBuf)> = files
+        .iter()
+        .map(|path| {
+            let name = path.file_name().unwrap_or_default();
+            (name.to_string_lossy().into_owned(), path.clone())
+        })
+        .collect();
+    windows::titles(&named)
 }
 
 /// The menu bar's items, for the window in front, if there is one. Find and Print are the page's
@@ -151,7 +227,12 @@ fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
                 app.state::<MenuChannels>().send(window.label(), action);
             }
         }
-        _ => {}
+        id => {
+            let file = app.try_state::<RecentMenu>().and_then(|menu| menu.file(id));
+            if let Some(file) = file {
+                windows::open_all(app, &[file]);
+            }
+        }
     }
 }
 
@@ -261,16 +342,10 @@ struct Recent {
 #[tauri::command]
 fn recent_files(memory: State<'_, Memory>) -> Vec<Recent> {
     let listed = memory.recent(token);
-    let files: Vec<(String, std::path::PathBuf)> = listed
-        .iter()
-        .map(|(_, path)| {
-            let name = path.file_name().unwrap_or_default();
-            (name.to_string_lossy().into_owned(), path.clone())
-        })
-        .collect();
+    let files: Vec<PathBuf> = listed.iter().map(|(_, path)| path.clone()).collect();
     listed
         .into_iter()
-        .zip(windows::titles(&files))
+        .zip(recent_names(&files))
         .map(|((token, _), name)| Recent { name, token })
         .collect()
 }
@@ -442,14 +517,24 @@ pub fn run() {
         .setup(|app| {
             if cfg!(target_os = "macos") {
                 // Without it, Tauri's menu stays, and the welcome window's button still opens a file.
-                if let Err(error) = file_menu(app.handle()).and_then(|menu| app.set_menu(menu)) {
-                    eprintln!("The File menu could not be made: {error}");
+                match file_menu(app.handle()).and_then(|(menu, recent)| {
+                    app.set_menu(menu)?;
+                    Ok(recent)
+                }) {
+                    Ok(submenu) => {
+                        app.manage(RecentMenu {
+                            submenu,
+                            files: Mutex::default(),
+                        });
+                    }
+                    Err(error) => eprintln!("The File menu could not be made: {error}"),
                 }
             }
             watch::start(app.handle().clone());
             // What the app kept from the last run: the last window's size and place, and the
             // recent files, in its own data folder (#240, #242).
             app.manage(Memory::load(app.path().app_local_data_dir().ok()));
+            RecentMenu::refresh(app.handle());
             let argv: Vec<String> = std::env::args().collect();
             windows::open_arguments(
                 app.handle(),
@@ -483,6 +568,26 @@ fn on_run_event(_app: &tauri::AppHandle, _event: RunEvent) {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn names_each_recent_file_in_the_menu_as_the_welcome_window_does() {
+        // #288: only the welcome window listed the files opened last.
+        let paths = [
+            std::path::PathBuf::from("/a/docs/README.md"),
+            std::path::PathBuf::from("/a/README.md"),
+            std::path::PathBuf::from("/a/notes.md"),
+        ];
+        let items = recent_items(&paths);
+        let ids: Vec<_> = items.iter().map(|(id, _)| id.as_str()).collect();
+        assert_eq!(ids, ["recent-0", "recent-1", "recent-2"]);
+        let names: Vec<_> = items.into_iter().map(|(_, name)| name).collect();
+        assert_eq!(names, recent_names(&paths));
+        assert_eq!(names[2], "notes.md");
+        // A click names its file by its place in the list the menu was made from.
+        assert_eq!(recent_file(&paths, "recent-1"), Some(paths[1].clone()));
+        assert_eq!(recent_file(&paths, "recent-3"), None);
+        assert_eq!(recent_file(&paths, "open"), None);
+    }
 
     #[test]
     fn sends_a_window_where_a_link_named_now_or_once_its_page_watches() {

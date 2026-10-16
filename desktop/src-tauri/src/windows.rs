@@ -14,7 +14,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use crate::documents::Documents;
 use crate::memory::{Geometry, Memory};
 use crate::watch::Watchers;
-use crate::{Fragments, MenuChannels};
+use crate::{Fragments, MenuChannels, RecentMenu};
 
 /// What the open dialog offers. A dropped or double-clicked file of any kind is still tried, but
 /// one whose bytes are plainly not text is refused (#206).
@@ -144,11 +144,47 @@ pub fn show(app: &AppHandle, path: &Path, fragment: Option<String>) -> Result<()
     Ok(())
 }
 
-/// Puts a file at the top of the recent files, which the welcome window lists (#242).
+/// Puts a file at the top of the recent files, which the welcome window lists (#242), and macOS's
+/// File > Open Recent, and on Windows the shell's, which the app's jump list shows (#288).
 fn opened(app: &AppHandle, path: &Path) {
     if let Some(memory) = app.try_state::<Memory>() {
         memory.opened(path);
     }
+    RecentMenu::refresh(app);
+    #[cfg(windows)]
+    note_in_shell(path);
+}
+
+/// #288: a file opened goes into the shell's recent documents, which the app's jump list shows,
+/// since the installer registers the app for `.md`. A debug build leaves the shell's list be, as
+/// it keeps a data folder of its own (#287), so a test's files stay out of it.
+#[cfg(windows)]
+fn note_in_shell(path: &Path) {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::UI::Shell::{SHAddToRecentDocs, SHARD_PATHW};
+    if cfg!(debug_assertions) {
+        return;
+    }
+    let wide: Vec<u16> = shell_path(path)
+        .as_os_str()
+        .encode_wide()
+        .chain([0])
+        .collect();
+    // SAFETY: SHARD_PATHW takes a null-terminated UTF-16 path, which `wide` is, and the shell
+    // reads it before it returns.
+    unsafe { SHAddToRecentDocs(SHARD_PATHW as u32, wide.as_ptr().cast()) };
+}
+
+/// A path as the shell takes one: without the `\\?\` a canonical path on Windows starts with.
+#[cfg(any(windows, test))]
+fn shell_path(path: &Path) -> PathBuf {
+    let Some(text) = path.to_str() else {
+        return path.to_path_buf();
+    };
+    if let Some(shared) = text.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{shared}"));
+    }
+    PathBuf::from(text.strip_prefix(r"\\?\").unwrap_or(text))
 }
 
 fn empty(app: &AppHandle) {
@@ -453,6 +489,18 @@ fn refuse(app: &AppHandle, message: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hands_the_shell_a_path_without_the_long_path_prefix() {
+        // #288: the shell's recent documents take no `\\?\` path, which canonical ones carry.
+        let shell = |path: &str| shell_path(Path::new(path));
+        assert_eq!(shell(r"\\?\C:\notes\a.md"), PathBuf::from(r"C:\notes\a.md"));
+        assert_eq!(
+            shell(r"\\?\UNC\server\share\a.md"),
+            PathBuf::from(r"\\server\share\a.md")
+        );
+        assert_eq!(shell(r"C:\notes\a.md"), PathBuf::from(r"C:\notes\a.md"));
+    }
 
     #[test]
     fn takes_files_from_the_command_line_but_not_the_program_or_flags() {
