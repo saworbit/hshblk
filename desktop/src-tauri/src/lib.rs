@@ -334,11 +334,26 @@ fn dmabuf_off(set: Option<std::ffi::OsString>) -> bool {
     set.is_none()
 }
 
+/// #287: the identifier the app runs as. A debug build, which the tests and `tauri dev` run, is
+/// never the reader someone installed. Its own identifier gives it its own data folder, WebView2
+/// profile, and single-instance key, so its files stay out of the reader's recent files, and it
+/// runs while Hash Block is open, rather than handing its file over.
+fn identifier(written: &str, debug: bool) -> String {
+    if debug {
+        format!("{written}.debug")
+    } else {
+        written.to_owned()
+    }
+}
+
 pub fn run() {
     // Before WebKitGTK starts, and before the app starts any thread.
     if cfg!(target_os = "linux") && dmabuf_off(std::env::var_os(DMABUF)) {
         std::env::set_var(DMABUF, "1");
     }
+    let mut context = tauri::generate_context!();
+    let config = context.config_mut();
+    config.identifier = identifier(&config.identifier, cfg!(debug_assertions));
     tauri::Builder::default()
         // First, so a second launch hands its files to this process before anything else starts.
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
@@ -392,7 +407,7 @@ pub fn run() {
             );
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("Hash Block starts")
         .run(on_run_event);
 }
@@ -426,6 +441,16 @@ mod tests {
         } else {
             assert_eq!(names, ["Markdown", "All files"]);
         }
+    }
+
+    #[test]
+    fn runs_a_debug_build_apart_from_the_installed_reader() {
+        // #287: a test run on a debug build wrote its fixtures into the reader's recent files.
+        assert_eq!(
+            identifier("dev.hshblk.reader", true),
+            "dev.hshblk.reader.debug"
+        );
+        assert_eq!(identifier("dev.hshblk.reader", false), "dev.hshblk.reader");
     }
 
     #[test]

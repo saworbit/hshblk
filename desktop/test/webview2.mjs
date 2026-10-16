@@ -104,10 +104,10 @@ async function launch(file, profile) {
   // The app goes when this script does, however it ends: a child left running holds node open.
   const stop = () => child.kill();
   process.once("exit", stop);
-  // A Hash Block already running takes the file, as a second launch hands it over, and this
-  // process ends with no port to read.
+  // A copy of the same build already running takes the file, as a second launch hands it over,
+  // and this process ends with no port to read. A debug build runs apart from Hash Block (#287).
   const gone = exited.then(([code]) => {
-    throw new Error(`The app ended at once, with ${code}. Is another Hash Block running?`);
+    throw new Error(`The app ended at once, with ${code}. Is another copy of it running?`);
   });
   const active = join(profile, "EBWebView", "DevToolsActivePort");
   let port;
