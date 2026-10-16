@@ -2,7 +2,15 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { getSearchQuery, search, SearchQuery, setSearchQuery } from "@codemirror/search";
 import { EditorSelection, EditorState } from "@codemirror/state";
-import { COUNT_TEXT_LIMIT, countText, findExtras, matchCount } from "./find.ts";
+import {
+  COUNT_SLICE,
+  COUNT_TEXT_LIMIT,
+  countSlice,
+  countText,
+  dropWhenCounted,
+  findExtras,
+  matchCount,
+} from "./find.ts";
 
 const doc = "one two one three one";
 
@@ -24,6 +32,7 @@ describe("find", () => {
       current: 2,
       total: 3,
       more: false,
+      counting: false,
     });
     assert.equal(countText(matchCount(searched("one", second, second + 3))), "2 of 3");
     assert.equal(countText(matchCount(searched("one"))), "3 matches");
@@ -57,13 +66,72 @@ describe("find", () => {
     assert.equal(walks, 1);
   });
 
-  it("does not count in a text too long to count at once", () => {
-    const long = EditorState.create({
-      doc: "one ".repeat(COUNT_TEXT_LIMIT / 4 + 1),
+  /** A text past the limit, with `words` in the find box, as a regular expression when asked. */
+  function long(doc: string, words: string, regexp = false, anchor = 0, head = anchor) {
+    const state = EditorState.create({
+      doc,
+      selection: EditorSelection.single(anchor, head),
       extensions: [search(), findExtras],
     });
-    const state = long.update({ effects: setSearchQuery.of(new SearchQuery({ search: "one" })) });
-    assert.equal(matchCount(state.state), null);
+    const query = new SearchQuery({ search: words, regexp });
+    return state.update({ effects: setSearchQuery.of(query) }).state;
+  }
+
+  /** Counts a slice at a time to the end, and says how many slices it took. */
+  function countAll(state: EditorState): number {
+    let slices = 1;
+    while (!countSlice(state, 0)) slices += 1;
+    return slices;
+  }
+
+  it("counts a text too long to count at once a slice at a time, and says it is counting", () => {
+    // #269: past a million characters the box said nothing, not even "No matches".
+    const filler = "x".repeat(COUNT_TEXT_LIMIT + 1);
+    const state = long(`one ${filler} one`, "one");
+    assert.equal(countText(matchCount(state)), "Counting");
+    assert.ok(countAll(state) > 1, "it took more than one slice");
+    assert.equal(countText(matchCount(state)), "2 matches");
+    const none = long(filler, "one");
+    assert.equal(countText(matchCount(none)), "Counting");
+    countAll(none);
+    assert.equal(countText(matchCount(none)), "No matches");
+  });
+
+  it("counts each match once where it crosses from one slice into the next", () => {
+    const at = COUNT_SLICE - 2;
+    const doc = `${"x".repeat(at)}needle${"x".repeat(COUNT_TEXT_LIMIT)}needle`;
+    const plain = long(doc, "needle");
+    countAll(plain);
+    assert.deepEqual(matchCount(plain), { current: 0, total: 2, more: false, counting: false });
+    // A regular expression across lines, and one that runs past the slice to the line's end.
+    const lines = `${"x".repeat(at)}ab\ncd${"y".repeat(COUNT_TEXT_LIMIT)}`;
+    const across = long(lines, "b\\nc", true);
+    countAll(across);
+    assert.equal(matchCount(across)?.total, 1);
+    const run = long(lines, "y+", true);
+    countAll(run);
+    assert.equal(matchCount(run)?.total, 1);
+    // The selection on a match is that match, once counted.
+    const on = long(doc, "needle", false, at, at + 6);
+    countAll(on);
+    assert.equal(countText(matchCount(on)), "1 of 2");
+  });
+
+  it("leaves no old match selected in a long text once its count finds none", () => {
+    const doc = `one ${"x".repeat(COUNT_TEXT_LIMIT)}`;
+    const left = long(doc, "zz", false, 0, 3);
+    // Not at once: the text is too long to check for each word typed.
+    assert.deepEqual([left.selection.main.from, left.selection.main.to], [0, 3]);
+    assert.equal(dropWhenCounted(left), null);
+    countAll(left);
+    const dropped = left.update(dropWhenCounted(left)!).state;
+    assert.deepEqual(dropped.selection.main, EditorSelection.cursor(3));
+    // Words that are in the file, or a selection the reader made since, stay as they are.
+    const kept = long(doc, "one", false, 0, 3);
+    countAll(kept);
+    assert.equal(dropWhenCounted(kept), null);
+    const moved = left.update({ selection: { anchor: 1, head: 2 } }).state;
+    assert.equal(dropWhenCounted(moved), null);
   });
 
   it("leaves no old match selected when the words change to ones not in the file", () => {
