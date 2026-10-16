@@ -14,7 +14,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use crate::documents::Documents;
 use crate::memory::{Geometry, Memory};
 use crate::watch::Watchers;
-use crate::MenuChannels;
+use crate::{Fragments, MenuChannels};
 
 /// What the open dialog offers. A dropped or double-clicked file of any kind is still tried, but
 /// one whose bytes are plainly not text is refused (#206).
@@ -67,7 +67,7 @@ pub fn open_all(app: &AppHandle, files: &[PathBuf]) {
 fn show_all(app: &AppHandle, files: &[PathBuf]) -> Vec<String> {
     files
         .iter()
-        .filter_map(|file| show(app, file).err())
+        .filter_map(|file| show(app, file, None).err())
         .collect()
 }
 
@@ -96,8 +96,8 @@ fn files_in(argv: &[String], cwd: &Path) -> Vec<PathBuf> {
 }
 
 /// Shows a file: in the window it has, if it is open, or else in a new one. An empty window, if
-/// there is one, gives way to it.
-pub fn show(app: &AppHandle, path: &Path) -> Result<(), String> {
+/// there is one, gives way to it. A link's fragment sends the page to the place it names (#285).
+pub fn show(app: &AppHandle, path: &Path, fragment: Option<String>) -> Result<(), String> {
     let documents = app.state::<Documents>();
     // #174: a second window on one file is two copies of the page, easy to mix up.
     let open = documents
@@ -110,6 +110,9 @@ pub fn show(app: &AppHandle, path: &Path) -> Result<(), String> {
         }
         if let Some(document) = handle_of(window.label()).and_then(|handle| documents.get(handle)) {
             opened(app, &document.path);
+        }
+        if let Some(fragment) = fragment {
+            app.state::<Fragments>().send(window.label(), fragment);
         }
         return Ok(());
     }
@@ -128,13 +131,12 @@ pub fn show(app: &AppHandle, path: &Path) -> Result<(), String> {
         Some(window) if !cfg!(target_os = "linux") => place_of(window),
         _ => next_place(app, size),
     };
-    build(
-        app,
-        &format!("{DOCUMENT}{handle}"),
-        &document.name,
-        size,
-        place,
-    );
+    let label = format!("{DOCUMENT}{handle}");
+    build(app, &label, &document.name, size, place);
+    // The page takes it once it watches for one, whether that is before this or after.
+    if let (Some(fragment), Some(_)) = (fragment, app.get_webview_window(&label)) {
+        app.state::<Fragments>().send(&label, fragment);
+    }
     retitle(app);
     if let Some(window) = waiting {
         let _ = window.close();
@@ -418,6 +420,7 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
             retitle(window.app_handle());
         }
         window.state::<MenuChannels>().forget(window.label());
+        window.state::<Fragments>().forget(window.label());
         window.state::<Watchers>().forget(window.label());
         if let Some(memory) = window.try_state::<Memory>() {
             memory.save();

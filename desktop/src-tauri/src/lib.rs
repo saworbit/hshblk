@@ -176,6 +176,55 @@ impl MenuChannels {
     }
 }
 
+/// #285: where a link in another window sends each window: the heading or the anchor its
+/// fragment names. A new window's page has no channel until it asks, so the fragment waits.
+#[derive(Default)]
+pub struct Fragments(Mutex<HashMap<String, Fragment>>);
+
+enum Fragment {
+    Waiting(String),
+    Watched(Channel<String>),
+}
+
+impl Fragments {
+    /// Sends the window's page to `fragment`, now if it watches for one, or else once it does.
+    pub fn send(&self, label: &str, fragment: String) {
+        let mut windows = self.0.lock().expect("fragments lock");
+        if let Some(Fragment::Watched(channel)) = windows.get(label) {
+            if let Err(error) = channel.send(fragment) {
+                eprintln!("A link could not reach its window: {error}");
+            }
+            return;
+        }
+        windows.insert(label.to_owned(), Fragment::Waiting(fragment));
+    }
+
+    fn watch(&self, label: &str, channel: Channel<String>) {
+        let mut windows = self.0.lock().expect("fragments lock");
+        if let Some(Fragment::Waiting(fragment)) = windows.remove(label) {
+            if let Err(error) = channel.send(fragment) {
+                eprintln!("A link could not reach its window: {error}");
+            }
+        }
+        windows.insert(label.to_owned(), Fragment::Watched(channel));
+    }
+
+    /// A closed window's line goes with it.
+    pub fn forget(&self, label: &str) {
+        self.0.lock().expect("fragments lock").remove(label);
+    }
+}
+
+/// The page's line from Rust for a link in another window that names a place in its file (#285).
+#[tauri::command]
+fn watch_fragments(
+    window: WebviewWindow,
+    channel: Channel<String>,
+    fragments: State<'_, Fragments>,
+) {
+    fragments.watch(window.label(), channel);
+}
+
 /// The page's line from the menu bar, for Find and Print on macOS.
 #[tauri::command]
 fn watch_menu(window: WebviewWindow, channel: Channel<String>, menus: State<'_, MenuChannels>) {
@@ -266,11 +315,12 @@ async fn open_link(
     window: WebviewWindow,
     documents: State<'_, Documents>,
     reference: String,
+    fragment: Option<String>,
 ) -> Result<(), String> {
     let document = own_document(&window, &documents)?;
     let file = assets::locate(&document, &reference)
         .map_err(|refusal| link_refusal(&refusal, &reference))?;
-    windows::show(window.app_handle(), &file)
+    windows::show(window.app_handle(), &file, fragment)
 }
 
 /// Why the resource channel refused an image the page could not show, in its chip's words, or
@@ -362,6 +412,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Documents::default())
         .manage(MenuChannels::default())
+        .manage(Fragments::default())
         .manage(watch::Watchers::default())
         .register_uri_scheme_protocol(assets::SCHEME, |ctx, request| {
             let window = ctx.webview_label();
@@ -383,6 +434,7 @@ pub fn run() {
             print_page,
             watch_menu,
             watch_document,
+            watch_fragments,
             close_window
         ])
         .on_window_event(windows::on_event)
@@ -431,6 +483,30 @@ fn on_run_event(_app: &tauri::AppHandle, _event: RunEvent) {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sends_a_window_where_a_link_named_now_or_once_its_page_watches() {
+        // #285: a link to a heading in another file opened that file at its top.
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let into = seen.clone();
+        let channel = Channel::<String>::new(move |body| {
+            if let tauri::ipc::InvokeResponseBody::Json(json) = body {
+                into.lock().unwrap().push(json);
+            }
+            Ok(())
+        });
+        let fragments = Fragments::default();
+        // A new window's page has not asked yet, so the fragment waits for it.
+        fragments.send("doc-1", "#install".into());
+        fragments.watch("doc-1", channel);
+        // An open window's page takes it at once.
+        fragments.send("doc-1", "#usage".into());
+        assert_eq!(*seen.lock().unwrap(), [r##""#install""##, r##""#usage""##]);
+        // A closed window's line goes with it.
+        fragments.forget("doc-1");
+        fragments.send("doc-1", "#later".into());
+        assert_eq!(seen.lock().unwrap().len(), 2);
+    }
 
     #[test]
     fn offers_every_file_after_markdown_where_the_dialog_can_choose() {

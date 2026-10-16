@@ -5,6 +5,7 @@ import { EditorView } from "@codemirror/view";
 import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { frontmatterPanel, frontmatterText, toggleFrontmatter } from "./page/frontmatter.ts";
+import { goToFragment } from "./page/links.ts";
 import { outlineOf, outlineOpen, toggleOutline } from "./page/outline.ts";
 import { sourceShown, toggleSource } from "./page/page.ts";
 import { setTextSize, stepSize, textSize } from "./page/size.ts";
@@ -75,9 +76,10 @@ if (handle) {
     nonce: nonce && !nonce.startsWith("__TAURI") ? nonce : undefined,
     // A link that does not open says why, in the status line.
     openLink: (url) => void invoke("open_url", { url }).catch((error) => say(status, `${error}`)),
-    // Rust finds the file from this window's document, and opens it in a window of its own (#156).
-    openFile: (reference) =>
-      void invoke("open_link", { reference }).catch((error) => say(status, `${error}`)),
+    // Rust finds the file from this window's document, and opens it in a window of its own (#156),
+    // which goes to the place the fragment names (#285).
+    openFile: (reference, fragment) =>
+      void invoke("open_link", { reference, fragment }).catch((error) => say(status, `${error}`)),
     linkRefused: (reason) => say(status, reason),
     extensions: [
       EditorView.updateListener.of((update) => reflect(status, update.state)),
@@ -141,6 +143,14 @@ if (handle) {
       .catch((error) => say(status, `${error}`));
   };
   void invoke("watch_document", { channel: watch });
+  // #285: a link in another window names a place in this file. The page takes no events, so Rust
+  // sends it down a channel, and keeps it for a new window until the page asks.
+  const fragments = new Channel<string>();
+  fragments.onmessage = (fragment) => {
+    const why = goToFragment(view, fragment);
+    if (why) say(status, why);
+  };
+  void invoke("watch_fragments", { channel: fragments });
   if (mac) {
     // The menu bar's Find and Print are the page's to do. The page takes no events, so Rust sends
     // them down a channel (#182).
