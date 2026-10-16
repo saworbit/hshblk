@@ -191,6 +191,7 @@ IPC, milestone one:
 - `open_link(reference)`. A link to another file: its destination, decoded as an image's is, without its query or fragment. Rust finds it from the window's own document under the asset scope rule, and opens it in a window of its own, or brings the window it has to the front. It returns nothing, so no handle reaches the page. A reader needs it as much as the editor, so it is here, not `resolve_link`.
 - `print_page()`. The window's print panel, which Rust opens on macOS, where WKWebView ignores `window.print()`. The page lays itself out for print first, and goes back on `afterprint`.
 - `watch_menu(channel)`. On macOS, the menu bar's Find and Print are the page's to do, and the page takes no events, so it hands Rust a channel for them.
+- `watch_document(channel)`. The page's line for its file's new text. Rust looks at each watched file twice a second, its size and when it was last modified, which a save changes, and reads nothing until they change. Then it reads the file again behind the same handle and says so, and the page asks `open_document` and `document_text` again. It takes only the lines that differ, so the caret and the scroll stay put in the rest. A file that goes, or no longer opens, is said once in the status line, and the page keeps the text it has. The editor milestone's `reload` is for a buffer with edits, which this one never has.
 - `close_window()`. Ctrl+W on Linux and Windows. macOS's menu bar has Close Window. The page has no permission of Tauri's own to close its window with.
 
 IPC, editor milestone:

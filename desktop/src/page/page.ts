@@ -222,9 +222,12 @@ export const page = StateField.define<Page>({
   update(current, tr) {
     const folded = tr.effects.some((effect) => effect.is(foldAll));
     const selected = tr.selection && tr.isUserEvent("select");
-    const active = folded ? null : selected ? tr.state.selection : current.active;
+    // The file's new text moves what the reader had selected with it (#199).
+    const kept = (selection: EditorSelection | null) =>
+      selection && tr.docChanged ? selection.map(tr.changes) : selection;
+    const active = folded ? null : selected ? tr.state.selection : kept(current.active);
     const pointer = tr.isUserEvent("select.pointer");
-    const opening = folded ? null : selected ? (pointer ? null : active) : current.opening;
+    const opening = folded ? null : selected ? (pointer ? null : active) : kept(current.opening);
     let toggled = current.toggled;
     let ticked = current.ticked;
     let printed = current.printing;

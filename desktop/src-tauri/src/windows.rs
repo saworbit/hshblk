@@ -12,6 +12,7 @@ use tauri::{
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::documents::Documents;
+use crate::watch::Watchers;
 use crate::MenuChannels;
 
 /// What the open dialog offers. A dropped or double-clicked file of any kind is still tried, but
@@ -314,6 +315,7 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
             retitle(window.app_handle());
         }
         window.state::<MenuChannels>().forget(window.label());
+        window.state::<Watchers>().forget(window.label());
     }
 }
 

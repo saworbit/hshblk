@@ -7,7 +7,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { frontmatterPanel, frontmatterText, toggleFrontmatter } from "./page/frontmatter.ts";
 import { sourceShown, toggleSource } from "./page/page.ts";
 import { setTextSize, stepSize, textSize } from "./page/size.ts";
-import { createSurface, printPage } from "./surface.ts";
+import { createSurface, printPage, takeText } from "./surface.ts";
 import glyph from "../../brand/logo/svg/glyph-current.svg?raw";
 import { element } from "./page/dom.ts";
 
@@ -96,6 +96,20 @@ if (handle) {
     event.preventDefault();
     run();
   });
+  // #199: Rust watches the file, and says when it has new text, which the page takes where it
+  // differs, or why it cannot, as when the file has gone.
+  const watch = new Channel<string>();
+  watch.onmessage = (message) => {
+    if (message !== "changed") return say(status, message);
+    void Promise.all([invoke<Opened>("open_document"), invoke<ArrayBuffer>("document_text")])
+      .then(([again, bytes]) => {
+        takeText(view, new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes));
+        restate(status, again);
+        status.querySelector(".status-said")?.remove();
+      })
+      .catch((error) => say(status, `${error}`));
+  };
+  void invoke("watch_document", { channel: watch });
   if (mac) {
     // The menu bar's Find and Print are the page's to do. The page takes no events, so Rust sends
     // them down a channel (#182).
@@ -122,13 +136,7 @@ function statusLine(opened: Opened): HTMLElement {
   const name = line.appendChild(element("span", "status-name", opened.name));
   // A long name ends in an ellipsis, and its tooltip has all of it (#162).
   name.title = opened.name;
-  if (opened.modified !== null) {
-    const when = new Date(opened.modified).toLocaleString(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-    line.append(element("span", "status-modified", `Modified ${when}`));
-  }
+  line.append(element("span", "status-modified"));
   // Shown only for a file with frontmatter, which folds away on the page.
   const front = element("button", "status-frontmatter", "Frontmatter");
   front.setAttribute("type", "button");
@@ -143,8 +151,28 @@ function statusLine(opened: Opened): HTMLElement {
   );
   source.hidden = true;
   line.append(source);
-  if (opened.readOnlyReason) line.append(element("span", "status-reason", opened.readOnlyReason));
+  line.append(element("span", "status-reason status-read-only"));
+  restate(line, opened);
   return line;
+}
+
+/**
+ * What the status line says of the file as Rust last read it: when it was modified, and why the
+ * editor will not change it. Again when the file changes on disk (#199).
+ */
+function restate(line: HTMLElement, opened: Opened): void {
+  const modified = line.querySelector<HTMLElement>(".status-modified")!;
+  modified.hidden = opened.modified === null;
+  modified.textContent =
+    opened.modified === null
+      ? ""
+      : `Modified ${new Date(opened.modified).toLocaleString(undefined, {
+          dateStyle: "medium",
+          timeStyle: "short",
+        })}`;
+  const reason = line.querySelector<HTMLElement>(".status-read-only")!;
+  reason.hidden = !opened.readOnlyReason;
+  reason.textContent = opened.readOnlyReason ?? "";
 }
 
 /** What the status line says of the page: its frontmatter, and whether the source shows. */

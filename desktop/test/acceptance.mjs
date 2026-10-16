@@ -12,6 +12,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  rmSync,
   statSync,
   symlinkSync,
   utimesSync,
@@ -1854,6 +1855,37 @@ describe("a long file name", () => {
       };
     });
     assert.deepEqual(seen, { lines: 1, sideways: false, cut: true, title: name });
+  });
+});
+
+describe("a file that changes on disk", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-live-"));
+  const file = join(folder, "live.md");
+  writeFileSync(file, "# Live\n\nThe first text.\n");
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelector(".pg-h1"));
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  test("shows its new text, and says when it is gone", async () => {
+    // #199: a window kept the text the file had when it opened.
+    writeFileSync(file, "# Live\n\nThe first text.\n\nA second paragraph.\n");
+    const seen = await page.until(() => {
+      const text = document.querySelector(".cm-content").textContent;
+      return /A second paragraph/.test(text) && text;
+    });
+    assert.match(seen, /first text/);
+    rmSync(file);
+    const said = await page.until(() => document.querySelector(".status-said")?.textContent);
+    assert.equal(said, "live.md was moved or deleted.");
+    const kept = await page.run(() => document.querySelector(".cm-content").textContent);
+    assert.match(kept, /A second paragraph/);
   });
 });
 

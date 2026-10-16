@@ -9,7 +9,7 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::UNIX_EPOCH;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Larger files are refused rather than read whole into memory.
 pub const MAX_DOCUMENT_BYTES: u64 = 64 * 1024 * 1024;
@@ -46,6 +46,8 @@ pub struct Document {
     pub name: String,
     /// When the file was last modified, as it was read, in milliseconds since 1970.
     pub modified: Option<u64>,
+    /// The file's size and time as it was read, to tell when it changes (#199).
+    pub stamp: Stamp,
     pub text: String,
     pub facts: Facts,
 }
@@ -68,6 +70,30 @@ pub enum LineEndings {
     /// A lone CR ends every line, as in an old Mac file.
     Cr,
     Mixed,
+}
+
+/// A file's size and when it was last modified, which change when it is saved, read without
+/// reading the file (#199).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Stamp {
+    pub len: u64,
+    pub modified: Option<SystemTime>,
+}
+
+impl Stamp {
+    fn from(metadata: &fs::Metadata) -> Self {
+        Self {
+            len: metadata.len(),
+            modified: metadata.modified().ok(),
+        }
+    }
+
+    /// The file's stamp now, or none when it is not there.
+    pub fn of(path: &Path) -> Option<Self> {
+        fs::metadata(path)
+            .ok()
+            .map(|metadata| Self::from(&metadata))
+    }
 }
 
 /// docs/hld.md §5: facts about the bytes, which the string does not carry.
@@ -279,6 +305,20 @@ impl Documents {
             .cloned()
     }
 
+    /// Reads a document's file again, as it is now, behind the same handle, so its window takes
+    /// the new text (#199). None when the document is closed.
+    pub fn reload(&self, handle: &str) -> Option<Result<Arc<Document>, OpenError>> {
+        let path = self.get(handle)?.path.clone();
+        let document = match read(&path) {
+            Ok(document) => Arc::new(document),
+            Err(error) => return Some(Err(error)),
+        };
+        let mut documents = self.0.lock().expect("documents lock");
+        let slot = documents.get_mut(&Handle(handle.to_owned()))?;
+        *slot = Arc::clone(&document);
+        Some(Ok(document))
+    }
+
     pub fn close(&self, handle: &str) {
         self.0
             .lock()
@@ -310,6 +350,7 @@ fn read(path: &Path) -> Result<Document, OpenError> {
         .unwrap_or_else(|| path.clone());
     let (scope, flat) = scope_of(&folder, home().as_deref());
     Ok(Document {
+        stamp: Stamp::from(&metadata),
         scope,
         flat,
         name: path
@@ -496,6 +537,33 @@ mod tests {
             Documents::default().open(&root.path().join("icon.md")),
             Err(OpenError::NotText)
         ));
+    }
+
+    #[test]
+    fn reads_a_file_again_behind_the_same_handle() {
+        // #199: a window kept the text its file had when it opened.
+        let root = tempfile::tempdir().unwrap();
+        let file = root.path().join("notes.md");
+        fs::write(&file, "# Old\n").unwrap();
+        let documents = Documents::default();
+        let (handle, old) = documents.open(&file).unwrap();
+        assert_eq!(Stamp::of(&file), Some(old.stamp));
+        fs::write(&file, "# New, and longer\n").unwrap();
+        let new = documents.reload(&handle.to_string()).unwrap().unwrap();
+        assert_eq!(new.text, "# New, and longer\n");
+        assert_ne!(new.stamp, old.stamp);
+        assert_eq!(documents.get(&handle.to_string()).unwrap().text, new.text);
+        // A file that no longer opens leaves the old text where it was.
+        fs::remove_file(&file).unwrap();
+        assert!(matches!(
+            documents.reload(&handle.to_string()),
+            Some(Err(OpenError::Unreadable(_)))
+        ));
+        assert_eq!(documents.get(&handle.to_string()).unwrap().text, new.text);
+        // A closed document is read no more.
+        documents.close(&handle.to_string());
+        assert!(documents.reload(&handle.to_string()).is_none());
+        assert_eq!(Stamp::of(&file), None);
     }
 
     #[test]

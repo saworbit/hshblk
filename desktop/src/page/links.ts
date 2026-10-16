@@ -222,7 +222,16 @@ const jumped = StateEffect.define<Jumps>();
 
 const jumps = StateField.define<Jumps>({
   create: () => NO_JUMPS,
-  update: (value, tr) => tr.effects.reduce((v, e) => (e.is(jumped) ? e.value : v), value),
+  update(value, tr) {
+    // The file's new text moves each place with it (#199).
+    const moved = (places: readonly Place[]) =>
+      places.map(({ caret, top }) => ({
+        caret: tr.changes.mapPos(caret),
+        top: tr.changes.mapPos(top),
+      }));
+    const kept = tr.docChanged ? { back: moved(value.back), forward: moved(value.forward) } : value;
+    return tr.effects.reduce((v, e) => (e.is(jumped) ? e.value : v), kept);
+  },
 });
 
 /** Goes to a place, with the jumps as they stand after it. */
