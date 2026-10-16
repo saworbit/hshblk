@@ -32,9 +32,43 @@ Packages for Linux, macOS, and Windows come from the Desktop workflow on `main`.
 | `Alt+Left`, `Alt+Right` (`⌘[`, `⌘]`) | Back to where a link to a heading was followed from, and forward again |
 | `Enter` | Open or close a `<details>`, with the caret on its tags. Tick or untick a task box, with the caret in its text |
 
-Each file opens in its own window, and dropping one on a window opens it in another. When the file changes on disk, its window shows the new text, in the same place. A file that is already open comes to the front instead. A new window opens at the size you last left one, and the welcome window lists the files you opened last. Move the caret into a construct with the keys, or find in it, and its syntax shows. A click opens nothing, so the page holds still under the pointer. A task list shows its boxes, where its bullets were, and a click on one, or Enter in its text, ticks it on the page, never in the file. A GitHub alert, such as `> [!WARNING]`, shows its name, icon, and colour. A code block that names its language, such as `ts` or `diff`, has its tokens coloured. Footnotes, emoji shortcodes, and markdown in a `<div align="center">` draw as GitHub draws them. A link shows its words, and its address shows under it. A link to another file in the repository opens it in a window of its own, and a link that does not open says why. Print shows a web or mail link's address after its words. Images load from inside the file's repository and nowhere else, and one that does not show says why. A raw HTML block is drawn in a frame that runs no script, and shows only images from inside the repository. Inline HTML shows as source, but for a comment, which folds away. Frontmatter, YAML or TOML, folds away, and the status line opens a panel that lists its fields, or shows TOML as written. The status line's Outline lists the headings, and goes to one. A screen reader hears each heading and link as one.
+So what does it do, if it will not let you type? Plenty.
 
-To build it, with Node 24, npm 11.11 or later, and Rust:
+**Windows, and lots of them.**
+
+- Every file gets a window of its own. Drop a file on a window and it gets one too. Nobody shares.
+- Open a file that is already open and its window comes to the front, instead of a second copy pretending they have never met.
+- When the file changes on disk, the window shows the new text and keeps your place. Handy while something else is still typing it.
+- A new window opens at the size you last left one, and the welcome window lists the files you opened last. It remembers more than I do.
+
+**A page that holds still.**
+
+- The syntax stays out of sight until you go looking. Move the caret into a construct with the keys, or find in it, and its syntax shows.
+- A click opens nothing, so the page never jumps under the pointer. There is [a whole document](docs/gates/click-target.md) proving it, 26 clicks long, which tells you something about me.
+- A task list shows its boxes where the bullets were. A click, or Enter in its text, ticks one on the page and never in the file. All the joy of ticking things off, none of the commitment.
+- A GitHub alert, such as `> [!WARNING]`, shows its name, icon, and colour, so a warning looks properly worried.
+- A code block that names its language, such as `ts` or `diff`, has its tokens coloured.
+- Footnotes, emoji shortcodes, and markdown in a `<div align="center">` draw as GitHub draws them. Yes, people still centre things with a div. I am one of those people.
+
+**Links and images that stay home.**
+
+- A link shows its words, and its address shows under it.
+- A link to another file in the repository opens it in a window of its own. A link that does not open says why, instead of leaving you to guess.
+- Print puts a web or mail link's address after its words, since paper still has no hover.
+- Images load from inside the file's repository and nowhere else, and one that does not show says why.
+
+**HTML on a short leash.**
+
+- A raw HTML block is drawn in a frame that runs no script, and shows only images from inside the repository. Your markdown may wear HTML. It may not run anything in it.
+- Inline HTML shows as source, except a comment, which folds away as if it was never said.
+
+**Getting around.**
+
+- Frontmatter, YAML or TOML, folds away. The status line opens a panel that lists its fields, or shows TOML as written.
+- The status line's Outline lists the headings, and goes to one.
+- A screen reader hears a heading as a heading and a link as a link. That sounds like the least a page could do, but this page is secretly an editor with the typing taken out, so it took some doing.
+
+To build it yourself, you need Node 24, npm 11.11 or later, Rust, and something to do while Rust compiles:
 
 ```bash
 cd desktop
