@@ -154,8 +154,8 @@ Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) opens pull re
 |---|---|
 | `desktop/src-tauri/src/documents.rs` | Opening a file: its facts, its scope, its handle. |
 | `desktop/src-tauri/src/assets.rs` | The resource channel for images. |
-| `desktop/src-tauri/src/windows.rs` | Where files come from (the command line, a double-click, the dialog, a drop) and the window each gets, and where it opens on macOS. |
-| `desktop/src-tauri/src/lib.rs` | The twelve commands the page may call, and the app, with its menu bar on macOS. |
+| `desktop/src-tauri/src/windows.rs` | Where files come from (the command line, a double-click, the dialog, a drop) and the window each gets, and where it opens on macOS. Each file opened joins the recent files, and on Windows and Linux the system's own list. |
+| `desktop/src-tauri/src/lib.rs` | The thirteen commands the page may call, and the app, with its menu bar on macOS and File > Open Recent there. |
 | `desktop/src-tauri/src/memory.rs` | What the app keeps between runs in its own data folder: the last window's size and place, and the files opened last. |
 | `desktop/src-tauri/src/watch.rs` | Looking at each open file twice a second, and telling its window when it has new text. |
 | `desktop/src-tauri/linux/hshblk.desktop` | The Linux desktop entry, which passes the double-clicked file. |
