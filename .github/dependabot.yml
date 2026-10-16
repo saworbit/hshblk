@@ -1,40 +1,86 @@
+# docs/desktop.md, "Keeping dependencies current", says how these pull requests are grouped,
+# checked, and merged.
+#
+# Every entry runs on Monday morning, so the week starts with its updates. A cooldown keeps a new
+# release back for a week, and a new major for two, so one that is pulled or patched in its first
+# days never reaches a pull request. Security updates take no cooldown and come as soon as their
+# advisory does.
 version: 2
 updates:
-  # The desktop app. Tauri's crate and @tauri-apps/api must share a minor version, so their
-  # two PRs land together.
+  # The desktop app's packages. Tauri's crate and @tauri-apps/api must share a minor version, or
+  # the build refuses them, so the tauri groups here and under cargo come on the same morning and
+  # are merged as one.
   - package-ecosystem: npm
     directory: /desktop
     schedule:
       interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Australia/Sydney
     cooldown:
       default-days: 7
+      semver-major-days: 14
     groups:
       tauri:
         patterns: ["@tauri-apps/*"]
       minor-and-patch:
         update-types: [minor, patch]
+      security:
+        applies-to: security-updates
+        patterns: ["*"]
     ignore:
+      # The app runs on Node 24 (.nvmrc), so its types stay on 24.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
 
+  # The desktop app's crates.
   - package-ecosystem: cargo
     directory: /desktop/src-tauri
     schedule:
       interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Australia/Sydney
     cooldown:
       default-days: 7
+      semver-major-days: 14
     groups:
       tauri:
         patterns: ["tauri", "tauri-*"]
       minor-and-patch:
         update-types: [minor, patch]
+      security:
+        applies-to: security-updates
+        patterns: ["*"]
 
+  # The workflows' actions, pinned to a commit with the version in a comment. Dependabot moves both.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Australia/Sydney
     cooldown:
       default-days: 7
     groups:
       actions:
         patterns: ["*"]
+      security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  # The identity's build tools. brand/source/verify.py compares every asset with the pack byte for
+  # byte, so a new fonttools, HarfBuzz, or resvg is taken on purpose, with the pack rebuilt, not on
+  # a schedule. A limit of 0 opens no version update. Security updates still come.
+  - package-ecosystem: npm
+    directory: /brand/source
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+
+  - package-ecosystem: pip
+    directory: /brand/source
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
