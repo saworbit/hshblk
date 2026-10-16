@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 
 use tauri::{
-    AppHandle, DragDropEvent, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    AppHandle, DragDropEvent, Manager, State, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
     Window, WindowEvent,
 };
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
@@ -14,7 +14,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use crate::documents::Documents;
 use crate::memory::{Geometry, Memory};
 use crate::watch::Watchers;
-use crate::{Fragments, MenuChannels};
+use crate::{Fragments, MenuChannels, RecentMenu};
 
 /// What the open dialog offers. A dropped or double-clicked file of any kind is still tried, but
 /// one whose bytes are plainly not text is refused (#206).
@@ -144,11 +144,55 @@ pub fn show(app: &AppHandle, path: &Path, fragment: Option<String>) -> Result<()
     Ok(())
 }
 
-/// Puts a file at the top of the recent files, which the welcome window lists (#242).
-fn opened(app: &AppHandle, path: &Path) {
-    if let Some(memory) = app.try_state::<Memory>() {
-        memory.opened(path);
+/// What the app kept from the last run: the last window's size and place, and the recent files,
+/// in its own data folder (#240, #242). It loads the first time it is needed: on macOS the file
+/// that starts the app comes before setup runs (#186), and it is a recent file too (#288).
+pub fn memory(app: &AppHandle) -> State<'_, Memory> {
+    if app.try_state::<Memory>().is_none() {
+        app.manage(Memory::load(app.path().app_local_data_dir().ok()));
     }
+    app.state::<Memory>()
+}
+
+/// Puts a file at the top of the recent files, which the welcome window lists (#242), and macOS's
+/// File > Open Recent, and on Windows the shell's, which the app's jump list shows (#288).
+fn opened(app: &AppHandle, path: &Path) {
+    memory(app).opened(path);
+    RecentMenu::refresh(app);
+    #[cfg(windows)]
+    note_in_shell(path);
+}
+
+/// #288: a file opened goes into the shell's recent documents, which the app's jump list shows,
+/// since the installer registers the app for `.md`. A debug build leaves the shell's list be, as
+/// it keeps a data folder of its own (#287), so a test's files stay out of it.
+#[cfg(windows)]
+fn note_in_shell(path: &Path) {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::UI::Shell::{SHAddToRecentDocs, SHARD_PATHW};
+    if cfg!(debug_assertions) {
+        return;
+    }
+    let wide: Vec<u16> = shell_path(path)
+        .as_os_str()
+        .encode_wide()
+        .chain([0])
+        .collect();
+    // SAFETY: SHARD_PATHW takes a null-terminated UTF-16 path, which `wide` is, and the shell
+    // reads it before it returns.
+    unsafe { SHAddToRecentDocs(SHARD_PATHW as u32, wide.as_ptr().cast()) };
+}
+
+/// A path as the shell takes one: without the `\\?\` a canonical path on Windows starts with.
+#[cfg(any(windows, test))]
+fn shell_path(path: &Path) -> PathBuf {
+    let Some(text) = path.to_str() else {
+        return path.to_path_buf();
+    };
+    if let Some(shared) = text.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{shared}"));
+    }
+    PathBuf::from(text.strip_prefix(r"\\?\").unwrap_or(text))
 }
 
 fn empty(app: &AppHandle) {
@@ -172,7 +216,7 @@ const MIN: (f64, f64) = (420.0, 320.0);
 /// A new window's size: the one the reader last moved or resized, as far as the main screen
 /// holds it, or the app's own (#240).
 fn size_of_next(app: &AppHandle) -> (f64, f64) {
-    let Some(kept) = app.try_state::<Memory>().and_then(|memory| memory.window()) else {
+    let Some(kept) = memory(app).window() else {
         return SIZE;
     };
     let most = app
@@ -262,7 +306,7 @@ fn next_place(app: &AppHandle, size: (f64, f64)) -> Option<Place> {
 
 /// Where the reader left the last window, when it fits on a screen that is there now.
 fn kept_place(app: &AppHandle, size: (f64, f64)) -> Option<Place> {
-    let kept = app.try_state::<Memory>()?.window()?;
+    let kept = memory(app).window()?;
     let place = Place {
         x: kept.x,
         y: kept.y,
@@ -453,6 +497,18 @@ fn refuse(app: &AppHandle, message: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hands_the_shell_a_path_without_the_long_path_prefix() {
+        // #288: the shell's recent documents take no `\\?\` path, which canonical ones carry.
+        let shell = |path: &str| shell_path(Path::new(path));
+        assert_eq!(shell(r"\\?\C:\notes\a.md"), PathBuf::from(r"C:\notes\a.md"));
+        assert_eq!(
+            shell(r"\\?\UNC\server\share\a.md"),
+            PathBuf::from(r"\\server\share\a.md")
+        );
+        assert_eq!(shell(r"C:\notes\a.md"), PathBuf::from(r"C:\notes\a.md"));
+    }
 
     #[test]
     fn takes_files_from_the_command_line_but_not_the_program_or_flags() {

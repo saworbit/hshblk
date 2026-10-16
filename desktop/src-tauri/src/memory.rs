@@ -74,15 +74,21 @@ impl Memory {
         self.save();
     }
 
+    /// The recent files that are still there, for File > Open Recent on macOS (#288). The
+    /// page's tokens stay as they were.
+    pub fn files(&self) -> Vec<PathBuf> {
+        let recent = self.kept.lock().expect("memory lock").recent.clone();
+        recent.into_iter().filter(|path| path.is_file()).collect()
+    }
+
     /// The recent files that are still there, each with a token that names it to the page for
     /// the next `open_recent`. The tokens before them stop naming anything.
     pub fn recent(&self, mut token: impl FnMut() -> String) -> Vec<(String, PathBuf)> {
-        let recent = self.kept.lock().expect("memory lock").recent.clone();
+        let files = self.files();
         let mut tokens = self.tokens.lock().expect("tokens lock");
         tokens.clear();
-        recent
+        files
             .into_iter()
-            .filter(|path| path.is_file())
             .map(|path| {
                 let named = token();
                 tokens.insert(named.clone(), path.clone());
@@ -142,6 +148,20 @@ mod tests {
         recent = remember(&recent, &paths[5]);
         assert_eq!(recent[0], paths[5]);
         assert_eq!(recent.iter().filter(|path| **path == paths[5]).count(), 1);
+    }
+
+    #[test]
+    fn lists_the_files_for_the_menu_and_leaves_the_pages_tokens_be() {
+        // #288: File > Open Recent lists what the welcome window lists, whose tokens must hold.
+        let folder = tempfile::tempdir().unwrap();
+        let file = folder.path().join("notes.md");
+        fs::write(&file, "x").unwrap();
+        let memory = Memory::load(None);
+        memory.opened(&folder.path().join("gone.md"));
+        memory.opened(&file);
+        assert_eq!(memory.recent(|| "t1".to_owned()).len(), 1);
+        assert_eq!(memory.files(), std::slice::from_ref(&file));
+        assert_eq!(memory.take("t1"), Some(file));
     }
 
     #[test]
