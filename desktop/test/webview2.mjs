@@ -53,6 +53,15 @@ const list = (port) => fetch(`http://127.0.0.1:${port}/json/list`).then((answer)
 /** How long WebView2 may take to start: its first start on a fresh runner makes its profile. */
 const START = 90;
 
+/** Whether this runs elevated, as CI's runners run it. Git's own whoami is another program. */
+const whoami = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "whoami.exe");
+const elevated = /S-1-16-(12288|16384)\b/.test(
+  execFileSync(whoami, ["/groups"], { encoding: "utf8" }),
+);
+
+/** Where WebView2 takes its arguments from, elevated, in place of the environment. */
+const POLICY = String.raw`HKLM\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments`;
+
 /** What the app and WebView2 were doing, for a launch that failed. On CI, with the screen. */
 function report(pid, profile) {
   const args = ["-ProcessId", String(pid), "-WebViewProfile", profile];
@@ -70,19 +79,20 @@ function report(pid, profile) {
 }
 
 /**
- * The app on `file`, with its page's DevTools session. WebView2 keeps its profile in `profile`
- * and writes there the port it took. A fixed port may be taken, or kept back by Windows, which
- * keeps ranges of ports for Hyper-V and WSL.
+ * The app on `file`, with its page's DevTools session. WebView2 keeps its profile in `profile`,
+ * takes a free port, and writes there the port it took.
+ *
+ * Since Runtime 150, WebView2 in an elevated app drops the browser arguments the environment
+ * gives it, and takes them from machine policy alone: the workflow sets `--remote-debugging-port=0`
+ * for hshblk.exe there. Elevated, this sets no such variable, in case one would keep WebView2
+ * from reading the policy.
  */
 async function launch(file, profile) {
   mkdirSync(profile, { recursive: true });
   const flags = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
+  const browser = { WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `${flags} --remote-debugging-port=0` };
   const child = spawn(app, [file], {
-    env: {
-      ...process.env,
-      WEBVIEW2_USER_DATA_FOLDER: profile,
-      WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `${flags} --remote-debugging-port=0`,
-    },
+    env: { ...process.env, WEBVIEW2_USER_DATA_FOLDER: profile, ...(elevated ? {} : browser) },
     stdio: ["ignore", "pipe", "pipe"],
   });
   // What the app says, for a launch that fails.
@@ -115,6 +125,7 @@ async function launch(file, profile) {
     ]);
   } catch (error) {
     const why = [error.message, report(child.pid, profile), "The app said:", said];
+    if (elevated) why.push(`Elevated, WebView2 takes --remote-debugging-port=0 from ${POLICY}.`);
     child.kill();
     throw new Error(why.join("\n"), { cause: error });
   }

@@ -148,6 +148,14 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: npm ci
       - run: npx tauri build --debug --no-bundle
+      # The runner runs the app elevated, and since Runtime 150 WebView2 then drops the browser
+      # arguments the environment gives it. It takes them from machine policy alone.
+      - name: Let WebView2 open a DevTools port for hshblk.exe
+        shell: pwsh
+        run: |
+          $key = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments"
+          New-Item -Path $key -Force | Out-Null
+          New-ItemProperty -Path $key -Name hshblk.exe -Value "--remote-debugging-port=0" -PropertyType String -Force | Out-Null
       - name: F5 and Ctrl+R, the right-click menu, print's header and footer, a contrast theme
         run: node test/webview2.mjs src-tauri/target/debug/hshblk.exe
       # A launch the test gives up on leaves a picture of the screen (test/webview2-state.ps1).
