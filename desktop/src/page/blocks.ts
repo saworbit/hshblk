@@ -14,6 +14,8 @@ export type Blocks = {
   definitions: Definitions;
   /** Each heading's GitHub anchor, to where it starts, for a link to it. */
   anchors: Map<string, number>;
+  /** Every heading, in order: where it starts, its level, and its words, for the outline (#236). */
+  outline: Heading[];
   /** Tables and raw HTML, drawn in place of their source, and definitions, not drawn at all. */
   folds: DecorationSet;
   /** Each `<details>` written as its own blocks around a markdown body. The page draws these. */
@@ -23,6 +25,9 @@ export type Blocks = {
 };
 
 type Span = { from: number; to: number };
+
+/** A heading in the outline. */
+export type Heading = { from: number; level: number; words: string };
 
 /** Frontmatter: where it is, and whether it is YAML or TOML. */
 export type Frontmatter = Span & { format: "yaml" | "toml" };
@@ -91,10 +96,12 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
   }
   // A heading or a table may hold a link that a definition further on names.
   const anchors = new Map<string, number>();
+  const outline: Heading[] = [];
   for (const heading of headings) {
     const [from, to] = headingWords(heading);
     const words = plainText(inlinesOf(doc, definitions, heading, from, to));
     if (words) anchors.set(anchorOf(words, anchors), heading.from);
+    outline.push({ from: heading.from, level: Number(heading.name.slice(-1)), words });
     yield;
   }
   // #228: an id or a name in the document's HTML is a place a link can go, after the headings.
@@ -118,7 +125,8 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
     folds.push(Decoration.replace({ fold, widget, block: true }).range(lines.from, lines.to));
     yield;
   }
-  return { definitions, anchors, folds: Decoration.set(folds, true), details, frontmatter: front };
+  const folded = Decoration.set(folds, true);
+  return { definitions, anchors, outline, folds: folded, details, frontmatter: front };
 }
 
 /**

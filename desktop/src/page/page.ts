@@ -359,6 +359,11 @@ function unfold(folds: DecorationSet, opening: EditorSelection | null): Decorati
   });
 }
 
+/** A heading's line, to a screen reader: a heading of its level (#157). */
+function heading(node: SyntaxNode): Record<string, string> {
+  return { role: "heading", "aria-level": node.name.slice(-1) };
+}
+
 /** An alert's marker, alone on the first line of a quote. GitHub takes it in any case. */
 const ALERT_MARKER = /^\[!(note|tip|important|warning|caution)\][ \t]*$/i;
 
@@ -436,7 +441,7 @@ class Painter {
       case "ATXHeading4":
       case "ATXHeading5":
       case "ATXHeading6": {
-        this.#lines(node.from, node.to, `pg-heading pg-h${node.name.slice(-1)}`);
+        this.#lines(node.from, node.to, `pg-heading pg-h${node.name.slice(-1)}`, heading(node));
         for (const mark of node.getChildren("HeaderMark")) {
           // Opening marks take the space after them, closing marks the space before.
           if (mark.from === node.from)
@@ -449,7 +454,7 @@ class Painter {
       case "SetextHeading2": {
         const underline = node.getChild("HeaderMark");
         const end = underline ? underline.from - 1 : node.to;
-        this.#lines(node.from, end, `pg-heading pg-h${node.name.slice(-1)}`);
+        this.#lines(node.from, end, `pg-heading pg-h${node.name.slice(-1)}`, heading(node));
         if (underline) {
           this.#hide(fold, underline.from, underline.to);
           this.#foldLine(fold, underline.from, "pg-collapsed");
@@ -629,7 +634,8 @@ class Painter {
     if (link.from < link.to) {
       // Print shows the address after the words, since paper has no popover (#237).
       const printed = printedAddress(href, this.doc.sliceString(link.from, link.to));
-      const attributes: Record<string, string> = { title, "data-href": href };
+      // To a screen reader, a link (#157).
+      const attributes: Record<string, string> = { title, "data-href": href, role: "link" };
       if (printed) attributes["data-print"] = printed;
       this.#style(Decoration.mark({ class: "pg-link", attributes }), link.from, link.to);
     }
@@ -775,8 +781,8 @@ class Painter {
     }
   }
 
-  #lines(from: number, to: number, className: string): void {
-    const decoration = Decoration.line({ class: className });
+  #lines(from: number, to: number, className: string, attributes?: Record<string, string>) {
+    const decoration = Decoration.line({ class: className, attributes });
     for (let pos = Math.max(from, this.from); pos <= Math.min(to, this.to);) {
       const line = this.doc.lineAt(pos);
       this.#styles.push(decoration.range(line.from));

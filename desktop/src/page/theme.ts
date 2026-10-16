@@ -316,6 +316,39 @@ export const pageTheme = EditorView.theme({
   ".pg-front-fields dd": { margin: "0", overflowWrap: "anywhere" },
   ".pg-front-block": { whiteSpace: "pre-wrap" },
   ".pg-front-yaml": { margin: "0.5rem 0 0", whiteSpace: "pre-wrap", overflowWrap: "anywhere" },
+
+  // The outline: each heading a button, stepped in by its level, the one in view marked (#236).
+  ".pg-outline": { padding: "0.5rem 1rem", maxHeight: "40vh", overflowY: "auto" },
+  ".pg-outline-head": { display: "flex", alignItems: "center", gap: "1em" },
+  ".pg-outline-title": { color: "var(--muted)", marginRight: "auto" },
+  ".pg-outline-close": {
+    color: "var(--ink)",
+    background: "none",
+    border: "1px solid var(--rule)",
+    borderRadius: "4px",
+    padding: "0.1em 0.6em",
+    cursor: "pointer",
+  },
+  ".pg-outline-list": { listStyle: "none", margin: "0.5rem 0 0", padding: "0" },
+  ".pg-outline-list button": {
+    font: "inherit",
+    maxWidth: "100%",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    color: "var(--ink)",
+    background: "none",
+    border: "0",
+    borderRadius: "4px",
+    padding: "0.1em 0.4em",
+    textAlign: "start",
+    cursor: "pointer",
+  },
+  ".pg-outline-list button:hover": { textDecoration: "underline" },
+  ".pg-outline-list button[aria-current]": { color: "var(--accent)" },
+  ...Object.fromEntries(
+    [2, 3, 4, 5, 6].map((n) => [`.pg-outline-${n}`, { paddingInlineStart: `${n - 1}em` }]),
+  ),
   ".cm-searchMatch": { backgroundColor: "color-mix(in oklab, var(--accent) 18%, transparent)" },
   // The match the selection is on stands out from the rest (#159).
   ".cm-searchMatch.cm-searchMatch-selected": {

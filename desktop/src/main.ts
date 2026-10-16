@@ -5,6 +5,7 @@ import { EditorView } from "@codemirror/view";
 import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { frontmatterPanel, frontmatterText, toggleFrontmatter } from "./page/frontmatter.ts";
+import { outlineOf, outlineOpen, toggleOutline } from "./page/outline.ts";
 import { sourceShown, toggleSource } from "./page/page.ts";
 import { setTextSize, stepSize, textSize } from "./page/size.ts";
 import { createSurface, printPage, takeText } from "./surface.ts";
@@ -84,6 +85,7 @@ if (handle) {
   status
     .querySelector(".status-frontmatter")
     ?.addEventListener("click", () => toggleFrontmatter(view));
+  status.querySelector(".status-outline")?.addEventListener("click", () => toggleOutline(view));
   // WKWebView ignores window.print(), so on macOS Rust opens the print panel (#191).
   const print = () =>
     void printPage(view, mac ? () => invoke("print_page") : undefined).catch((error) =>
@@ -99,6 +101,8 @@ if (handle) {
     "/": () => toggleSource(view),
     // Shift and M.
     M: () => toggleFrontmatter(view),
+    // Shift and O: the outline of the headings (#236).
+    O: () => toggleOutline(view),
     // The text size (#164). Shift and = is +, as on the numeric keypad.
     "=": () => size(1),
     "+": () => size(1),
@@ -171,6 +175,12 @@ function statusLine(opened: Opened): HTMLElement {
   front.title = `Show the frontmatter (${mac ? "⌘⇧M" : "Ctrl+Shift+M"})`;
   front.hidden = true;
   line.append(front);
+  // Shown only for a file with headings (#236).
+  const outline = element("button", "status-outline", "Outline");
+  outline.setAttribute("type", "button");
+  outline.title = `Show the outline (${mac ? "⌘⇧O" : "Ctrl+Shift+O"})`;
+  outline.hidden = true;
+  line.append(outline);
   line.append(element("span", "status-note", "Read only. Copy and find work on the source."));
   const source = element(
     "span",
@@ -203,7 +213,7 @@ function restate(line: HTMLElement, opened: Opened): void {
   reason.textContent = opened.readOnlyReason ?? "";
 }
 
-/** What the status line says of the page: its frontmatter, and whether the source shows. */
+/** What the status line says of the page: frontmatter, outline, and whether the source shows. */
 function reflect(line: HTMLElement, state: EditorState): void {
   const front = line.querySelector<HTMLElement>(".status-frontmatter");
   if (front) {
@@ -212,6 +222,11 @@ function reflect(line: HTMLElement, state: EditorState): void {
   }
   const source = line.querySelector<HTMLElement>(".status-source");
   if (source) source.hidden = !sourceShown(state);
+  const outline = line.querySelector<HTMLElement>(".status-outline");
+  if (outline) {
+    outline.hidden = outlineOf(state).length === 0;
+    outline.setAttribute("aria-expanded", String(state.field(outlineOpen)));
+  }
 }
 
 /** Says in the status line what went wrong, until something else does. */
