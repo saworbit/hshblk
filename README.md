@@ -39,7 +39,7 @@ So what does it do, if it will not let you type? Plenty.
 - Every file gets a window of its own. Drop a file on a window and it gets one too. Nobody shares.
 - Open a file that is already open and its window comes to the front, instead of a second copy pretending they have never met.
 - When the file changes on disk, the window shows the new text and keeps your place. Handy while something else is still typing it.
-- A new window opens at the size you last left one, and the welcome window lists the files you opened last. So do File > Open Recent on a Mac and the taskbar's jump list on Windows. It remembers more than I do.
+- A new window opens at the size you last left one, and the welcome window lists the files you opened last. So do File > Open Recent on a Mac, the taskbar's jump list on Windows, and your file manager's Recent on Linux. It remembers more than I do.
 
 **A page that holds still.**
 
