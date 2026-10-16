@@ -53,10 +53,58 @@ const Shortcode: MarkdownConfig = {
   ],
 };
 
+/** A footnote's opening, `[^label]:`, the spaces after it, and its label. */
+export const FOOTNOTE = /^\[\^([^\]\s]+)\]:[ \t]*/;
+
 /**
- * docs/hld.md §7: CommonMark, GFM tables, strikethrough by `~` or `~~`, task lists, and GitHub's
- * emoji shortcodes. Anything else is source.
+ * A footnote, `[^label]: Its words.`, as a block that holds blocks, as a list item does (#218).
+ * GitHub runs it on to each block indented four columns under it, so a second paragraph is more
+ * of the note, not a code block (#284). One opening ends the paragraph before it, as GitHub
+ * reads it, so the next line's `[^2]:` starts another.
  */
-export const dialect = parser.configure([Table, Strikethrough, SingleTilde, TaskList, Shortcode]);
+const Footnotes: MarkdownConfig = {
+  defineNodes: [
+    {
+      name: "Footnote",
+      block: true,
+      composite(_cx, line, value) {
+        if (line.indent < line.baseIndent + value && line.next > -1) return false;
+        line.moveBaseColumn(line.baseIndent + value);
+        return true;
+      },
+    },
+    { name: "FootnoteMark" },
+  ],
+  parseBlock: [
+    {
+      name: "Footnote",
+      parse(cx, line) {
+        if (line.next !== 91 || line.indent >= line.baseIndent + 4) return false;
+        const opening = FOOTNOTE.exec(line.text.slice(line.pos));
+        if (!opening) return false;
+        const from = cx.lineStart + line.pos;
+        cx.startComposite("Footnote", line.basePos, 4);
+        cx.addElement(cx.elt("FootnoteMark", from, from + opening[0].length));
+        line.moveBase(line.pos + opening[0].length);
+        return null;
+      },
+      endLeaf: (_cx, line) => line.next === 91 && FOOTNOTE.test(line.text.slice(line.pos)),
+      before: "LinkReference",
+    },
+  ],
+};
+
+/**
+ * docs/hld.md §7: CommonMark, GFM tables, strikethrough by `~` or `~~`, task lists, GitHub's
+ * footnotes, and its emoji shortcodes. Anything else is source.
+ */
+export const dialect = parser.configure([
+  Table,
+  Strikethrough,
+  SingleTilde,
+  TaskList,
+  Footnotes,
+  Shortcode,
+]);
 
 export const markdown = new Language(defineLanguageFacet(), dialect, [], "markdown");

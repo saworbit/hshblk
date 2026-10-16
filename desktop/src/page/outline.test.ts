@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState, type StateCommand } from "@codemirror/state";
 import { markdown } from "./dialect.ts";
-import { closeOutline, headingOver, outlineOf, outlineOpen, toggleOutline } from "./outline.ts";
+import {
+  closeOutline,
+  headingOver,
+  markedHeading,
+  outlineOf,
+  outlineOpen,
+  toggleOutline,
+} from "./outline.ts";
 import { page, paint } from "./page.ts";
 
 function open(doc: string): EditorState {
@@ -57,6 +64,15 @@ describe("the outline", () => {
     assert.equal(headingOver(outline, doc.indexOf("Intro")), 0);
     assert.equal(headingOver(outline, doc.indexOf("Setext") + 1), 2);
     assert.equal(headingOver(outline, doc.length), 3);
+  });
+
+  it("marks the heading gone to, though the window cannot bring it to the top", () => {
+    // #286: near a file's end the window's top line stayed in the section above.
+    const outline = outlineOf(open(doc));
+    const shown = { top: doc.indexOf("Setext"), bottom: doc.length };
+    assert.equal(markedHeading(outline, { caret: outline[3].from, ...shown }), 3);
+    // With the caret out of the window, the window's top line is the reader's place.
+    assert.equal(markedHeading(outline, { caret: 0, ...shown }), 2);
   });
 
   it("opens and closes from its key, and not for a file with no heading", () => {

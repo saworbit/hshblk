@@ -50,16 +50,21 @@ export class NoteReferenceWidget extends WidgetType {
   }
 
   toDOM(): HTMLElement {
-    const sup = element("sup", "pg-note-reference", String(this.number));
-    sup.dataset.href = `#fn-${this.label}`;
-    sup.setAttribute("role", "link");
-    sup.title = this.text;
-    return sup;
+    return noteReference(this.label, this.number, this.text);
   }
 
   ignoreEvent(): boolean {
     return false;
   }
+}
+
+/** A reference to a footnote, as the page and a table cell draw it. */
+function noteReference(label: string, number: number, text: string): HTMLElement {
+  const sup = element("sup", "pg-note-reference", String(number));
+  sup.dataset.href = `#fn-${label}`;
+  sup.setAttribute("role", "link");
+  sup.title = text;
+  return sup;
 }
 
 /**
@@ -862,6 +867,8 @@ function paint(view: EditorView, inline: Inline): Node {
       return element("s", "pg-strike", all(inline.children));
     case "image":
       return imageNode(view, inline.reference, inline.alt, true, inline.title);
+    case "note":
+      return noteReference(inline.label, inline.number, inline.words);
     case "link": {
       const link = element("span", "pg-link", all(inline.children));
       link.title = inline.title ?? inline.href;
