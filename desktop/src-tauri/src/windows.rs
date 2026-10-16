@@ -161,6 +161,32 @@ fn opened(app: &AppHandle, path: &Path) {
     RecentMenu::refresh(app);
     #[cfg(windows)]
     note_in_shell(path);
+    #[cfg(target_os = "linux")]
+    note_in_gtk(app, path);
+}
+
+/// On Linux, a file opened goes into GTK's recent files, which a file manager's Recent and every
+/// GTK file chooser show. GTK is the main thread's. A debug build leaves the list be, as it does
+/// the Windows shell's.
+#[cfg(target_os = "linux")]
+fn note_in_gtk(app: &AppHandle, path: &Path) {
+    use gtk::prelude::RecentManagerExt;
+    if cfg!(debug_assertions) {
+        return;
+    }
+    let Ok(uri) = Url::from_file_path(path) else {
+        return;
+    };
+    let noted = app.run_on_main_thread(move || {
+        let added =
+            gtk::RecentManager::default().is_some_and(|recent| recent.add_item(uri.as_str()));
+        if !added {
+            eprintln!("GTK's recent files could not take {uri}.");
+        }
+    });
+    if let Err(error) = noted {
+        eprintln!("GTK's recent files could not take a file: {error}");
+    }
 }
 
 /// #288: a file opened goes into the shell's recent documents, which the app's jump list shows,
