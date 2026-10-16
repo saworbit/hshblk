@@ -22,6 +22,7 @@ import type { SyntaxNode, Tree } from "@lezer/common";
 import { decodeHTML } from "entities";
 import { type Blocks, type Footnote, scanNow } from "./blocks.ts";
 import { pageTree, wholeBlocks } from "./complete.ts";
+import { highlightCode, loadParser, parserFor } from "./code.ts";
 import { emojiOf } from "./emoji.ts";
 import { inlinesOf, plainText } from "./inlines.ts";
 import { addressTooltip, linkAt, linkSpan, printedAddress } from "./links.ts";
@@ -73,7 +74,12 @@ type Painted = {
   folds: DecorationSet;
   /** The folds, less the ones the opening selection is in. */
   shown: DecorationSet;
+  /** The info strings of code blocks whose language's parser has not loaded yet (#217). */
+  wanted: ReadonlySet<string>;
 };
+
+/** A code block's language has loaded, so the page draws again. */
+const codeLoaded = StateEffect.define<null>();
 
 /** The widest hanging indent, in columns. A list item indented further does not hang. */
 export const HANG_LIMIT = 24;
@@ -197,9 +203,15 @@ export function cursorLineOnto(forward: boolean): Command {
 const painter = ViewPlugin.fromClass(
   class {
     painted: Painted;
+    readonly #view: EditorView;
+    /** The languages asked for, each once. */
+    readonly #asked = new Set<string>();
+    #gone = false;
 
     constructor(view: EditorView) {
+      this.#view = view;
       this.painted = paint(view.state, view.viewport);
+      this.#load();
     }
 
     update(update: ViewUpdate) {
@@ -207,10 +219,28 @@ const painter = ViewPlugin.fromClass(
       const now = update.state.field(page);
       const repaint = now.tree !== before.tree || now.blocks !== before.blocks;
       const redraw = now.ticked !== before.ticked || now.source !== before.source;
-      if (update.viewportChanged || repaint || redraw) {
+      const loaded = update.transactions.some((tr) => tr.effects.some((e) => e.is(codeLoaded)));
+      if (update.viewportChanged || repaint || redraw || loaded) {
         this.painted = paint(update.state, update.view.viewport);
+        this.#load();
       } else if (now.opening !== before.opening && !now.source) {
         this.painted = { ...this.painted, shown: unfold(this.painted.folds, now.opening) };
+      }
+    }
+
+    destroy() {
+      this.#gone = true;
+    }
+
+    /** Loads each language a code block in view names, and draws again once it is there. */
+    #load() {
+      for (const info of this.painted.wanted) {
+        if (this.#asked.has(info)) continue;
+        this.#asked.add(info);
+        void loadParser(info).then(
+          () => this.#gone || this.#view.dispatch({ effects: codeLoaded.of(null) }),
+          (error: unknown) => console.warn(`A code block's language did not load: ${error}`),
+        );
       }
     }
   },
@@ -358,7 +388,8 @@ export function paint(state: EditorState, { from, to }: { from: number; to: numb
   const skip = blocks.frontmatter?.to ?? -1;
   const painter = new Painter(state.doc, blocks, ticked, skip, source, from, to);
   const { styles, folds } = painter.paint(tree);
-  return { styles, folds, shown: source ? Decoration.none : unfold(folds, opening) };
+  const shown = source ? Decoration.none : unfold(folds, opening);
+  return { styles, folds, shown, wanted: painter.wanted };
 }
 
 function unfold(folds: DecorationSet, opening: EditorSelection | null): DecorationSet {
@@ -415,6 +446,8 @@ class Painter {
   readonly to: number;
   readonly #styles: Range<Decoration>[] = [];
   readonly #folds: Range<Decoration>[] = [];
+  /** The info strings of code blocks whose language's parser has not loaded yet. */
+  readonly wanted = new Set<string>();
   /** The markers drawn in a hanging item's box, which styles them. */
   readonly #hung = new Set<number>();
 
@@ -583,6 +616,7 @@ class Painter {
         return false;
       case "FencedCode":
         this.#lines(node.from, node.to, "pg-code-block");
+        this.#highlight(node);
         this.#lines(node.from, node.from, "pg-fence");
         if (node.lastChild?.name === "CodeMark" && node.lastChild.from > node.from) {
           this.#lines(node.lastChild.from, node.lastChild.from, "pg-fence");
@@ -646,6 +680,27 @@ class Painter {
       drawn = true;
     }
     return drawn;
+  }
+
+  /**
+   * #217: a fenced block that names a language the page knows has its tokens coloured, as far
+   * as the lines drawn. In a quote its lines carry the quote's marks, which the language would
+   * misread, so there it stays one colour.
+   */
+  #highlight(block: SyntaxNode): void {
+    const info = block.getChild("CodeInfo");
+    const text = block.getChild("CodeText");
+    if (!info || !text) return;
+    for (let up = block.parent; up; up = up.parent) if (up.name === "Blockquote") return;
+    const named = this.#slice(info);
+    const parser = parserFor(named);
+    if (parser === "loading") this.wanted.add(named);
+    if (!parser || parser === "loading") return;
+    const from = Math.max(this.from - text.from, 0);
+    const to = Math.min(this.to, text.to) - text.from;
+    highlightCode(parser, this.#slice(text), from, to, (start, end, classes) =>
+      this.#style(Decoration.mark({ class: classes }), text.from + start, text.from + end),
+    );
   }
 
   /** A quote's mark, and the space after it, hidden while the selection is off its line. */
