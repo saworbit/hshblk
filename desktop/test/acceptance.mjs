@@ -1875,6 +1875,42 @@ describe("a long file name", () => {
   });
 });
 
+describe("the outline", () => {
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-outline-"));
+  const file = join(folder, "outline.md");
+  writeFileSync(file, "# Top\n\nSee [the end](#end).\n\n## Middle\n\nText.\n\n### End\n\nLast.\n");
+  let page;
+
+  before(async () => {
+    page = await launch(app, [file]);
+    await page.until(() => document.querySelector(".pg-h1"));
+  });
+  after(async () => {
+    await page?.close();
+    await gone();
+  });
+
+  test("names each heading and link to a screen reader, and lists the headings", async () => {
+    // #157: one text box, with no headings or links in it.
+    const roles = await page.run(() =>
+      [...document.querySelectorAll(".cm-content [role]")].map(
+        (el) => `${el.getAttribute("role")} ${el.getAttribute("aria-level") ?? ""}`.trim(),
+      ),
+    );
+    assert.deepEqual(roles, ["heading 1", "link", "heading 2", "heading 3"]);
+    // #236: Ctrl+Shift+O opens the outline, on the heading the caret is in.
+    await page.run(() => document.querySelector(".cm-content").focus());
+    await page.press(Key.Control, Key.Shift, "O");
+    const listed = await page.until(() => {
+      const entries = [...document.querySelectorAll(".pg-outline-list li")];
+      return entries.length === 3 && entries.map((li) => `${li.className} ${li.textContent}`);
+    });
+    assert.deepEqual(listed, ["pg-outline-1 Top", "pg-outline-2 Middle", "pg-outline-3 End"]);
+    await page.press(Key.Escape);
+    assert.ok(await page.until(() => !document.querySelector(".pg-outline")));
+  });
+});
+
 describe("a file that changes on disk", () => {
   const folder = mkdtempSync(join(tmpdir(), "hshblk-live-"));
   const file = join(folder, "live.md");

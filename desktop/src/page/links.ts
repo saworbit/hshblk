@@ -265,7 +265,7 @@ export function jumpForward(state: EditorState, here: Place): TransactionSpec | 
 }
 
 /** Where the reader is now: the caret, and the line at the top of the window. */
-function placeOf(view: EditorView): Place {
+export function placeOf(view: EditorView): Place {
   const top = view.scrollDOM.getBoundingClientRect().top - view.documentTop;
   const line = view.lineBlockAtHeight(Math.max(top, 0));
   return { caret: view.state.selection.main.head, top: line.from };

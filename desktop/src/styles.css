@@ -88,7 +88,8 @@ body {
   flex: 0 1 auto;
 }
 .status > .status-modified,
-.status > .status-frontmatter {
+.status > .status-frontmatter,
+.status > .status-outline {
   flex: 0 0 auto;
 }
 .status-name {
@@ -106,6 +107,18 @@ body {
   padding: 0;
   cursor: pointer;
   animation: status-found 1.6s ease-out 1;
+}
+/* The outline's button, beside it, quieter: most files have headings (#236). */
+.status-outline {
+  font: inherit;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.status-outline:hover {
+  color: var(--ink);
 }
 @keyframes status-found {
   0%,

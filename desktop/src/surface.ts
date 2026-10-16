@@ -14,6 +14,7 @@ import { markdown } from "./page/dialect.ts";
 import { findExtras } from "./page/find.ts";
 import { textDirection } from "./page/direction.ts";
 import { closeFrontmatter, frontmatter } from "./page/frontmatter.ts";
+import { closeOutline, outlineOpen } from "./page/outline.ts";
 import {
   cursorLineOnto,
   foldAll,
@@ -77,10 +78,11 @@ function pageBy(direction: 1 | -1): Command {
 /**
  * Movement and selection. The state is read-only, so the editing commands here do nothing.
  * Enter on a <details>'s tags opens or closes it, and in a task item's text ticks or unticks its
- * box. Escape closes the frontmatter panel. Up and Down stop on a drawn block, and so do Ctrl+N
- * and Ctrl+P, which CodeMirror binds to them on macOS. PageDown, PageUp, and Space page by the
- * window less a line. Alt+Left and Alt+Right, ⌘[ and ⌘] on macOS, go back from a link to a
- * heading and forward again. Find's keys that would select several matches are left out.
+ * box. Escape closes the frontmatter panel, then the outline. Up and Down stop on a drawn block,
+ * and so do Ctrl+N and Ctrl+P, which CodeMirror binds to them on macOS. PageDown, PageUp, and
+ * Space page by the window less a line. Alt+Left and Alt+Right, ⌘[ and ⌘] on macOS, go back from
+ * a link to a heading and forward again. Find's keys that would select several matches are left
+ * out.
  */
 export const pageKeys: readonly KeyBinding[] = [
   { key: "Enter", run: toggleDetailsAtCaret },
@@ -90,6 +92,7 @@ export const pageKeys: readonly KeyBinding[] = [
   { mac: "Ctrl-n", run: lineDown },
   { mac: "Ctrl-p", run: lineUp },
   { key: "Escape", run: closeFrontmatter },
+  { key: "Escape", run: closeOutline },
   { key: "PageDown", run: pageBy(1) },
   { key: "PageUp", run: pageBy(-1) },
   // Space pages as it does in a browser, Shift and Space back (#234). Find's field is not the page.
@@ -140,6 +143,7 @@ export function createSurface(
       modClickOpens,
       summaryToggles,
       frontmatter,
+      outlineOpen,
       options.openLink ? linkOpener.of(options.openLink) : [],
       options.openFile ? fileOpener.of(options.openFile) : [],
       options.linkRefused ? linkRefused.of(options.linkRefused) : [],
@@ -199,11 +203,14 @@ export function textChanges(old: string, next: string): ChangeSpec[] {
   }));
 }
 
+/** A run of lines that differ: `[from, to)` in the old beside `[from, to)` in the new. */
+type Run = [number, number, number, number];
+
 /**
  * Myers's diff: the runs of lines that differ, as `[from, to)` in `a` beside `[from, to)` in `b`,
  * by the fewest lines added and taken away, or null when it takes more than `most`.
  */
-function lineEdits(a: string[], b: string[], most: number): [number, number, number, number][] | null {
+function lineEdits(a: string[], b: string[], most: number): Run[] | null {
   const max = Math.min(a.length + b.length, most);
   const offset = max + 1;
   const v = new Int32Array(2 * max + 3);
@@ -253,7 +260,7 @@ function lineEdits(a: string[], b: string[], most: number): [number, number, num
     y -= 1;
     kept.push([x, y]);
   }
-  const runs: [number, number, number, number][] = [];
+  const runs: Run[] = [];
   let nextA = 0;
   let nextB = 0;
   for (const [keptA, keptB] of kept.reverse()) {

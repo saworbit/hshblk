@@ -800,6 +800,7 @@ function paint(view: EditorView, inline: Inline): Node {
       const link = element("span", "pg-link", all(inline.children));
       link.title = inline.title ?? inline.href;
       link.dataset.href = inline.href;
+      link.setAttribute("role", "link");
       const printed = printedAddress(inline.href, plainText(inline.children));
       if (printed) link.dataset.print = printed;
       return link;
