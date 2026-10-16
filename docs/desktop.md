@@ -100,7 +100,7 @@ npx tauri build --no-bundle      # the app alone: src-tauri/target/release/hshbl
 
 1. Set the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json`, and merge that to `main`.
 2. Tag the merge and push the tag: `git tag v0.2.0 && git push origin v0.2.0`.
-3. The Desktop workflow checks that the tag names the version in all three, runs every test, builds the packages on each system, and puts them in a draft release with notes from the merged pull requests. A second run on the same tag replaces the draft's packages.
+3. The Desktop workflow checks that the tag names the version in all three, runs every test, builds the packages on each system, and puts them in a draft release with notes from the merged pull requests, Dependabot's under a heading of their own. A second run on the same tag replaces the draft's packages.
 4. Read the draft under **Releases**, and publish it by hand.
 
 The macOS app is signed and notarized when the repository has these secrets. Without them it is signed ad hoc, as on `main`, which seals the bundle but names no developer, so a reader still allows it once with **Open Anyway**:
@@ -119,6 +119,25 @@ Not done yet ([hld.md](hld.md) §12, question 1):
 - Once the repository is public: a winget manifest, and a Homebrew cask in a tap of the project's own, since homebrew/cask takes only apps that pass Gatekeeper. Each updates the app for those who install it that way.
 
 The app has no updater, by choice ([hld.md](hld.md) §12, question 1). It makes no network request, and keeps no key. The webview's security fixes come from the OS on macOS and Windows, and from the distribution on Linux. A new release reaches readers through the release page. On GitHub, **Watch**, then **Custom**, then **Releases** says when there is one.
+
+## Keeping dependencies current
+
+Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) opens pull requests for the app's npm packages, its crates, and the workflows' actions, each Monday at 06:00, Sydney time. Each runs the Desktop workflow like any other pull request, so one can merge only once the four checks `main` requires pass, the licence check among them.
+
+| Pull request | Holds |
+|---|---|
+| `tauri` | Tauri's own packages: `@tauri-apps/*` under npm, and `tauri` and `tauri-*` under cargo |
+| `minor-and-patch` | Every other minor and patch update, one pull request for npm and one for cargo |
+| A major | That one package, since a major can change what the code calls |
+| `actions` | Every action the workflows use, moved to a new commit, with its version in the comment beside it |
+| `security` | Every update an advisory asks for, one pull request for each ecosystem, as soon as the advisory is out |
+
+- A release waits seven days before it is offered, and a major fourteen, so one that is pulled or patched in its first days never arrives. A security update does not wait.
+- Tauri's crate and `@tauri-apps/api` must share a minor version, or `tauri build` refuses them. The two `tauri` pull requests come on the same morning. When they move a minor version, merge one's branch into the other, so one pull request carries both, and close the first.
+- `@types/node` stays on the major of the Node the app runs on, 24, from `.nvmrc`.
+- The identity's build tools in `brand/source/` get security updates only. `verify.py` compares every asset with the pack byte for byte, so a new fonttools, HarfBuzz, or resvg is taken by hand, with the pack rebuilt.
+- Dependabot's pull requests write no line in [CHANGELOG.md](../CHANGELOG.md). A draft release's notes list them under **Dependencies**, apart from the rest ([`.github/release.yml`](../.github/release.yml)).
+- An alert waits when its fix needs what Tauri has not taken. glib 0.18's, [GHSA-wrw7-89jp-8q8g](https://github.com/advisories/GHSA-wrw7-89jp-8q8g), is one: the fix is in glib 0.20, but GTK 3's bindings, which Tauri 2 draws with on Linux, stop at 0.18.
 
 ## How a file becomes a page
 
