@@ -6,7 +6,7 @@ on:
     # A tag such as v0.2.0 makes a draft release. Paths do not filter a tag.
     tags: ["v*"]
     paths: ["desktop/**", ".nvmrc", ".github/workflows/desktop.yml"]
-  # Every pull request, docs too: main requires this workflow's three checks.
+  # Every pull request, docs too: main requires this workflow's four checks.
   pull_request:
   workflow_dispatch:
 

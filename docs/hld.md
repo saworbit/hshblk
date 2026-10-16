@@ -278,7 +278,7 @@ The display fixtures are the page's tests, `desktop/src/page/page.test.ts`. Each
 
 ## 8. Milestone one acceptance
 
-Milestone one ships the open side only: launch, double-click, `pick`, drop, `open`, `read_asset`, `open_url`, and `open_link`. No command can write, so "the file is not modified" holds by construction. Acceptance still checks it.
+Milestone one ships the open side only: launch, double-click, `pick`, drop, `open`, `read_asset`, `image_refusal`, `recent_files` and `open_recent`, `watch_document`, `open_url`, and `open_link`. No command can write, so "the file is not modified" holds by construction. Acceptance still checks it.
 
 From `app file.md`, on a named machine. The named machine is the maintainer's desktop: Windows 11, an AMD Ryzen 9 5900X, 32 GB, a GeForce RTX 3070 Ti, and WebView2 155.
 
