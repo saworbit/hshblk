@@ -400,9 +400,10 @@ async fn open_link(
 
 /// Why the resource channel refused an image the page could not show, in its chip's words, or
 /// none when the channel serves it, as when its bytes would not decode (#231). The reference is
-/// the one the page asked the channel for, so it checks what the channel checked.
+/// the one the page asked the channel for, so it checks what the channel checked. It may read
+/// the file whole, up to 20 MB, so it runs off the main thread, as an async command does (#315).
 #[tauri::command]
-fn image_refusal(
+async fn image_refusal(
     window: WebviewWindow,
     documents: State<'_, Documents>,
     reference: String,
