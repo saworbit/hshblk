@@ -7,6 +7,7 @@
 //! webview.
 
 use std::fs;
+use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
 use percent_encoding::percent_decode_str;
@@ -19,6 +20,10 @@ pub const SCHEME: &str = "doc-asset";
 
 /// Larger images are refused, so a document cannot point the page at an endless read.
 pub const MAX_ASSET_BYTES: u64 = 20 * 1024 * 1024;
+
+/// How much of a file `refusal` reads first: every type's first bytes, and an SVG's start unless
+/// it is long, when it reads twice as much again each time until the root element shows.
+const HEAD_BYTES: u64 = 4096;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Refusal {
@@ -132,6 +137,50 @@ pub fn load(document: &Document, reference: &str) -> Result<(Vec<u8>, &'static s
     Ok((bytes, kind))
 }
 
+/// Why the channel would refuse the image a reference names, or none when it would serve it, as
+/// `load` decides, from no more of the file than its type takes to tell (#331). An image that
+/// would not decode is read only as far as its first bytes.
+pub fn refusal(document: &Document, reference: &str) -> Option<Refusal> {
+    sniff(document, reference).err()
+}
+
+/// The type of the image a reference names, as `load` finds it, without reading it whole.
+fn sniff(document: &Document, reference: &str) -> Result<&'static str, Refusal> {
+    let file = resolve(document, reference)?;
+    let handle = fs::File::open(&file).map_err(|_| Refusal::Missing)?;
+    let metadata = handle.metadata().map_err(|_| Refusal::Missing)?;
+    if !metadata.is_file() {
+        return Err(Refusal::NotAFile);
+    }
+    if metadata.len() > MAX_ASSET_BYTES {
+        return Err(Refusal::TooLarge);
+    }
+    head_type(handle)
+}
+
+/// The image type a file begins with, read a head at a time until the head can tell.
+fn head_type(mut file: impl Read) -> Result<&'static str, Refusal> {
+    let mut head = Vec::new();
+    loop {
+        let wanted = (head.len() as u64).max(HEAD_BYTES);
+        let read = (&mut file)
+            .take(wanted)
+            .read_to_end(&mut head)
+            .map_err(|_| Refusal::Missing)?;
+        if let Some(kind) = image_type(&head) {
+            return Ok(kind);
+        }
+        // The whole file, or a head that is plainly no SVG, is not an image.
+        if (read as u64) < wanted || is_svg(&head).is_some() {
+            return Err(Refusal::NotAnImage);
+        }
+        // A file that grew past the cap while it was read, as `load` would find it.
+        if head.len() as u64 > MAX_ASSET_BYTES {
+            return Err(Refusal::TooLarge);
+        }
+    }
+}
+
 /// The file a reference names, if a document may show it. The page has already dropped the
 /// destination's query and fragment, so a `#` or `?` here is part of the file's name.
 pub fn resolve(document: &Document, reference: &str) -> Result<PathBuf, Refusal> {
@@ -200,7 +249,7 @@ pub fn image_type(bytes: &[u8]) -> Option<&'static str> {
     } else if starts(b"\0\0\x01\0") && bytes.get(4..6).is_some_and(|count| count != b"\0\0") {
         // An icon file names how many images it holds, at least one.
         Some("image/x-icon")
-    } else if is_svg(bytes) {
+    } else if is_svg(bytes) == Some(true) {
         Some("image/svg+xml")
     } else {
         None
@@ -209,42 +258,50 @@ pub fn image_type(bytes: &[u8]) -> Option<&'static str> {
 
 /// SVG is text, so it is known by its root element, after what XML lets come before it: a byte
 /// order mark, white space, the XML declaration, comments, processing instructions, and a
-/// doctype with its internal subset. In an image, its scripts never run.
-fn is_svg(bytes: &[u8]) -> bool {
+/// doctype with its internal subset. In an image, its scripts never run. None when the bytes end
+/// before the root element shows, so a file's head can say it needs more (#331).
+fn is_svg(bytes: &[u8]) -> Option<bool> {
     let mut rest = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
     loop {
         rest = rest.trim_ascii_start();
         rest = if rest.starts_with(b"<?") {
-            after(rest, 2, b"?>")
+            after(rest, 2, b"?>")?
         } else if rest.starts_with(b"<!--") {
-            after(rest, 4, b"-->")
+            after(rest, 4, b"-->")?
         } else if rest.starts_with(b"<!DOCTYPE") {
-            after_doctype(rest)
+            after_doctype(rest)?
+        } else if rest.starts_with(b"<svg") {
+            return Some(true);
+        } else if [&b"<svg"[..], b"<!--", b"<!DOCTYPE"]
+            .iter()
+            .any(|start| start.starts_with(rest))
+        {
+            return None;
         } else {
-            return rest.starts_with(b"<svg");
+            return Some(false);
         };
     }
 }
 
-/// What follows the first `end` at or past `from`, or nothing when there is none.
-fn after<'a>(bytes: &'a [u8], from: usize, end: &[u8]) -> &'a [u8] {
-    bytes
-        .get(from..)
-        .and_then(|tail| tail.windows(end.len()).position(|window| window == end))
-        .map_or(&[], |at| &bytes[from + at + end.len()..])
+/// What follows the first `end` at or past `from`, or none when there is none.
+fn after<'a>(bytes: &'a [u8], from: usize, end: &[u8]) -> Option<&'a [u8]> {
+    let tail = bytes.get(from..)?;
+    let at = tail.windows(end.len()).position(|window| window == end)?;
+    Some(&bytes[from + at + end.len()..])
 }
 
-/// What follows a doctype. Its internal subset may hold `>` in quotes, comments, and
-/// processing instructions, so the doctype ends at the first `>` outside all of them.
-fn after_doctype(bytes: &[u8]) -> &[u8] {
+/// What follows a doctype, or none when it does not end. Its internal subset may hold `>` in
+/// quotes, comments, and processing instructions, so the doctype ends at the first `>` outside
+/// all of them.
+fn after_doctype(bytes: &[u8]) -> Option<&[u8]> {
     let mut depth = 0usize;
     let mut rest = &bytes[b"<!DOCTYPE".len()..];
     while let Some(&byte) = rest.first() {
         rest = match byte {
-            b'"' | b'\'' => after(rest, 1, &[byte]),
-            b'<' if rest.starts_with(b"<!--") => after(rest, 4, b"-->"),
-            b'<' if rest.starts_with(b"<?") => after(rest, 2, b"?>"),
-            b'>' if depth == 0 => return &rest[1..],
+            b'"' | b'\'' => after(rest, 1, &[byte])?,
+            b'<' if rest.starts_with(b"<!--") => after(rest, 4, b"-->")?,
+            b'<' if rest.starts_with(b"<?") => after(rest, 2, b"?>")?,
+            b'>' if depth == 0 => return Some(&rest[1..]),
             _ => {
                 match byte {
                     b'[' => depth += 1,
@@ -255,7 +312,7 @@ fn after_doctype(bytes: &[u8]) -> &[u8] {
             }
         };
     }
-    &[]
+    None
 }
 
 #[cfg(test)]
@@ -500,6 +557,81 @@ mod tests {
         assert_eq!(why("big.png"), Some("Larger than 20 MB"));
         assert_eq!(why("fake.png"), Some("Not an image this app shows"));
         assert_eq!(why("."), Some("Not a file"));
+        // #331: `refusal` says what `load` says, from each file's head: a large PNG that would
+        // not decode, and a large file that is no image, among them.
+        let folder = document.path.parent().unwrap();
+        fs::write(folder.join("broken.png"), PNG).unwrap();
+        for (name, len) in [("broken.png", 15 << 20), ("zeros.png", 15 << 20)] {
+            let file = fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(false)
+                .open(folder.join(name))
+                .unwrap();
+            file.set_len(len).unwrap();
+        }
+        for reference in [
+            "near.png",
+            "gone.png",
+            "../../secret.png",
+            "big.png",
+            "fake.png",
+            ".",
+            "broken.png",
+            "zeros.png",
+        ] {
+            let channel = load(&document, reference).err();
+            assert_eq!(refusal(&document, reference), channel, "{reference}");
+        }
+        assert_eq!(refusal(&document, "broken.png"), None);
+        assert_eq!(refusal(&document, "zeros.png"), Some(Refusal::NotAnImage));
+    }
+
+    #[test]
+    fn reads_no_more_of_a_file_than_its_type_takes_to_tell() {
+        // #331: an image that did not show was read whole, up to 20 MB, to say why.
+        let large = 15 << 20;
+        let read = |bytes: Vec<u8>| {
+            let mut file = std::io::Cursor::new(bytes);
+            let kind = head_type(&mut file);
+            (kind, file.position())
+        };
+        let mut truncated = PNG.to_vec();
+        truncated.resize(large, 0);
+        assert_eq!(read(truncated), (Ok("image/png"), HEAD_BYTES));
+        let text = b"not an image\n".repeat(large / 13);
+        assert_eq!(read(text), (Err(Refusal::NotAnImage), HEAD_BYTES));
+        // An SVG whose start is long is read until its root element shows, and no further.
+        let mut svg = format!("<!--{}-->\n<svg/>", "x".repeat(10_000)).into_bytes();
+        svg.resize(large, b' ');
+        assert_eq!(read(svg), (Ok("image/svg+xml"), 4 * HEAD_BYTES));
+        // A file shorter than a head is read whole, and judged as `load` judges it.
+        assert_eq!(
+            read(b"<!-- never closed".to_vec()),
+            (Err(Refusal::NotAnImage), 17)
+        );
+        assert_eq!(read(b"<svg/>".to_vec()), (Ok("image/svg+xml"), 6));
+    }
+
+    #[test]
+    fn knows_when_a_head_ends_before_an_svg_could_start() {
+        // #331: the head of a file can end inside an SVG's start, which more bytes would finish.
+        for head in [
+            "",
+            "  ",
+            "<",
+            "<sv",
+            "<!-",
+            "<!DOC",
+            "<?xml",
+            "<!-- open",
+            "<!DOCTYPE svg [",
+        ] {
+            assert_eq!(is_svg(head.as_bytes()), None, "{head:?}");
+        }
+        assert_eq!(is_svg(b"<?xml?><svg"), Some(true));
+        assert_eq!(is_svg(b"<html>"), Some(false));
+        assert_eq!(is_svg(b"<!-- done --> text"), Some(false));
     }
 
     #[test]

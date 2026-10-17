@@ -13,6 +13,7 @@ fn main() {
         "watch_menu",
         "watch_document",
         "watch_fragments",
+        "watch_recent",
         "close_window",
     ]);
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest))

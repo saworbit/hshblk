@@ -245,6 +245,7 @@ fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         CLEAR_RECENT => {
             windows::memory(app).clear_recent();
             RecentMenu::refresh(app);
+            app.state::<WindowStates>().recent_changed();
         }
         id => {
             let file = app.try_state::<RecentMenu>().and_then(|menu| menu.file(id));
@@ -269,6 +270,13 @@ fn watch_fragments(
 #[tauri::command]
 fn watch_menu(window: WebviewWindow, channel: Channel<String>, states: State<'_, WindowStates>) {
     states.watch_menu(window.label(), channel);
+}
+
+/// The welcome window's line from Rust for word that the recent files changed, as Clear Menu
+/// changes them on macOS (#326). The page lists them again.
+#[tauri::command]
+fn watch_recent(window: WebviewWindow, channel: Channel<String>, states: State<'_, WindowStates>) {
+    states.watch_recent(window.label(), channel);
 }
 
 /// The page's line from Rust for its file's new text (#199). Rust looks at the file twice a second
@@ -355,8 +363,9 @@ async fn open_link(
 
 /// Why the resource channel refused an image the page could not show, in its chip's words, or
 /// none when the channel serves it, as when its bytes would not decode (#231). The reference is
-/// the one the page asked the channel for, so it checks what the channel checked. It may read
-/// the file whole, up to 20 MB, so it runs off the main thread, as an async command does (#315).
+/// the one the page asked the channel for, so it checks what the channel checked, from no more
+/// of the file than its type takes to tell (#331). It still opens the file, so it runs off the
+/// main thread, as an async command does (#315).
 #[tauri::command]
 async fn image_refusal(
     window: WebviewWindow,
@@ -364,9 +373,7 @@ async fn image_refusal(
     reference: String,
 ) -> Result<Option<&'static str>, String> {
     let document = own_document(&window, &documents)?;
-    Ok(assets::load(&document, &reference)
-        .err()
-        .map(|refusal| refusal.reason()))
+    Ok(assets::refusal(&document, &reference).map(|refusal| refusal.reason()))
 }
 
 /// Why a link to a file does not open, naming it as the link does.
@@ -464,6 +471,7 @@ pub fn run() {
             watch_menu,
             watch_document,
             watch_fragments,
+            watch_recent,
             close_window
         ])
         .on_window_event(windows::on_event)

@@ -162,7 +162,7 @@ Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) opens pull re
 | `desktop/src-tauri/src/lib.rs` | The thirteen commands the page may call, and the app, with its menu bar on macOS and File > Open Recent there. |
 | `desktop/src-tauri/src/memory.rs` | What the app keeps between runs in its own data folder: the last window's size and place, and the files opened last. |
 | `desktop/src-tauri/src/watch.rs` | Looking at each open file twice a second, and telling its window when it has new text. |
-| `desktop/src-tauri/src/window_state.rs` | What Rust keeps for each document window in one place: its menu bar line, a place a link sends it to, and its file's watch. A window that closes takes it all. |
+| `desktop/src-tauri/src/window_state.rs` | What Rust keeps for each window in one place: its menu bar line, a place a link sends it to, its file's watch, and the welcome window's line for the recent files. A window that closes takes it all. |
 | `desktop/src-tauri/linux/hshblk.desktop` | The Linux desktop entry, which passes the double-clicked file. |
 | `desktop/src-tauri/icons/` | The app icon: [`brand/app-icon/`](../brand/app-icon/), file for file. 16 and 32 px are a drawing of their own, so it is copied, never regenerated with `tauri icon`. |
 | `desktop/src/main.ts` | The window: open, print, the status line, and the welcome, which names the version. |

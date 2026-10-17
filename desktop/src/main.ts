@@ -260,18 +260,35 @@ function welcome(): HTMLElement {
   const recent = element("nav", "welcome-recent");
   recent.setAttribute("aria-label", "Recent files");
   recent.hidden = true;
-  void invoke<Recent[]>("recent_files").then((files) => {
-    if (files.length === 0) return;
-    const list = element("ul");
-    for (const { name, token } of files) {
-      const file = element("button", "welcome-file", name);
-      file.setAttribute("type", "button");
-      file.addEventListener("click", () => void invoke("open_recent", { token }));
-      list.append(element("li", "", [file]));
-    }
-    recent.replaceChildren(element("h2", "", "Recent"), list);
-    recent.hidden = false;
-  });
+  // Why a recent file did not open, as when it left the list after the window listed it (#326).
+  const said = element("p", "welcome-said");
+  said.setAttribute("role", "status");
+  const list = () =>
+    void invoke<Recent[]>("recent_files").then((files) => {
+      const items = element("ul");
+      for (const { name, token } of files) {
+        const file = element("button", "welcome-file", name);
+        file.setAttribute("type", "button");
+        file.addEventListener(
+          "click",
+          () =>
+            void invoke("open_recent", { token }).catch((error) => {
+              said.textContent = `${error}`;
+              list();
+            }),
+        );
+        items.append(element("li", "", [file]));
+      }
+      recent.replaceChildren(element("h2", "", "Recent"), items);
+      recent.hidden = files.length === 0;
+    });
+  list();
+  if (mac) {
+    // File > Open Recent's Clear Menu empties the list, and Rust says so down a channel (#326).
+    const changes = new Channel<string>();
+    changes.onmessage = list;
+    void invoke("watch_recent", { channel: changes });
+  }
   // #239: the keys, where a new reader looks first. F1 opens them too.
   const keys = element("details", "welcome-keys", [element("summary", "", "Keys"), keyList(rows)]);
   box.append(
@@ -279,6 +296,7 @@ function welcome(): HTMLElement {
     open,
     element("p", "welcome-hint", "or drop one on this window"),
     recent,
+    said,
     keys,
     // Which one is running, for a bug report or the release page. There is no updater (#238).
     element("p", "welcome-version", `Version ${__VERSION__}`),
