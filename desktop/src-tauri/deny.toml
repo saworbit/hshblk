@@ -40,6 +40,9 @@ unsound = "all"
 ignore = [
   { id = "RUSTSEC-2024-0370", reason = "proc-macro-error is unmaintained, not unsafe. It is a proc macro in glib-macros 0.18, which Tauri's GTK 3 stack needs: it runs while compiling and does not ship." },
   { id = "RUSTSEC-2024-0429", reason = "glib 0.18's VariantStrIter is unsound. It is reached only through Variant::array_iter_str, which nothing that ships calls (docs/desktop.md). The fix waits on Tauri taking gtk 0.19 (#175)." },
+  { id = "RUSTSEC-2026-0370", reason = "zvariant is unmaintained, not unsound: its code moved into zbus 6. zbus 5 takes it, for tauri-plugin-single-instance on Linux, whose latest still asks for zbus 5 (#354)." },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names is unmaintained, not unsound: its code moved into zbus 6. As RUSTSEC-2026-0370 (#354)." },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive is unmaintained, not unsound: its macros moved into zbus 6. A proc macro, it runs while compiling. As RUSTSEC-2026-0370 (#354)." },
 ]
 
 [bans]
