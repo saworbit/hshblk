@@ -743,8 +743,11 @@ export const summaryToggles: Extension = [
   }),
 ];
 
-/** Where a frame's images come from: the resource channel, as in the page's own policy. */
-const IMAGES = "doc-asset: http://doc-asset.localhost";
+/**
+ * Where a frame's images come from, as in the page's own policy: the resource channel, and an
+ * image embedded in the document (#205), which `imageUrl` holds to what the channel serves.
+ */
+const IMAGES = "doc-asset: http://doc-asset.localhost data:";
 
 /** The namespace of SVG's older `xlink:href`, which an SVG `<image>` may still name a file by. */
 const XLINK = "http://www.w3.org/1999/xlink";

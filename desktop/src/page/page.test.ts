@@ -5,6 +5,7 @@ import { EditorState, RangeSet, type StateCommand } from "@codemirror/state";
 import { showTooltip, type DecorationSet } from "@codemirror/view";
 import {
   assetUrl,
+  embeddedRefusal,
   filePath,
   imageRefusal,
   imageUrl,
@@ -1503,22 +1504,44 @@ describe("an image's file", () => {
     const state = EditorState.create({ extensions: assetUrl.of((file) => `asset:${file}`) });
     assert.equal(imageUrl(state, "a%20b.png?v=2#top"), "asset:a b.png");
     assert.equal(imageUrl(state, "/images/logo.png"), "asset:/images/logo.png");
-    for (const remote of [
-      "https://x.y/a.png",
-      "//x.y/a.png",
-      "\\\\server\\a.png",
-      "data:image/png,x",
-      "",
-    ]) {
+    for (const remote of ["https://x.y/a.png", "//x.y/a.png", "\\\\server\\a.png", ""]) {
       assert.equal(imageUrl(state, remote), null, remote);
     }
+  });
+
+  it("shows an image embedded in the document, of the types and the size the channel serves", () => {
+    // #205: an embedded image fetches nothing, and was refused as if it were remote.
+    const state = EditorState.create({ extensions: assetUrl.of((file) => `asset:${file}`) });
+    for (const shown of [
+      "data:image/png;base64,iVBORw0KGgo=",
+      "DATA:image/JPEG;base64,/9j/",
+      "data:image/svg+xml,%3Csvg%2F%3E",
+      "data:image/webp;charset=binary;base64,UklGRg==",
+    ]) {
+      assert.equal(imageUrl(state, ` ${shown} `), shown, shown);
+    }
+    // 28 MB of base64 is 21 MB of bytes.
+    const big = `data:image/png;base64,${"A".repeat(28 << 20)}`;
+    for (const [refused, why] of [
+      ["data:text/html,<script>", "Not an image this app shows"],
+      ["data:image/tiff;base64,AAAA", "Not an image this app shows"],
+      ["data:,x", "Not an image this app shows"],
+      [big, "Larger than 20 MB"],
+    ]) {
+      assert.equal(imageUrl(state, refused), null, refused.slice(0, 30));
+      assert.equal(embeddedRefusal(refused), why, refused.slice(0, 30));
+      assert.equal(unloaded(refused), why, refused.slice(0, 30));
+    }
+    // A cap of 20 MB is on the bytes, not on the base64 that holds them.
+    const most = `data:image/png;base64,${"A".repeat(((20 << 20) / 3) * 4)}`;
+    assert.equal(embeddedRefusal(most), null);
   });
 
   it("says why it does not show: nothing to load, or what the shell says the channel refused", async () => {
     // #231: every chip read "Image not shown" or "Image not loaded", whatever the reason.
     assert.equal(unloaded("https://x.y/a.png"), "Remote images do not load");
     assert.equal(unloaded(" //x.y/a.png"), "Remote images do not load");
-    assert.equal(unloaded("data:image/png;base64,AAAA"), "Embedded images do not load");
+    assert.equal(unloaded("data:text/plain,AAAA"), "Not an image this app shows");
     assert.equal(unloaded("doc-asset://localhost/x.png"), "Image not loaded");
     assert.equal(unloaded(""), "Image not loaded");
     const asked: string[] = [];
@@ -1530,6 +1553,9 @@ describe("an image's file", () => {
     assert.equal(await refusalOf(state, "gone.png"), "Not found");
     // It asks for the file the channel was asked for, and says nothing more when the shell cannot.
     assert.equal(await refusalOf(state, "screen%20shot.png?v=1"), "Image not shown");
+    assert.deepEqual(asked, ["gone.png", "screen shot.png"]);
+    // An embedded image that would not decode names no file to ask about (#205).
+    assert.equal(await refusalOf(state, "data:image/png;base64,AAAA"), "Image not shown");
     assert.deepEqual(asked, ["gone.png", "screen shot.png"]);
     assert.equal(await refusalOf(EditorState.create({}), "gone.png"), "Image not shown");
     const failing = imageRefusal.of(() => Promise.reject(new Error("closed")));
