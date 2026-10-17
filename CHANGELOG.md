@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.0 (2026-10-18)
+
 - Desktop: a full stop or comma after a link, an autolink, or a code span stays on that construct's line. The hidden syntax between them no longer leaves a place for the line to break. (#48)
 - Desktop: an image written percent-encoded, such as `screen%20shot.png`, now loads. Escapes and entities in a link or image destination now read as CommonMark says. (#35)
 - Desktop: `Ctrl+O`, `Ctrl+P`, and `Ctrl+F` work wherever focus is in the window, the find box included, not only in the page's text. (#46)
@@ -223,3 +225,4 @@
 - CI: the WebView2 suite draws a diagram, the one place the frame needs the bundle's rewrite, draws it again in the other theme, and checks that Rust answers no command from the diagram frame or a raw HTML block's frame. When a diagram is not drawn, it says what each frame logged, failed to load, or threw. (#348)
 - Docs: desktop.md no longer says a DevTools client holds the diagram frame. It was the frame failing to start. hld.md's `script-src` line names the nonce the frame's script runs under.
 - Desktop: on macOS the Open dialog offers every file, a README with no extension among them. It offered markdown alone, since the dialog there folds its filters into one list. On Linux, GTK's dialog still reads All files as `*.*`, which waits on rfd. (#268)
+- Docs: desktop.md's release steps give the changelog a heading for the version, and say a new line goes at the end of **Unreleased**.
