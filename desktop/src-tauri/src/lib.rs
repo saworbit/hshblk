@@ -67,13 +67,12 @@ fn pick_document(window: WebviewWindow) {
 
 /// The Open dialog's filters: markdown, then every file, as a drop or the command line takes any
 /// (#241). On macOS the dialog folds its filters into one list, with no choice between them, so
-/// there it stays markdown.
+/// there it has none, and offers every file (#268).
 fn filters() -> Vec<(&'static str, &'static [&'static str])> {
-    let mut filters = vec![("Markdown", windows::EXTENSIONS)];
-    if !cfg!(target_os = "macos") {
-        filters.push(("All files", &["*"]));
+    if cfg!(target_os = "macos") {
+        return Vec::new();
     }
-    filters
+    vec![("Markdown", windows::EXTENSIONS), ("All files", &["*"])]
 }
 
 /// The Open dialog, over `parent` when there is one. Each picked file opens in a window of its own.
@@ -553,9 +552,10 @@ mod tests {
     #[test]
     fn offers_every_file_after_markdown_where_the_dialog_can_choose() {
         // #241: the one filter was markdown, so a README with no extension could not be picked.
+        // macOS folds the filters into one list with no choice, so it kept markdown alone (#268).
         let names: Vec<_> = filters().iter().map(|(name, _)| *name).collect();
         if cfg!(target_os = "macos") {
-            assert_eq!(names, ["Markdown"]);
+            assert!(names.is_empty(), "{names:?}");
         } else {
             assert_eq!(names, ["Markdown", "All files"]);
         }
