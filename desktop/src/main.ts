@@ -16,8 +16,6 @@ import { closeKeys, keyList, keyRows, keysPanel, toggleKeys } from "./keys.ts";
 import { element } from "./page/dom.ts";
 import { loadEmoji, SHORTCODE } from "./page/emoji.ts";
 import { loadMaths, MATHS } from "./page/maths.ts";
-// #221: mermaid and the frame it draws in, one classic script that Vite builds as a worker's.
-import diagramFrame from "./page/diagram-frame.ts?worker&url";
 
 type Opened = { name: string; modified: number | null; readOnlyReason: string | null };
 
@@ -26,6 +24,13 @@ type Recent = { name: string; token: string };
 
 const root = document.querySelector<HTMLElement>("#page")!;
 const nonce = document.querySelector<HTMLMetaElement>('meta[name="style-nonce"]')?.content;
+// #221 and #351: the script of the frame mermaid draws in, as its text, a chunk of its own, and
+// the nonce it runs under. The dev server sets no policy and leaves the token, which still pairs
+// the frame's own policy with its script.
+const diagramFrame = {
+  text: () => import("virtual:diagram-frame").then((module) => module.default),
+  nonce: document.querySelector<HTMLMetaElement>('meta[name="script-nonce"]')?.content ?? "",
+};
 
 // A window shows the document its label names. Rust chose the label, and holds the path.
 const handle = getCurrentWindow().label.match(/^doc-([0-9a-f]+)$/)?.[1];

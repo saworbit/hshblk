@@ -10,8 +10,14 @@ import { Facet } from "@codemirror/state";
  * `diagram-frame.ts` is the frame's side.
  */
 
-/** Where the frame's script is, which the shell names, as Vite builds it. Without one, no diagram. */
-export const diagramFrame = Facet.define<string, string | null>({
+/**
+ * The frame's script, as its text, which the shell loads the first time a page shows a diagram,
+ * and the nonce the page's policy runs a script under. Without one, no diagram.
+ */
+export type FrameScript = { text: () => Promise<string>; nonce: string };
+
+/** The frame's script, which the shell gives. */
+export const diagramFrame = Facet.define<FrameScript, FrameScript | null>({
   combine: (values) => values[0] ?? null,
 });
 
@@ -24,11 +30,7 @@ type Answer = { id: number; svg?: string; error?: string };
 /** How long the frame may take to start, or to draw one diagram, before the page says so. */
 const PATIENCE = 30_000;
 
-/**
- * How many frames the page makes before it says the frame did not start, and how long one that
- * has loaded may take to say it is ready.
- */
-const STARTS = 4;
+/** How long a frame that has loaded may take to say it is ready. */
 const GRACE = 1_000;
 
 const NOT_STARTED = "The diagram frame did not start.";
@@ -40,10 +42,11 @@ const drawn = new Map<string, Promise<Diagram>>();
 const waiting = new Map<number, (answer: Answer) => void>();
 
 let frame: Promise<Window> | null = null;
+let text: Promise<string> | null = null;
 let asked = 0;
 
 /** A diagram drawn from its source, light or dark as the page is. */
-export function drawDiagram(script: string, source: string, dark: boolean): Promise<Diagram> {
+export function drawDiagram(script: FrameScript, source: string, dark: boolean): Promise<Diagram> {
   const key = `${dark ? "dark" : "light"}\n${source}`;
   let diagram = drawn.get(key);
   if (!diagram) {
@@ -53,7 +56,7 @@ export function drawDiagram(script: string, source: string, dark: boolean): Prom
   return diagram;
 }
 
-async function draw(script: string, source: string, dark: boolean): Promise<Diagram> {
+async function draw(script: FrameScript, source: string, dark: boolean): Promise<Diagram> {
   try {
     const into = await (frame ??= start(script));
     asked += 1;
@@ -73,18 +76,19 @@ async function draw(script: string, source: string, dark: boolean): Promise<Diag
 }
 
 /**
- * Makes the frame, and makes it again while it loads with no script. On Windows, WebView2 sends
- * the script's request from a window's first sandboxed frame to the network at times, where
- * nothing answers, rather than to Tauri. A frame made after it gets its script (#351).
+ * Makes the frame with its script written in, so it asks for nothing. On Windows, WebView2 sends
+ * a sandboxed frame's requests to the network rather than to Tauri at times, so a frame that
+ * asked for its script often never started (#351).
  */
-async function start(script: string): Promise<Window> {
+async function start(script: FrameScript): Promise<Window> {
   try {
-    for (let tries = 1; tries <= STARTS; tries += 1) {
-      const into = await open(script);
-      if (into) return into;
-      await new Promise((resolve) => setTimeout(resolve, 250 * tries));
-    }
-    throw new Error(NOT_STARTED);
+    text ??= script.text().catch((error: unknown) => {
+      text = null;
+      throw error;
+    });
+    const into = await open(await text, script.nonce);
+    if (!into) throw new Error(NOT_STARTED);
+    return into;
   } catch (error) {
     frame = null;
     throw error;
@@ -92,22 +96,27 @@ async function start(script: string): Promise<Window> {
 }
 
 /**
- * A frame, and its window once its script says it is ready, or null if it loaded with no script:
- * one whose script ran says so before it loads. Its own policy names the app's origin for
- * scripts, since `'self'` in a frame of no origin names nothing.
+ * A frame running `code`, and its window once the code says it is ready, or null if it loaded and
+ * the code did not: code that ran says so before the frame loads. Its policy runs only scripts
+ * with `nonce`, which the page's policy, which the frame takes too, also runs. The code is in an
+ * attribute, and a first script runs it, since written out as a script it could end the element.
  */
-function open(script: string): Promise<Window | null> {
-  const url = new URL(script, location.href);
+function open(code: string, nonce: string): Promise<Window | null> {
   const box = document.createElement("iframe");
   box.className = "pg-diagram-frame";
   box.setAttribute("sandbox", "allow-scripts");
   box.setAttribute("aria-hidden", "true");
   box.tabIndex = -1;
-  const policy = `default-src 'none'; script-src ${url.origin}`;
+  const policy = `default-src 'none'; script-src 'nonce-${nonce}'`;
+  const run =
+    `const run = document.createElement("script"); run.nonce = ${JSON.stringify(nonce)};` +
+    ` run.textContent = document.querySelector('meta[name="frame-script"]').content;` +
+    ` document.head.append(run);`;
   box.srcdoc =
     `<!doctype html><html><head><meta charset="utf-8">` +
-    `<meta http-equiv="Content-Security-Policy" content="${policy}"></head>` +
-    `<body><script src="${url.href}"></script></body></html>`;
+    `<meta http-equiv="Content-Security-Policy" content="${attribute(policy)}">` +
+    `<meta name="frame-script" content="${attribute(code)}">` +
+    `<script nonce="${attribute(nonce)}">${run}</script></head><body></body></html>`;
   let hear: (event: MessageEvent) => void = () => {};
   const ready = new Promise<Window | null>((resolve) => {
     hear = (event) => {
@@ -119,7 +128,7 @@ function open(script: string): Promise<Window | null> {
         waiting.get(data.id)?.(data as Answer);
       }
     };
-    // A frame whose script ran is ready before it loads. One that loads and is not ready soon
+    // Code that ran is ready before the frame loads. A frame that loads and is not ready soon
     // after never will be.
     box.addEventListener("load", () => setTimeout(() => resolve(null), GRACE), { once: true });
   });
@@ -139,6 +148,11 @@ function open(script: string): Promise<Window | null> {
       throw error;
     },
   );
+}
+
+/** Text as a quoted attribute's value. */
+function attribute(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
 }
 
 /** The promise's value, or an error with `why` if it takes longer than the page waits. */

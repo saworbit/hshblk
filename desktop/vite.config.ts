@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
-import { frameInDev } from "./src/build/frame-in-dev.ts";
-import { overrideMistake } from "./src/build/override-mistake.ts";
+import { frameScript } from "./src/build/frame-script.ts";
 
 const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
 
@@ -14,13 +13,11 @@ export default defineConfig({
     // The welcome screen imports the mark from brand/, a folder up from this one.
     fs: { allow: [".."] },
   },
-  build: { target: "es2022", outDir: "dist" },
-  // The frame mermaid draws in loads its script as a classic one, from no origin of its own, which
-  // a module could not be, and Vite builds a worker's script that way, its imports inlined. Its
-  // dependencies' assignments the frozen prototype would refuse are rewritten (#221).
-  worker: { format: "iife", plugins: () => [overrideMistake()] },
-  // The dev server serves the frame the same script (#349).
-  plugins: [frameInDev()],
+  // The diagram frame's script, mermaid whole, is one chunk of 3.4 MB. The page's own are far less.
+  build: { target: "es2022", outDir: "dist", chunkSizeWarningLimit: 3_600 },
+  // The frame mermaid draws in runs one classic script, its imports inlined and the assignments
+  // the frozen prototype would refuse rewritten (#221), which the page writes into it (#351).
+  plugins: [frameScript()],
   // The version the welcome window shows (#238). A release checks it against the other two.
   define: { __VERSION__: JSON.stringify(version) },
 });
