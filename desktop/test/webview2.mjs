@@ -2,19 +2,19 @@
  * What only WebView2 can show, run on Windows: F5 and Ctrl+R (#161), the right-click menu (#244),
  * print's header and footer (#245), and a contrast theme (#233). The Linux suite can only fire
  * synthetic events at these and read the page's rules. Here each is the engine's own behaviour,
- * and each test fails with its fix taken out (#270).
+ * and each test fails with its fix taken out (#270). A link to a heading in another file is
+ * here too, since the Linux suite drives one window a launch and it takes two (#301).
  *
  *   node test/webview2.mjs <app>
  *
  * WebDriver cannot open a file on Windows: msedgedriver passes the app's arguments as switches
  * (#27). So the app starts with its file on the command line, as a double-click starts it, and
- * the page is driven over WebView2's DevTools port, as test/timing.mjs reads it. Keys go as
+ * the page is driven over WebView2's DevTools port, through test/devtools.mjs. Keys go as
  * Windows delivers them, posted to the page's window by test/keys.ps1, since the protocol's keys
  * never reach WebView2's own shortcuts.
  */
-import { execFileSync, spawn } from "node:child_process";
-import { once } from "node:events";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -22,142 +22,19 @@ import { fileURLToPath } from "node:url";
 import { inflateSync } from "node:zlib";
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
+import { attach, launch, poll, START } from "./devtools.mjs";
 
 const app = resolve(process.argv[2] ?? "");
 if (!process.argv[2]) throw new Error("usage: webview2.mjs <app binary>");
 if (process.platform !== "win32") throw new Error("WebView2 runs on Windows only.");
 
 const keys = fileURLToPath(new URL("keys.ps1", import.meta.url));
-const state = fileURLToPath(new URL("webview2-state.ps1", import.meta.url));
 
-/** Tries `fn` every 100 ms until it gives something, for `seconds`, and says what it last met. */
-async function poll(fn, what, seconds = 15) {
-  const end = Date.now() + seconds * 1000;
-  let met = "nothing";
-  while (Date.now() < end) {
-    try {
-      const value = await fn();
-      if (value) return value;
-      met = JSON.stringify(value);
-    } catch (error) {
-      met = error.message;
-    }
-    await sleep(100);
-  }
-  throw new Error(`timed out waiting for ${what}, after ${met}`);
-}
-
-/** What WebView2 lists on its DevTools port. */
-const list = (port) => fetch(`http://127.0.0.1:${port}/json/list`).then((answer) => answer.json());
-
-/** How long WebView2 may take to start: its first start on a fresh runner makes its profile. */
-const START = 90;
-
-/** Whether this runs elevated, as CI's runners run it. Git's own whoami is another program. */
-const whoami = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "whoami.exe");
-const elevated = /S-1-16-(12288|16384)\b/.test(
-  execFileSync(whoami, ["/groups"], { encoding: "utf8" }),
-);
-
-/** Where WebView2 takes its arguments from, elevated, in place of the environment. */
-const POLICY = String.raw`HKLM\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments`;
-
-/** What the app and WebView2 were doing, for a launch that failed. On CI, with the screen. */
-function report(pid, profile) {
-  const args = ["-ProcessId", String(pid), "-WebViewProfile", profile];
-  const screen = join(process.env.RUNNER_TEMP ?? tmpdir(), "webview2.png");
-  if (process.env.CI) args.push("-Screen", screen);
-  try {
-    return execFileSync(
-      "powershell",
-      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", state, ...args],
-      { encoding: "utf8", timeout: 60_000 },
-    ).trim();
-  } catch (error) {
-    return `No report: ${error.message}`;
-  }
-}
-
-/**
- * The app on `file`, with its page's DevTools session. WebView2 keeps its profile in `profile`,
- * takes a free port, and writes there the port it took.
- *
- * Since Runtime 150, WebView2 in an elevated app drops the browser arguments the environment
- * gives it, and takes them from machine policy alone: the workflow sets `--remote-debugging-port=0`
- * for hshblk.exe there. Elevated, this sets no such variable, in case one would keep WebView2
- * from reading the policy.
- */
-async function launch(file, profile) {
-  mkdirSync(profile, { recursive: true });
-  const flags = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
-  const browser = { WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `${flags} --remote-debugging-port=0` };
-  const child = spawn(app, [file], {
-    env: { ...process.env, WEBVIEW2_USER_DATA_FOLDER: profile, ...(elevated ? {} : browser) },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  // What the app says, for a launch that fails.
-  let said = "";
-  for (const stream of [child.stdout, child.stderr]) {
-    stream.on("data", (chunk) => (said = `${said}${chunk}`.slice(-4000)));
-  }
-  const exited = once(child, "exit");
-  // The app goes when this script does, however it ends: a child left running holds node open.
-  const stop = () => child.kill();
-  process.once("exit", stop);
-  // A copy of the same build already running takes the file, as a second launch hands it over,
-  // and this process ends with no port to read. A debug build runs apart from Hash Block (#287).
-  const gone = exited.then(([code]) => {
-    throw new Error(`The app ended at once, with ${code}. Is another copy of it running?`);
-  });
-  const active = join(profile, "EBWebView", "DevToolsActivePort");
-  let port;
-  let target;
-  try {
-    target = await Promise.race([
-      (async () => {
-        port = await poll(() => readFileSync(active, "utf8").split("\n")[0], "the port", START);
-        return poll(
-          async () => (await list(port)).find((page) => page.type === "page"),
-          "the page",
-        );
-      })(),
-      gone,
-    ]);
-  } catch (error) {
-    const why = [error.message, report(child.pid, profile), "The app said:", said];
-    if (elevated) why.push(`Elevated, WebView2 takes --remote-debugging-port=0 from ${POLICY}.`);
-    child.kill();
-    throw new Error(why.join("\n"), { cause: error });
-  }
-  gone.catch(() => {});
-  const socket = new WebSocket(target.webSocketDebuggerUrl);
-  await once(socket, "open");
-  const answers = new Map();
-  socket.addEventListener("message", ({ data }) => {
-    const message = JSON.parse(data);
-    answers.get(message.id)?.(message);
-    answers.delete(message.id);
-  });
-  let id = 0;
-  const send = (method, params = {}) =>
-    new Promise((answer, fail) => {
-      id += 1;
-      answers.set(id, (message) =>
-        message.error ? fail(new Error(JSON.stringify(message.error))) : answer(message.result),
-      );
-      socket.send(JSON.stringify({ id, method, params }));
-    });
-  /** Runs a function in the page. It is sent as source, so it may not close over anything. */
-  const run = async (fn) => {
-    const params = { expression: `(${fn})()`, returnByValue: true, awaitPromise: true };
-    const { result, exceptionDetails } = await send("Runtime.evaluate", params);
-    if (exceptionDetails) throw new Error(exceptionDetails.exception?.description ?? "it threw");
-    return result.value;
-  };
+/** The app on `file`, its page's DevTools session, and the keys and the clicks Windows gives. */
+async function open(file, profile) {
+  const page = await launch(app, file, profile);
   return {
-    send,
-    run,
-    until: (fn, seconds) => poll(() => run(fn), String(fn), seconds),
+    ...page,
     /** Presses a key as Windows delivers one, `F5` or, with Ctrl, `R`. */
     press: (key, control = false) =>
       execFileSync(
@@ -169,7 +46,7 @@ async function launch(file, profile) {
           "-File",
           keys,
           "-ProcessId",
-          String(child.pid),
+          String(page.pid),
           "-Key",
           key,
           ...(control ? ["-Control"] : []),
@@ -178,20 +55,13 @@ async function launch(file, profile) {
       ),
     /** A right-click in the middle of what a selector names. */
     async rightClick(selector) {
-      const at = await run(`() => {
+      const at = await page.run(`() => {
         const box = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
         return { x: box.left + Math.min(box.width / 2, 40), y: box.top + box.height / 2 };
       }`);
       for (const type of ["mousePressed", "mouseReleased"]) {
-        await send("Input.dispatchMouseEvent", { type, ...at, button: "right", clickCount: 1 });
+        await page.send("Input.dispatchMouseEvent", { type, ...at, button: "right", clickCount: 1 });
       }
-    },
-    async close() {
-      socket.close();
-      child.kill();
-      await exited;
-      process.off("exit", stop);
-      await poll(async () => !(await list(port).catch(() => null)), "the port to close");
     },
   };
 }
@@ -226,7 +96,7 @@ describe("WebView2", { timeout: 300_000 }, () => {
   let page;
 
   before(async () => {
-    page = await launch(file, profile);
+    page = await open(file, profile);
     const drawn = () => document.querySelector(".pg-h1") && document.querySelector(".status");
     await page.until(drawn, START);
   });
@@ -306,5 +176,113 @@ describe("WebView2", { timeout: 300_000 }, () => {
     } finally {
       await page.send("Emulation.setEmulatedMedia", { features: [] });
     }
+  });
+});
+
+describe("A link to a heading in another file", { timeout: 300_000 }, () => {
+  // #301: #285 sends a link's fragment to the window of the file it names, through
+  // `watch_fragments`. Its parts had tests of their own, but nothing drove the two windows.
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-fragment-"));
+  const profile = join(folder, "profile");
+  const first = join(folder, "a.md");
+  writeFileSync(first, "[Install](b.md#install)\n\n[Nowhere](b.md#nothing-here)\n");
+  const filler = Array.from({ length: 300 }, (_, n) => `Line ${n + 1}.`).join("\n\n");
+  writeFileSync(join(folder, "b.md"), `# B\n\n${filler}\n\n## Install\n\nSteps.\n\n${filler}\n`);
+  let a;
+  let b;
+
+  before(async () => {
+    a = await open(first, profile);
+    await a.until(() => document.querySelectorAll(".pg-link").length === 2, START);
+  });
+  after(async () => {
+    if (!a) return;
+    b?.close();
+    await a.close();
+    rmSync(folder, { recursive: true, force: true, maxRetries: 10 });
+  });
+
+  /**
+   * Ctrl and a click on a.md's link with these words. Over DevTools, a window that is not in
+   * front can drop the first events it gets, so the pointer moves until the page sees it, and
+   * then presses.
+   */
+  async function follow(words) {
+    await a.send("Page.bringToFront");
+    const at = await a.run(`() => {
+      const links = [...document.querySelectorAll(".pg-link")];
+      const box = links.find((link) => link.textContent === ${JSON.stringify(words)})
+        .getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    }`);
+    await a.run(() => {
+      window.pointed = false;
+      addEventListener("mousemove", () => (window.pointed = true), { once: true, capture: true });
+    });
+    let nudge = 0;
+    await poll(
+      async () => {
+        nudge = 1 - nudge;
+        await a.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at, x: at.x + nudge });
+        return a.run(() => window.pointed);
+      },
+      "the pointer to reach a.md's page",
+    );
+    for (const type of ["mousePressed", "mouseReleased"]) {
+      const click = { type, ...at, button: "left", clickCount: 1, modifiers: 2 };
+      await a.send("Input.dispatchMouseEvent", click);
+    }
+  }
+
+  /** b.md's window: the page other than a.md's whose status line names it. */
+  const windowOfB = () =>
+    poll(
+      async () => {
+        for (const target of await a.pages()) {
+          if (target.id === a.id) continue;
+          const page = await attach(target);
+          const name = await page
+            .run(() => document.querySelector(".status-name")?.textContent)
+            .catch(() => null);
+          if (name === "b.md") return page;
+          page.close();
+        }
+        return null;
+      },
+      "b.md's window",
+      START,
+    );
+
+  /** Whether the caret is on Install's line, and that line is in the window's top third. */
+  const atInstall = () => {
+    const view = document.querySelector(".cm-content").cmTile.root.view;
+    const line = view.state.doc.lineAt(view.state.selection.main.head);
+    const box = view.scrollDOM.getBoundingClientRect();
+    const top = view.coordsAtPos(line.from)?.top;
+    return line.text === "## Install" && top !== undefined && top - box.top < box.height / 3;
+  };
+
+  test("opens the file at the heading, in a window of its own", async () => {
+    await follow("Install");
+    b = await windowOfB();
+    await b.until(atInstall);
+  });
+
+  test("brings the file's window forward and goes to the heading again", async () => {
+    await b.run(() => {
+      const view = document.querySelector(".cm-content").cmTile.root.view;
+      view.dispatch({ selection: { anchor: 0 }, scrollIntoView: true });
+      view.scrollDOM.scrollTop = 0;
+    });
+    assert.equal(await b.run(atInstall), false, "b.md went back to its top");
+    await follow("Install");
+    await b.until(atInstall);
+    assert.equal((await a.pages()).length, 2, "no second window on b.md");
+  });
+
+  test("says in the file's status line that it has no such place", async () => {
+    await follow("Nowhere");
+    const said = () => document.querySelector(".status-said")?.textContent;
+    assert.equal(await b.until(said), "Nothing in this file is named #nothing-here.");
   });
 });
