@@ -16,6 +16,8 @@ import { closeKeys, keyList, keyRows, keysPanel, toggleKeys } from "./keys.ts";
 import { element } from "./page/dom.ts";
 import { loadEmoji, SHORTCODE } from "./page/emoji.ts";
 import { loadMaths, MATHS } from "./page/maths.ts";
+// #221: mermaid and the frame it draws in, one classic script that Vite builds as a worker's.
+import diagramFrame from "./page/diagram-frame.ts?worker&url";
 
 type Opened = { name: string; modified: number | null; readOnlyReason: string | null };
 
@@ -75,6 +77,7 @@ if (handle) {
     assets: (file) => convertFileSrc(`${handle}/${file}`, "doc-asset"),
     // A failed load says nothing, so Rust checks the file again and says why (#231).
     imageRefusal: (file) => invoke<string | null>("image_refusal", { reference: file }),
+    diagramFrame,
     nonce: nonce && !nonce.startsWith("__TAURI") ? nonce : undefined,
     // A link that does not open says why, in the status line.
     openLink: (url) => void invoke("open_url", { url }).catch((error) => say(status, `${error}`)),

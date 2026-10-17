@@ -41,6 +41,7 @@ import { headingAt, headings } from "./references.ts";
 import {
   AlertWidget,
   BreakWidget,
+  DiagramWidget,
   HtmlWidget,
   ImageWidget,
   MathWidget,
@@ -103,6 +104,7 @@ function visible(state: EditorState): string {
 function named(widget: unknown): string {
   if (widget instanceof TextWidget) return widget.text;
   if (widget instanceof BreakWidget) return "[br]";
+  if (widget instanceof DiagramWidget) return "[diagram]";
   if (widget instanceof AlertWidget) return `[${widget.kind}]`;
   if (widget instanceof NoteReferenceWidget) return `[ref ${widget.number}]`;
   if (widget instanceof NoteMarkWidget) return widget.number ? `[note ${widget.number}]` : "[back]";
@@ -719,6 +721,24 @@ describe("the page", () => {
     assert.ok(keyed.startsWith("Inline $E = mc^2$ and "), keyed);
     const block = select(state, doc.indexOf("frac"));
     assert.match(visible(block), /```math\n\\frac\{1\}\{2\}\n```/);
+  });
+
+  it("draws a fenced block of mermaid as its diagram, until the keys reach its source", () => {
+    // #221: a mermaid block showed as code, where GitHub draws its diagram.
+    const doc =
+      "Before.\n\n```mermaid\nflowchart LR\n  A --> B\n```\n\nAfter.\n\n> ```mermaid\n> flowchart LR\n> ```";
+    const state = open(doc);
+    const diagrams: string[] = [];
+    shown(state).between(0, doc.length, (_from, _to, decoration) => {
+      const { widget } = decoration.spec;
+      if (widget instanceof DiagramWidget) diagrams.push(widget.source);
+    });
+    // The one in a quote stays code: its lines carry the quote's marks.
+    assert.deepEqual(diagrams, ["flowchart LR\n  A --> B"]);
+    assert.deepEqual(visible(state).split("\n").slice(0, 3), ["Before.", "", "[diagram]"]);
+    // The keys in it show its source, as a code block's.
+    const opened = select(state, doc.indexOf("A -->"));
+    assert.match(visible(opened), /```mermaid\nflowchart LR\n {2}A --> B\n```/);
   });
 
   it("folds a fenced block's fences away until the keys reach one, and labels its language", () => {

@@ -135,7 +135,18 @@ export const pageTheme = EditorView.theme({
   },
   ".pg-math-source": { fontFamily: "var(--mono)", fontSize: "0.86em" },
   ".pg-math .katex-error": { color: "var(--caution)", cursor: "help" },
-  ".pg-code-block.pg-math-block": { backgroundColor: "transparent" },
+  // A block GitHub draws, maths or a diagram, has no code block's background until it opens.
+  ".pg-code-block.pg-drawn-block": { backgroundColor: "transparent" },
+  // #221: a diagram, centred and no wider than the page, its source as code until it is drawn.
+  ".pg-diagram": { display: "inline-block", width: "100%", textAlign: "center" },
+  ".pg-diagram-image": { maxWidth: "100%", height: "auto", verticalAlign: "top" },
+  ".pg-diagram-source": { display: "block", textAlign: "start", whiteSpace: "pre-wrap" },
+  ".pg-diagram-error": {
+    display: "block",
+    textAlign: "start",
+    color: "var(--caution)",
+    fontFamily: "var(--serif)",
+  },
   // `<br>` in a line: a block of no height ends the line where it stands.
   ".pg-break": { display: "block" },
   ".pg-link": {
@@ -446,7 +457,7 @@ export const pageTheme = EditorView.theme({
     ".pg-code-block": { borderInlineStart: "3px solid CanvasText" },
     ".pg-source-block": { boxShadow: "none", borderInlineStart: "2px solid CanvasText" },
     ".pg-mark": { backgroundColor: "Mark", color: "MarkText", forcedColorAdjust: "none" },
-    ".pg-code-block.pg-math-block": { borderInlineStart: "none" },
+    ".pg-code-block.pg-drawn-block": { borderInlineStart: "none" },
   },
 
   // Print is the whole page, not a window's worth of it: no scroller, and no height to fill.

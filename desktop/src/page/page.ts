@@ -39,6 +39,7 @@ import {
   type Alert,
   AlertWidget,
   BreakWidget,
+  DiagramWidget,
   ImageWidget,
   MathWidget,
   NoteMarkWidget,
@@ -658,7 +659,7 @@ class Painter {
           this.#style(Decoration.mark({ class: "pg-list-mark" }), node.from, node.to);
         return false;
       case "FencedCode":
-        if (this.#mathBlock(node)) return false;
+        if (this.#drawnBlock(node)) return false;
         this.#lines(node.from, node.to, "pg-code-block");
         this.#highlight(node);
         this.#fences(node);
@@ -840,19 +841,27 @@ class Painter {
   }
 
   /**
-   * #220: a fenced block of `math`, as GitHub draws one, is its formula, a block of its own, until
-   * the keys or find reach it and show its source as a code block's. In a quote or a list item,
-   * whose marks and indent its lines carry, it stays code.
+   * A fenced block GitHub draws, as a block of its own: one of `math` is its formula (#220), and
+   * one of `mermaid` its diagram (#221). The keys or find in it show its source as a code block's.
+   * In a quote or a list item, whose marks and indent its lines carry, it stays code.
    */
-  #mathBlock(block: SyntaxNode): boolean {
+  #drawnBlock(block: SyntaxNode): boolean {
     const info = block.getChild("CodeInfo");
     const text = block.getChild("CodeText");
-    if (!info || !text || this.#slice(info).split(/\s/)[0].toLowerCase() !== "math") return false;
-    if (block.parent?.name !== "Document") return false;
+    if (!info || !text || block.parent?.name !== "Document") return false;
+    const language = this.#slice(info).split(/\s/)[0].toLowerCase();
+    const source = this.#slice(text);
+    const drawn =
+      language === "math"
+        ? new MathWidget(source, true)
+        : language === "mermaid"
+          ? new DiagramWidget(source)
+          : null;
+    if (!drawn) return false;
     const fold = { from: block.from, to: block.to };
     this.#lines(block.from, block.to, "pg-code-block");
-    this.#foldLine(fold, block.from, "pg-math-block");
-    this.#hide(fold, block.from, block.to, new MathWidget(this.#slice(text), true));
+    this.#foldLine(fold, block.from, "pg-drawn-block");
+    this.#hide(fold, block.from, block.to, drawn);
     return true;
   }
 

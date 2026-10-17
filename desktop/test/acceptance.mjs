@@ -1955,7 +1955,8 @@ describe("what GitHub draws besides markdown", () => {
   const file = join(folder, "github.md");
   writeFileSync(
     file,
-    '<div align="center">\n\n# Centred :rocket:\n\n</div>\n\nA note.[^1] Maths: $x^2$.\n\n[^1]: Its words.\n',
+    '<div align="center">\n\n# Centred :rocket:\n\n</div>\n\nA note.[^1] Maths: $x^2$.\n\n' +
+      "```mermaid\nflowchart LR\n  A --> B\n```\n\n[^1]: Its words.\n",
   );
   let page;
 
@@ -1995,6 +1996,34 @@ describe("what GitHub draws besides markdown", () => {
       tex: "x^2",
       styled: true,
     });
+  });
+
+  test("draws a mermaid block's diagram, from a frame the page cannot reach into", async () => {
+    // #221: mermaid draws in a sandboxed frame of no origin, and the page shows its SVG as an
+    // image. Mermaid takes a while to load, so this waits longer than `until` does.
+    let seen = null;
+    for (let tries = 0; tries < 60 && !seen; tries += 1) {
+      seen = await page.run(() => {
+        const error = document.querySelector(".pg-diagram-error")?.textContent;
+        if (error) return { error };
+        const image = document.querySelector(".pg-diagram-image");
+        if (!image?.complete || !image.naturalWidth) return null;
+        const frame = document.querySelector("iframe.pg-diagram-frame");
+        let reached;
+        try {
+          reached = frame.contentDocument !== null;
+        } catch {
+          reached = false;
+        }
+        return {
+          svg: image.src.startsWith("data:image/svg+xml"),
+          sandbox: frame.getAttribute("sandbox"),
+          reached,
+        };
+      });
+      if (!seen) await sleep(500);
+    }
+    assert.deepEqual(seen, { svg: true, sandbox: "allow-scripts", reached: false });
   });
 });
 

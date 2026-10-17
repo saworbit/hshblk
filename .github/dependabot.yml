@@ -32,6 +32,9 @@ updates:
       # The app runs on Node 24 (.nvmrc), so its types stay on 24.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # mermaid 12 takes elkjs, under EPL-2.0, which is not on hld.md §10's list (#221).
+      - dependency-name: "mermaid"
+        update-types: ["version-update:semver-major"]
 
   # The desktop app's crates.
   - package-ecosystem: cargo
