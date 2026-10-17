@@ -104,12 +104,10 @@ function open(script: string): Promise<Window | null> {
   box.setAttribute("aria-hidden", "true");
   box.tabIndex = -1;
   const policy = `default-src 'none'; script-src ${url.origin}`;
-  // In development Vite serves the script as a module. Only a build is tested.
-  const kind = import.meta.env.DEV ? ' type="module"' : "";
   box.srcdoc =
     `<!doctype html><html><head><meta charset="utf-8">` +
     `<meta http-equiv="Content-Security-Policy" content="${policy}"></head>` +
-    `<body><script${kind} src="${url.href}"></script></body></html>`;
+    `<body><script src="${url.href}"></script></body></html>`;
   let hear: (event: MessageEvent) => void = () => {};
   const ready = new Promise<Window | null>((resolve) => {
     hear = (event) => {

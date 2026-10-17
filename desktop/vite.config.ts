@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
+import { frameInDev } from "./src/build/frame-in-dev.ts";
 import { overrideMistake } from "./src/build/override-mistake.ts";
 
 const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
@@ -18,6 +19,8 @@ export default defineConfig({
   // a module could not be, and Vite builds a worker's script that way, its imports inlined. Its
   // dependencies' assignments the frozen prototype would refuse are rewritten (#221).
   worker: { format: "iife", plugins: () => [overrideMistake()] },
+  // The dev server serves the frame the same script (#349).
+  plugins: [frameInDev()],
   // The version the welcome window shows (#238). A release checks it against the other two.
   define: { __VERSION__: JSON.stringify(version) },
 });
