@@ -196,7 +196,7 @@ describe("WebView2", { timeout: 300_000 }, () => {
 
 describe("Diagrams", { timeout: 300_000 }, () => {
   // #348: only here does WebView2 put Tauri's scripts, the prototype freeze among them, in the
-  // diagram frame too, so only here does mermaid need the worker build's rewrite (#221).
+  // diagram frame too, so only here does mermaid need the rewrite its script is built with (#221).
   let folder;
   let page;
   /** What each frame in a process of its own logged, failed to load, or threw. */
