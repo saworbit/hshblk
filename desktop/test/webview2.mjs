@@ -35,9 +35,14 @@ async function open(file, profile) {
   const page = await launch(app, file, profile);
   return {
     ...page,
-    /** Presses a key as Windows delivers one, `F5` or, with Ctrl, `R`. */
-    press: (key, control = false) =>
-      execFileSync(
+    /**
+     * Presses a key as Windows delivers one, `F5` or, with Ctrl, `R`, and says where it went.
+     * WebView2 drops a key posted while its page has no focus, as when the reader at this PC is
+     * in another app (#329). DevTools gives the page focus first, and leaves the window behind.
+     */
+    async press(key, control = false) {
+      await page.send("Page.bringToFront");
+      return execFileSync(
         "powershell",
         [
           "-NoProfile",
@@ -51,8 +56,9 @@ async function open(file, profile) {
           key,
           ...(control ? ["-Control"] : []),
         ],
-        { timeout: 60_000 },
-      ),
+        { encoding: "utf8", timeout: 60_000 },
+      ).trim();
+    },
     /** A right-click in the middle of what a selector names. */
     async rightClick(selector) {
       const at = await page.run(`() => {
@@ -124,9 +130,11 @@ describe("WebView2", { timeout: 300_000 }, () => {
           }
         });
       });
-      page.press(key, control);
+      const went = await page.press(key, control);
+      const focused = await page.run(() => document.hasFocus()).catch(() => "unknown");
       await sleep(1500);
-      assert.deepEqual(await page.run(() => window.kept ?? "reloaded"), [key], key);
+      const kept = await page.run(() => window.kept ?? "reloaded");
+      assert.deepEqual(kept, [key], `${key}: the page had focus ${focused}; ${went}`);
     }
   });
 

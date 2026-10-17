@@ -4,8 +4,9 @@
  *
  *   node test/timing.mjs <app binary> <file>...
  *
- * Prints a markdown report. Three runs a file, so a slow start shows as one. On Windows the runs
- * share one WebView2 profile of their own, which the first run makes.
+ * Prints a markdown report. Three runs a file, so a slow start shows as one. On Windows a launch
+ * on the first file goes before them and is left out, since the first launch of a build just made
+ * is slow there (#328). It also makes the WebView2 profile of their own that the runs share.
  */
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -42,7 +43,7 @@ function startedAt(pid) {
   );
 }
 
-/** WebView2's profile for the runs on Windows: one for them all, so only the first makes it. */
+/** WebView2's profile for the runs on Windows: one for them all, made before the first. */
 const profile = windows ? mkdtempSync(join(tmpdir(), "hshblk-timing-")) : null;
 
 /**
@@ -73,6 +74,15 @@ function marks() {
 const stop = windows ? () => {} : await startDriver();
 const rows = [];
 try {
+  if (windows) {
+    // A build's first launch took 5.0 s to its page, then 0.5 s, with a new profile each time.
+    const page = await devtools.launch(app, files[0], profile);
+    try {
+      await page.until(marks, devtools.START);
+    } finally {
+      await page.close();
+    }
+  }
   for (const file of files) {
     for (let run = 1; run <= RUNS; run += 1) {
       const page = windows ? await launchOnWindows(file) : await launch(app, [file]);
