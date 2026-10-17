@@ -181,7 +181,7 @@ Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) opens pull re
 | Command, in `desktop/` | Checks |
 |---|---|
 | `npm test` | The page's decorations and keys, and the rewrite the diagram frame's bundle takes, in Node. |
-| `npm run typecheck`, `npm run lint` | The page's TypeScript, strict, and ESLint on the scripts and tests, which no type checker reads. |
+| `npm run typecheck`, `npm run lint` | The page's TypeScript, strict, and ESLint on the scripts and tests, which no type checker reads. `npm run lint` also checks the formatting with prettier, pinned in `package.json`, and `npm run format` applies it. |
 | `cargo test`, in `src-tauri/` | Files, scopes, handles, the resource channel, what the app keeps between runs, the watch on each file, and each window's state. |
 | `node test/acceptance.mjs <app>` | [hld.md](hld.md) §8, items 1, 2, 4, 5, and 6, through the built app. |
 | `node test/gate/click-target.mjs <app>` | The click-target gate, §9. |

@@ -23,14 +23,18 @@ const LANGUAGES: { names: string[]; load: () => Promise<Parser> }[] = [
   {
     names: ["sh", "bash", "shell", "zsh"],
     load: () =>
-      Promise.all([import("@codemirror/language"), import("@codemirror/legacy-modes/mode/shell")])
-        .then(([{ StreamLanguage }, { shell }]) => StreamLanguage.define(shell).parser),
+      Promise.all([
+        import("@codemirror/language"),
+        import("@codemirror/legacy-modes/mode/shell"),
+      ]).then(([{ StreamLanguage }, { shell }]) => StreamLanguage.define(shell).parser),
   },
   {
     names: ["diff", "patch"],
     load: () =>
-      Promise.all([import("@codemirror/language"), import("@codemirror/legacy-modes/mode/diff")])
-        .then(([{ StreamLanguage }, { diff }]) => StreamLanguage.define(diff).parser),
+      Promise.all([
+        import("@codemirror/language"),
+        import("@codemirror/legacy-modes/mode/diff"),
+      ]).then(([{ StreamLanguage }, { diff }]) => StreamLanguage.define(diff).parser),
   },
 ];
 

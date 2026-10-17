@@ -123,10 +123,7 @@ export function opens(href: string): boolean {
  * repository, or nowhere, with the reason why.
  */
 export type Destination =
-  | { heading: number }
-  | { url: string }
-  | { file: string; fragment?: string }
-  | { refused: string };
+  { heading: number } | { url: string } | { file: string; fragment?: string } | { refused: string };
 
 export function destinationOf(state: EditorState, href: string): Destination {
   const heading = headingAt(state, href);

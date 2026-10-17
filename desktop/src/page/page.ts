@@ -774,7 +774,7 @@ class Painter {
     this.#folds.push(Decoration.widget({ widget: back, side: 1, fold: opening }).range(note.to));
     this.#lines(node.from, note.to, note.first ? "pg-note pg-note-first" : "pg-note");
     const after = this.doc.lineAt(node.from).to + 1;
-    for (let pos = Math.max(after, this.from); pos <= Math.min(note.to, this.to); ) {
+    for (let pos = Math.max(after, this.from); pos <= Math.min(note.to, this.to);) {
       const line = this.doc.lineAt(pos);
       pos = line.to + 1;
       const column = (to: number) => countColumn(this.doc.sliceString(line.from, to), 4);

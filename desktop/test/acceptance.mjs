@@ -678,12 +678,14 @@ describe("one open document", () => {
           reference: "../../outside.png",
         }),
       ),
-      linked: await window.__TAURI_INTERNALS__.invoke("open_link", {
-        reference: "../../outside.png",
-      }).then(
-        () => "opened",
-        (error) => String(error),
-      ),
+      linked: await window.__TAURI_INTERNALS__
+        .invoke("open_link", {
+          reference: "../../outside.png",
+        })
+        .then(
+          () => "opened",
+          (error) => String(error),
+        ),
     }));
     for (const [where, text] of Object.entries(seen)) {
       const value = Array.isArray(text) ? text.join("\n") : text;
@@ -1550,7 +1552,10 @@ describe("a file that does not open", () => {
         return listed.length > 0 && listed.map((dt) => dt.textContent);
       });
       assert.ok(keys.includes("Ctrl+O"), keys.join(", "));
-      assert.ok(keys.some((key) => key.startsWith("F1")), keys.join(", "));
+      assert.ok(
+        keys.some((key) => key.startsWith("F1")),
+        keys.join(", "),
+      );
     } finally {
       await page.close();
       await gone();
@@ -1901,8 +1906,8 @@ describe("the outline", () => {
   test("names each heading and link to a screen reader, and lists the headings", async () => {
     // #157: one text box, with no headings or links in it.
     const roles = await page.run(() =>
-      [...document.querySelectorAll(".cm-content [role]")].map(
-        (el) => `${el.getAttribute("role")} ${el.getAttribute("aria-level") ?? ""}`.trim(),
+      [...document.querySelectorAll(".cm-content [role]")].map((el) =>
+        `${el.getAttribute("role")} ${el.getAttribute("aria-level") ?? ""}`.trim(),
       ),
     );
     assert.deepEqual(roles, ["heading 1", "link", "heading 2", "heading 3"]);

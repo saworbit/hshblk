@@ -19,7 +19,7 @@ const auto = Decoration.line({ attributes: { dir: "auto" } });
  */
 export function directions(doc: Text, from: number, to: number): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  for (let pos = from; pos <= to; ) {
+  for (let pos = from; pos <= to;) {
     const line = doc.lineAt(pos);
     if (RIGHT_TO_LEFT.test(line.text)) builder.add(line.from, line.from, auto);
     pos = line.to + 1;

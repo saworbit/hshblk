@@ -1324,7 +1324,12 @@ describe("a footnote", () => {
         "[^unused]: No reference uses it.",
       ].join("\n"),
     );
-    assert.deepEqual(lineClasses(state, styles).slice(2, 6), ["pg-note pg-note-first", "pg-note", "", ""]);
+    assert.deepEqual(lineClasses(state, styles).slice(2, 6), [
+      "pg-note pg-note-first",
+      "pg-note",
+      "",
+      "",
+    ]);
     // The keys show a reference's source, and a footnote's opening.
     assert.match(visible(select(state, doc.indexOf("[^1]") + 1)), /another\.\[\^1\] Again/);
     assert.match(visible(select(state, doc.indexOf("[^1]:") + 1)), /\n\[\^1\]: The first/);
@@ -1449,8 +1454,14 @@ describe("a <div align> around markdown", () => {
 
   it("takes a <p>, an align after other attributes, and leaves one with no align as frames", () => {
     const right = open('<p class="x" align="right">\n\nRight\n\n</p>');
-    assert.deepEqual(lineClasses(right, shown), ["", "pg-align-right", "pg-align-right", "pg-align-right", ""]);
-    const plain = '<div>\n\nText\n\n</div>';
+    assert.deepEqual(lineClasses(right, shown), [
+      "",
+      "pg-align-right",
+      "pg-align-right",
+      "pg-align-right",
+      "",
+    ]);
+    const plain = "<div>\n\nText\n\n</div>";
     assert.equal(visible(open(plain)), "[html <div>]\n\nText\n\n[html </div>]");
     // A closing tag in another container, or of another kind, pairs with nothing.
     const crossed = open('<div align="center">\n\n> </div>\n\nText');

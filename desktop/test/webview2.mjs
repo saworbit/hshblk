@@ -66,7 +66,12 @@ async function open(file, profile) {
         return { x: box.left + Math.min(box.width / 2, 40), y: box.top + box.height / 2 };
       }`);
       for (const type of ["mousePressed", "mouseReleased"]) {
-        await page.send("Input.dispatchMouseEvent", { type, ...at, button: "right", clickCount: 1 });
+        await page.send("Input.dispatchMouseEvent", {
+          type,
+          ...at,
+          button: "right",
+          clickCount: 1,
+        });
       }
     },
   };
@@ -230,14 +235,11 @@ describe("A link to a heading in another file", { timeout: 300_000 }, () => {
       addEventListener("mousemove", () => (window.pointed = true), { once: true, capture: true });
     });
     let nudge = 0;
-    await poll(
-      async () => {
-        nudge = 1 - nudge;
-        await a.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at, x: at.x + nudge });
-        return a.run(() => window.pointed);
-      },
-      "the pointer to reach a.md's page",
-    );
+    await poll(async () => {
+      nudge = 1 - nudge;
+      await a.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at, x: at.x + nudge });
+      return a.run(() => window.pointed);
+    }, "the pointer to reach a.md's page");
     for (const type of ["mousePressed", "mouseReleased"]) {
       const click = { type, ...at, button: "left", clickCount: 1, modifiers: 2 };
       await a.send("Input.dispatchMouseEvent", click);

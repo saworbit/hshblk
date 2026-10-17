@@ -42,7 +42,7 @@ export const closeOutline: StateCommand = ({ state, dispatch }) => {
 /** The heading a place is under: the last that starts at or before it, or -1 before the first. */
 export function headingOver(outline: readonly Heading[], pos: number): number {
   let low = 0;
-  for (let high = outline.length; low < high; ) {
+  for (let high = outline.length; low < high;) {
     const middle = (low + high) >> 1;
     if (outline[middle].from <= pos) low = middle + 1;
     else high = middle;
