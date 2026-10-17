@@ -105,6 +105,25 @@ export const pageTheme = EditorView.theme({
     borderRadius: "4px",
     padding: "0.1em 0.3em",
   },
+  // #200: inline HTML's keys, sub, sup, and mark, as GitHub draws them. Sub and sup take no line
+  // height, so a line with one keeps its spacing.
+  ".pg-kbd": {
+    fontFamily: "var(--mono)",
+    fontSize: "0.8em",
+    backgroundColor: "var(--code)",
+    border: "1px solid var(--rule)",
+    borderBottomWidth: "2px",
+    borderRadius: "4px",
+    padding: "0.05em 0.4em",
+  },
+  ".pg-sub": { fontSize: "0.75em", verticalAlign: "sub", lineHeight: "0" },
+  ".pg-sup": { fontSize: "0.75em", verticalAlign: "super", lineHeight: "0" },
+  ".pg-mark": {
+    color: "inherit",
+    backgroundColor: "color-mix(in oklab, var(--warning) 30%, transparent)",
+  },
+  // `<br>` in a line: a block of no height ends the line where it stands.
+  ".pg-break": { display: "block" },
   ".pg-link": {
     color: "var(--accent)",
     textDecoration: "underline",
@@ -412,6 +431,7 @@ export const pageTheme = EditorView.theme({
     [[".pg-rule", ...Object.keys(quotes)].join(", ")]: { forcedColorAdjust: "none" },
     ".pg-code-block": { borderInlineStart: "3px solid CanvasText" },
     ".pg-source-block": { boxShadow: "none", borderInlineStart: "2px solid CanvasText" },
+    ".pg-mark": { backgroundColor: "Mark", color: "MarkText", forcedColorAdjust: "none" },
   },
 
   // Print is the whole page, not a window's worth of it: no scroller, and no height to fill.

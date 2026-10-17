@@ -24,6 +24,7 @@ import { type Blocks, type Footnote, scanNow } from "./blocks.ts";
 import { pageTree, wholeBlocks } from "./complete.ts";
 import { highlightCode, loadParser, parserFor } from "./code.ts";
 import { emojiOf } from "./emoji.ts";
+import { elementsIn, type HtmlElement, type HtmlKind, sizeOf } from "./html.ts";
 import { inlinesOf, plainText } from "./inlines.ts";
 import { addressTooltip, linkAt, linkSpan, printedAddress } from "./links.ts";
 import {
@@ -37,6 +38,7 @@ import {
 import {
   type Alert,
   AlertWidget,
+  BreakWidget,
   ImageWidget,
   NoteMarkWidget,
   NoteReferenceWidget,
@@ -93,6 +95,17 @@ export const HANG_LIMIT = 24;
 
 /** The deepest quote with a rule of its own. A quote nested further draws as this one. */
 export const QUOTE_LIMIT = 6;
+
+/** The class each element of inline HTML the page draws takes, as its markdown would (#200). */
+const HTML_CLASSES: Partial<Record<HtmlKind, string>> = {
+  strong: "pg-strong",
+  em: "pg-em",
+  code: "pg-code",
+  kbd: "pg-kbd",
+  sub: "pg-sub",
+  sup: "pg-sup",
+  mark: "pg-mark",
+};
 
 /** The blocks in a list item that step in to its text, as its paragraphs hang there (#213). */
 const STEPPED = new Set(["FencedCode", "CodeBlock", "Blockquote"]);
@@ -463,6 +476,8 @@ class Painter {
   readonly wanted = new Set<string>();
   /** The markers drawn in a hanging item's box, which styles them. */
   readonly #hung = new Set<number>();
+  /** The inline HTML each construct holds, by the construct, and by where each element opens. */
+  readonly #elements = new Map<string, Map<number, HtmlElement>>();
 
   constructor(
     doc: Text,
@@ -568,6 +583,9 @@ class Painter {
         if (emoji) this.#hide(fold, node.from, node.to, new TextWidget(emoji));
         return false;
       }
+      case "HTMLTag":
+        this.#html(node);
+        return false;
       case "Comment": {
         // #224: a comment in a line is written not to be seen. A space before it goes with it,
         // when a space or the line's end follows, so the words around it keep one between them.
@@ -661,6 +679,60 @@ class Painter {
         this.#quoteMarks(node);
         return false;
     }
+  }
+
+  /**
+   * #200: the inline HTML GitHub draws in a README, drawn where its opening tag is, as the page's
+   * own constructs are. Bold, italic, code, keys, sub, sup, and mark take their classes, and their
+   * tags fold away until the keys or find reach the element. `<br>` breaks the line, and `<img>` is
+   * an image. `<a href>` is a link, whose tags never unfold, as a markdown link's syntax never
+   * does, and an anchor with no address shows only its words. Anything else stays as written.
+   */
+  #html(tag: SyntaxNode): void {
+    const parent = tag.parent;
+    if (!parent) return;
+    // A paragraph and the emphasis it starts with start at one place, so the name tells them apart.
+    const key = `${parent.name}:${parent.from}:${parent.to}`;
+    let elements = this.#elements.get(key);
+    if (!elements) {
+      elements = new Map(elementsIn(this.doc, parent).map((each) => [each.open.from, each]));
+      this.#elements.set(key, elements);
+    }
+    const element = elements.get(tag.from);
+    if (!element) return;
+    const { kind, attributes, open, close } = element;
+    const fold = { from: open.from, to: close?.to ?? open.to };
+    if (kind === "br") {
+      this.#hide(fold, open.from, open.to, new BreakWidget());
+      return;
+    }
+    if (kind === "img") {
+      const src = attributes.get("src")?.trim();
+      if (!src) return;
+      const alt = attributes.get("alt") ?? "";
+      const title = attributes.get("title") || null;
+      const image = new ImageWidget(src, alt, true, title, sizeOf(attributes));
+      this.#hide(fold, open.from, open.to, image);
+      return;
+    }
+    if (!close) return;
+    const href = kind === "a" ? attributes.get("href")?.trim() : undefined;
+    if (href !== undefined) {
+      if (open.to < close.from) {
+        const title = attributes.get("title") || href;
+        const printed = printedAddress(href, this.doc.sliceString(open.to, close.from));
+        const marked: Record<string, string> = { title, "data-href": href, role: "link" };
+        if (printed) marked["data-print"] = printed;
+        this.#style(Decoration.mark({ class: "pg-link", attributes: marked }), open.to, close.from);
+      }
+      this.#conceal(open.from, open.to);
+      this.#conceal(close.from, close.to);
+      return;
+    }
+    const className = HTML_CLASSES[kind];
+    if (className) this.#style(Decoration.mark({ class: className }), open.to, close.from);
+    this.#hide(fold, open.from, open.to);
+    this.#hide(fold, close.from, close.to);
   }
 
   /**

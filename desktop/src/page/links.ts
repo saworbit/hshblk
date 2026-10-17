@@ -10,6 +10,7 @@ import {
 import { type Command, EditorView, type Rect, showTooltip, type Tooltip } from "@codemirror/view";
 import type { SyntaxNode, Tree } from "@lezer/common";
 import { filePath, isLocal } from "./assets.ts";
+import { elementsIn } from "./html.ts";
 import { finishParse } from "./complete.ts";
 import {
   autolinkHref,
@@ -71,9 +72,22 @@ export function linkAt(
       found = undefined;
     } else if (node.name === "Link" || node.name === "Autolink" || isBareAddress(node)) {
       if (node.from <= from && to <= node.to) found = linkSpan(doc, definitions, node) ?? found;
+    } else {
+      found = htmlLinkIn(doc, node, from, to) ?? found;
     }
   }
   return found;
+}
+
+/** #200: the `<a href>` among a node's children whose words or tags hold the selection. */
+function htmlLinkIn(doc: Text, node: SyntaxNode, from: number, to: number): LinkSpan | null {
+  if (!node.firstChild) return null;
+  for (const { kind, attributes, open, close } of elementsIn(doc, node)) {
+    const href = kind === "a" ? attributes.get("href")?.trim() : undefined;
+    if (href === undefined || !close || from < open.from || to > close.to) continue;
+    return { from: open.to, to: close.from, source: { from: open.from, to: close.to }, href };
+  }
+  return null;
 }
 
 /** What the shell does with an address the reader asks to open. Null when it opens nothing. */

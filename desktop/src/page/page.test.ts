@@ -39,6 +39,7 @@ import {
 import { headingAt, headings } from "./references.ts";
 import {
   AlertWidget,
+  BreakWidget,
   HtmlWidget,
   ImageWidget,
   NoteMarkWidget,
@@ -99,6 +100,7 @@ function visible(state: EditorState): string {
 
 function named(widget: unknown): string {
   if (widget instanceof TextWidget) return widget.text;
+  if (widget instanceof BreakWidget) return "[br]";
   if (widget instanceof AlertWidget) return `[${widget.kind}]`;
   if (widget instanceof NoteReferenceWidget) return `[ref ${widget.number}]`;
   if (widget instanceof NoteMarkWidget) return widget.number ? `[note ${widget.number}]` : "[back]";
@@ -603,8 +605,8 @@ describe("the page", () => {
     ]);
   });
 
-  it("leaves markdown in code, inline HTML, and a box in a sentence as written", () => {
-    const doc = "```js\n**not bold**\n```\n\nA <b>tag</b>, https://x.y, and - [x] no box.";
+  it("leaves markdown in code, a tag the page does not draw, and a box in a sentence as written", () => {
+    const doc = "```js\n**not bold**\n```\n\nA <u>tag</u>, https://x.y, and - [x] no box.";
     const state = open(doc);
     assert.equal(visible(state), doc.replace("```js", "").replace("```", ""));
     assert.deepEqual(lineClasses(state, styles).slice(0, 3), [
@@ -612,6 +614,71 @@ describe("the page", () => {
       "pg-code-block",
       "pg-code-block pg-fence",
     ]);
+  });
+
+  it("draws the inline HTML GitHub draws in a README, and leaves the rest as written", () => {
+    // #200: inline HTML showed as its tags, a README's logo and badges included.
+    const doc =
+      "Press <kbd>Ctrl</kbd>+<kbd>K</kbd>: x<sup>2</sup>, a<sub>j</sub>, <b>b</b> <strong>s</strong> " +
+      "<i>i</i> <em>e</em> <mark>m</mark> <code>c</code>, <u>u</u> and <b>open\n\n" +
+      '<a href="https://x.y" title="Home"><img src="logo.png" width="64" alt="logo"></a> <a id="top"></a>Top\n\n' +
+      "One<br>two<br/>three\n\n| a | b |\n|---|---|\n| one<br>two | x<sup>2</sup> <kbd>K</kbd> |";
+    const state = open(doc);
+    const lines = visible(state).split("\n");
+    // A tag the page does not draw, and one with no partner, stay as written.
+    assert.equal(lines[0], "Press Ctrl+K: x2, aj, b s i e m c, <u>u</u> and <b>open");
+    assert.equal(lines[2], "[image logo.png · logo] Top");
+    assert.equal(lines[4], "One[br]two[br]three");
+    assert.equal(lines[6], "[table 1 rows]");
+    const marked = new Map<string, string>();
+    const hrefs: string[] = [];
+    let image: ImageWidget | undefined;
+    let model: TableModel | undefined;
+    for (const set of [styles(state), shown(state)]) {
+      set.between(0, doc.length, (from, to, decoration) => {
+        const { class: className, attributes, widget } = decoration.spec;
+        if (className?.startsWith("pg-") && from < to) marked.set(doc.slice(from, to), className);
+        if (attributes?.["data-href"]) hrefs.push(`${attributes["data-href"]} ${attributes.title}`);
+        if (widget instanceof ImageWidget) image = widget;
+        if (widget instanceof TableWidget) model = widget.table;
+      });
+    }
+    for (const [words, className] of [
+      ["Ctrl", "pg-kbd"],
+      ["2", "pg-sup"],
+      ["j", "pg-sub"],
+      ["b", "pg-strong"],
+      ["s", "pg-strong"],
+      ["i", "pg-em"],
+      ["e", "pg-em"],
+      ["m", "pg-mark"],
+      ["c", "pg-code"],
+    ]) {
+      assert.equal(marked.get(words), className, words);
+    }
+    assert.equal(marked.get("u"), undefined);
+    // The linked logo opens as a link does, at the size its tag gives.
+    assert.deepEqual(hrefs, ["https://x.y Home"]);
+    assert.deepEqual(image?.size, { width: "64px" });
+    assert.deepEqual(model?.rows[0], [
+      [{ kind: "text", text: "one" }, { kind: "break" }, { kind: "text", text: "two" }],
+      [
+        { kind: "text", text: "x" },
+        { kind: "styled", tag: "sup", children: [{ kind: "text", text: "2" }] },
+        { kind: "text", text: " " },
+        { kind: "styled", tag: "kbd", children: [{ kind: "text", text: "K" }] },
+      ],
+    ]);
+    // The keys in an element show its tags, as the page's other constructs do.
+    const keys = visible(select(state, doc.indexOf("Ctrl"))).split("\n")[0];
+    assert.ok(keys.startsWith("Press <kbd>Ctrl</kbd>+K: x2"), keys);
+    // A link's tags never unfold, though an image in it does, as in markdown. Its address shows at
+    // the caret instead.
+    const inLink = select(state, doc.indexOf("<img"));
+    assert.equal(visible(inLink).split("\n")[2], '<img src="logo.png" width="64" alt="logo"> Top');
+    const tooltips = inLink.facet(showTooltip).filter(Boolean);
+    assert.equal(tooltips.length, 1);
+    assert.equal(tooltips[0]?.pos, doc.indexOf("<img"));
   });
 
   it("folds a fenced block's fences away until the keys reach one, and labels its language", () => {
