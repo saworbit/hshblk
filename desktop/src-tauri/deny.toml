@@ -34,8 +34,12 @@ exceptions = [
 
 [advisories]
 yanked = "deny"
+# An unsound advisory fails the check wherever it is in the tree, not only in the app's own
+# dependencies (#332).
+unsound = "all"
 ignore = [
   { id = "RUSTSEC-2024-0370", reason = "proc-macro-error is unmaintained, not unsafe. It is a proc macro in glib-macros 0.18, which Tauri's GTK 3 stack needs: it runs while compiling and does not ship." },
+  { id = "RUSTSEC-2024-0429", reason = "glib 0.18's VariantStrIter is unsound. It is reached only through Variant::array_iter_str, which nothing that ships calls (docs/desktop.md). The fix waits on Tauri taking gtk 0.19 (#175)." },
 ]
 
 [bans]
