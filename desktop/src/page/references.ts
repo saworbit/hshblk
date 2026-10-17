@@ -90,13 +90,17 @@ export function anchorOf(words: string, taken: { has(anchor: string): boolean })
 /** Where the heading a `#fragment` names starts, if it names one in this document. */
 export function headingAt(state: EditorState, href: string): number | undefined {
   if (!href.startsWith("#") || href.length < 2) return undefined;
-  let name = href.slice(1);
+  // As a browser finds a fragment: the name as written, and then percent-decoded (#314).
+  const names = state.facet(headings);
+  const name = href.slice(1);
+  const written = names.get(name);
+  if (written !== undefined) return written;
   try {
-    name = decodeURIComponent(name);
+    return names.get(decodeURIComponent(name));
   } catch {
-    // A stray `%` escapes nothing. The fragment is the name as written.
+    // A stray `%` escapes nothing, so the name as written was the only one.
+    return undefined;
   }
-  return state.facet(headings).get(name);
 }
 
 /** CommonMark label matching: case-folded, with any run of whitespace as one space. */

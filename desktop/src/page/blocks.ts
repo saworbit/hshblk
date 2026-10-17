@@ -164,10 +164,12 @@ export function* scan(doc: Text, tree: Tree): Generator<void, Blocks, void> {
   // #228: an id or a name in the document's HTML is a place a link can go, after the headings.
   for (const [from, name] of htmlAnchors(doc, tree))
     if (!anchors.has(name)) anchors.set(name, from);
+  // A footnote and its reference keep their names over a heading or an id that takes the same,
+  // since their numbers link by them (#313).
   const footnotes = numberNotes(doc, tree, definitions, notes);
   for (const [label, { from, reference }] of footnotes) {
-    if (!anchors.has(`fn-${label}`)) anchors.set(`fn-${label}`, from);
-    if (!anchors.has(`fnref-${label}`)) anchors.set(`fnref-${label}`, reference);
+    anchors.set(`fn-${label}`, from);
+    anchors.set(`fnref-${label}`, reference);
   }
   const details = pairDetails(doc, drawn);
   const aligned = pairAligned(doc, drawn);

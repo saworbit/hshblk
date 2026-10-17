@@ -74,25 +74,51 @@ function walk(state: EditorState, matches: Matches, budget: number): boolean {
     const from = matches.next;
     const until = Math.min(doc.length, from + COUNT_SLICE);
     const ahead = Math.min(doc.length, until + SLICE_REACH);
-    const reach = Math.min(doc.lineAt(ahead).to, ahead + 16 * SLICE_REACH);
-    const cursor = matches.query.getCursor(state, from, reach);
-    let next = until;
-    for (let step = cursor.next(); !step.done; step = cursor.next()) {
-      const match = step.value;
-      if (match.from >= until && until < doc.length) break;
-      if (matches.from.length === matches.limit) {
-        matches.more = true;
-        next = doc.length;
-        break;
-      }
-      matches.from.push(match.from);
-      matches.to.push(match.to);
-      next = Math.max(until, match.to);
-    }
+    const line = doc.lineAt(ahead).to;
+    // A match cut where the reach fell inside a long line may run on, or be no match at all in
+    // the whole line, so then the slice is read again to the line's end (#306).
+    const next =
+      slice(state, matches, from, until, Math.min(line, ahead + 16 * SLICE_REACH)) ??
+      slice(state, matches, from, until, line)!;
     matches.next = next >= doc.length ? null : next;
     if (performance.now() >= end) break;
   }
   return matches.next === null;
+}
+
+/**
+ * Keeps the matches that start between `from` and `until`, read as far as `reach`, and says
+ * where the walk goes on. Null, keeping none, when a match runs to a reach inside a line.
+ */
+function slice(
+  state: EditorState,
+  matches: Matches,
+  from: number,
+  until: number,
+  reach: number,
+): number | null {
+  const { doc } = state;
+  const kept = matches.from.length;
+  const cut = reach < doc.lineAt(reach).to;
+  const cursor = matches.query.getCursor(state, from, reach);
+  let next = until;
+  for (let step = cursor.next(); !step.done; step = cursor.next()) {
+    const match = step.value;
+    if (match.from >= until && until < doc.length) break;
+    if (cut && match.to === reach) {
+      matches.from.length = kept;
+      matches.to.length = kept;
+      return null;
+    }
+    if (matches.from.length === matches.limit) {
+      matches.more = true;
+      return doc.length;
+    }
+    matches.from.push(match.from);
+    matches.to.push(match.to);
+    next = Math.max(until, match.to);
+  }
+  return next;
 }
 
 /**

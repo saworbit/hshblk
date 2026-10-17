@@ -454,6 +454,18 @@ describe("the page", () => {
     assert.match(visible(select(state, 4)), /^> \[!WARNING\]\nCritical/);
   });
 
+  it("leaves a quote with nothing after its alert's marker a quote, as GitHub does", () => {
+    // #316: `> [!WARNING]` alone drew a warning with no body.
+    for (const doc of ["> [!WARNING]", "> [!NOTE]\n>", "> [!NOTE]\n>\n>"]) {
+      assert.equal(visible(open(doc)).split("\n")[0], doc.split("\n")[0].slice(2), doc);
+      assert.equal(lineClasses(open(doc), styles)[0], "pg-quote", doc);
+    }
+    // A block after the marker is a body, as a paragraph is.
+    for (const doc of ["> [!NOTE]\n> - item", "> [!NOTE]\n>\n> After a blank line."]) {
+      assert.equal(lineClasses(open(doc), styles)[0], "pg-quote pg-alert pg-alert-note", doc);
+    }
+  });
+
   it("hides quote marks and keeps list markers as written", () => {
     const state = open("> one\n> two\n\n- a\n1. b");
     assert.equal(visible(state), "one\ntwo\n\n- a\n1. b");
@@ -1116,6 +1128,20 @@ describe("a footnote", () => {
     // `[^1]: word` is a footnote too, not a link definition that turns `[^1]` into a link.
     const one = open("See[^1].\n\n[^1]: word");
     assert.equal(visible(one), "See[ref 1].\n\n[note 1]word[back]");
+  });
+
+  it("goes to a footnote, not a heading named as it is", () => {
+    // #313: a heading `# fn 1` took the name `fn-1` first, so its reference went to the heading.
+    const named = "# fn 1\n\n## fnref 1\n\nText[^1]\n\n[^1]: Note.";
+    const state = open(named);
+    assert.equal(headingAt(state, "#fn-1"), named.indexOf("[^1]:"));
+    assert.equal(headingAt(state, "#fnref-1"), named.indexOf("[^1]"));
+    // #314: a label with a percent escape in it is its name as written.
+    const escaped = "See[^a%41].\n\n[^a%41]: Note.";
+    const percent = open(escaped);
+    assert.equal(headingAt(percent, "#fn-a%41"), escaped.indexOf("[^a%41]:"));
+    assert.equal(headingAt(percent, "#fnref-a%41"), escaped.indexOf("[^a%41]"));
+    assert.equal(headingAt(open("# Café"), "#caf%C3%A9"), 0);
   });
 
   it("counts no reference in code, which shows as code", () => {

@@ -117,6 +117,18 @@ describe("find", () => {
     assert.equal(countText(matchCount(on)), "1 of 2");
   });
 
+  it("counts a match whole where it runs on past a slice's reach in a long line", () => {
+    // #306: the cursor cut the run where the slice's reach fell, and the next slice counted the
+    // rest of it again. A match the cut made, where the whole line has none, was counted too.
+    const length = 2 * COUNT_TEXT_LIMIT;
+    const run = long("y".repeat(length), "y+", true, 0, length);
+    countAll(run);
+    assert.deepEqual(matchCount(run), { current: 1, total: 1, more: false, counting: false });
+    const none = long(`${"y".repeat(length)}x`, "^y+$", true);
+    countAll(none);
+    assert.equal(countText(matchCount(none)), "No matches");
+  });
+
   it("leaves no old match selected in a long text once its count finds none", () => {
     const doc = `one ${"x".repeat(COUNT_TEXT_LIMIT)}`;
     const left = long(doc, "zz", false, 0, 3);
