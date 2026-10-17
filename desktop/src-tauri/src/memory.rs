@@ -38,6 +38,8 @@ pub struct Memory {
     file: Option<PathBuf>,
     kept: Mutex<Kept>,
     tokens: Mutex<HashMap<String, PathBuf>>,
+    /// Held through a save, so saves take turns at the one file beside `kept.json` (#309).
+    saving: Mutex<()>,
 }
 
 impl Memory {
@@ -53,6 +55,7 @@ impl Memory {
             file,
             kept: Mutex::new(kept),
             tokens: Mutex::default(),
+            saving: Mutex::default(),
         }
     }
 
@@ -103,11 +106,13 @@ impl Memory {
     }
 
     /// Writes what is kept, through a file beside it renamed over it, so a write cut short leaves
-    /// the last one whole. A folder that cannot be written keeps nothing, and says so.
+    /// the last one whole. A folder that cannot be written keeps nothing, and says so. A save
+    /// takes what is kept once it has its turn, so the one that writes last writes the newest.
     pub fn save(&self) {
         let Some(file) = &self.file else {
             return;
         };
+        let _turn = self.saving.lock().expect("saving lock");
         let bytes = serde_json::to_vec_pretty(&*self.kept.lock().expect("memory lock"))
             .expect("kept values serialize");
         let written = file
@@ -162,6 +167,32 @@ mod tests {
         assert_eq!(memory.recent(|| "t1".to_owned()).len(), 1);
         assert_eq!(memory.files(), std::slice::from_ref(&file));
         assert_eq!(memory.take("t1"), Some(file));
+    }
+
+    #[test]
+    fn writes_the_newest_files_when_saves_overlap() {
+        // #309: two saves shared kept.tmp, so the older could land last, or the two could mix.
+        let folder = tempfile::tempdir().unwrap();
+        let data = folder.path().join("data");
+        let memory = std::sync::Arc::new(Memory::load(Some(data.clone())));
+        for round in 0..200 {
+            let start = std::sync::Arc::new(std::sync::Barrier::new(2));
+            let threads: Vec<_> = (0..2)
+                .map(|thread| {
+                    let (memory, start) = (memory.clone(), start.clone());
+                    std::thread::spawn(move || {
+                        start.wait();
+                        memory.opened(&PathBuf::from(format!("/a/{round}-{thread}.md")));
+                    })
+                })
+                .collect();
+            for thread in threads {
+                thread.join().unwrap();
+            }
+            let kept = memory.kept.lock().unwrap().recent.clone();
+            let saved = Memory::load(Some(data.clone())).kept.into_inner().unwrap();
+            assert_eq!(saved.recent, kept, "round {round}");
+        }
     }
 
     #[test]

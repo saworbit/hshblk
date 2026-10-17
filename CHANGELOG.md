@@ -189,3 +189,6 @@
 - Desktop: a footnote's number goes to its footnote when a heading has the same name, such as `# fn 1`. The heading took the name first, so the number went to the heading. (#313)
 - Desktop: a link's `#fragment` finds its place by the name as written, and then percent-decoded, as a browser does. A footnote whose label holds a percent escape, such as `[^a%41]`, could not be reached from its number. (#314)
 - Desktop: a quote that holds only an alert's marker, such as `> [!WARNING]`, stays a quote, as GitHub draws it. It drew an alert with no body. (#316)
+- Desktop: two saves of what the app keeps between runs take turns. Each wrote the same file beside `kept.json` at once, so the older could land last, or the two could mix and lose the recent files and the window's place. (#309)
+- Desktop: on a drive that keeps a file's time only to the second, as FAT and HFS+ do, a second save of the same length in that second shows. Its size and time stayed as they were, so the window kept the old text. While such a time is under three seconds old, Rust reads the file each look, and tells the window only when its text differs. (#310)
+- Desktop: `image_refusal` runs off the main thread. It may read an image whole, up to 20 MB, to say why it did not show, and the window's events waited on that read. (#315)
