@@ -24,6 +24,15 @@ type Answer = { id: number; svg?: string; error?: string };
 /** How long the frame may take to start, or to draw one diagram, before the page says so. */
 const PATIENCE = 30_000;
 
+/**
+ * How many frames the page makes before it says the frame did not start, and how long one that
+ * has loaded may take to say it is ready.
+ */
+const STARTS = 4;
+const GRACE = 1_000;
+
+const NOT_STARTED = "The diagram frame did not start.";
+
 /** Each diagram drawn, by its theme and source, so a block scrolled back into view is not redrawn. */
 const drawn = new Map<string, Promise<Diagram>>();
 
@@ -64,10 +73,30 @@ async function draw(script: string, source: string, dark: boolean): Promise<Diag
 }
 
 /**
- * Makes the frame, and waits for its script to say it is ready. Its own policy names the app's
- * origin for scripts, since `'self'` in a frame of no origin names nothing.
+ * Makes the frame, and makes it again while it loads with no script. On Windows, WebView2 sends
+ * the script's request from a window's first sandboxed frame to the network at times, where
+ * nothing answers, rather than to Tauri. A frame made after it gets its script (#351).
  */
-function start(script: string): Promise<Window> {
+async function start(script: string): Promise<Window> {
+  try {
+    for (let tries = 1; tries <= STARTS; tries += 1) {
+      const into = await open(script);
+      if (into) return into;
+      await new Promise((resolve) => setTimeout(resolve, 250 * tries));
+    }
+    throw new Error(NOT_STARTED);
+  } catch (error) {
+    frame = null;
+    throw error;
+  }
+}
+
+/**
+ * A frame, and its window once its script says it is ready, or null if it loaded with no script:
+ * one whose script ran says so before it loads. Its own policy names the app's origin for
+ * scripts, since `'self'` in a frame of no origin names nothing.
+ */
+function open(script: string): Promise<Window | null> {
   const url = new URL(script, location.href);
   const box = document.createElement("iframe");
   box.className = "pg-diagram-frame";
@@ -81,8 +110,9 @@ function start(script: string): Promise<Window> {
     `<!doctype html><html><head><meta charset="utf-8">` +
     `<meta http-equiv="Content-Security-Policy" content="${policy}"></head>` +
     `<body><script${kind} src="${url.href}"></script></body></html>`;
-  const ready = new Promise<Window>((resolve) => {
-    addEventListener("message", function hear(event: MessageEvent) {
+  let hear: (event: MessageEvent) => void = () => {};
+  const ready = new Promise<Window | null>((resolve) => {
+    hear = (event) => {
       if (event.source !== box.contentWindow) return;
       const data = event.data as Partial<Answer> & { ready?: boolean };
       if (data.ready && box.contentWindow) {
@@ -90,14 +120,27 @@ function start(script: string): Promise<Window> {
       } else if (typeof data.id === "number") {
         waiting.get(data.id)?.(data as Answer);
       }
-    });
+    };
+    // A frame whose script ran is ready before it loads. One that loads and is not ready soon
+    // after never will be.
+    box.addEventListener("load", () => setTimeout(() => resolve(null), GRACE), { once: true });
   });
+  addEventListener("message", hear);
   document.body.append(box);
-  return within(ready, "The diagram frame did not start.").catch((error: unknown) => {
+  const drop = () => {
+    removeEventListener("message", hear);
     box.remove();
-    frame = null;
-    throw error;
-  });
+  };
+  return within(ready, NOT_STARTED).then(
+    (into) => {
+      if (!into) drop();
+      return into;
+    },
+    (error: unknown) => {
+      drop();
+      throw error;
+    },
+  );
 }
 
 /** The promise's value, or an error with `why` if it takes longer than the page waits. */
