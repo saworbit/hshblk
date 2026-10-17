@@ -420,6 +420,12 @@ function alertOf(doc: Text, quote: SyntaxNode): (Fold & { kind: Alert }) | null 
   const line = doc.lineAt(first.from);
   const match = ALERT_MARKER.exec(doc.sliceString(first.from, line.to));
   if (!match) return null;
+  // GitHub draws an alert only with a body: more of its paragraph, or a block after it (#316).
+  let body = first.to > line.to;
+  for (let next = first.nextSibling; next && !body; next = next.nextSibling) {
+    body = next.name !== "QuoteMark";
+  }
+  if (!body) return null;
   const kind = match[1].toLowerCase() as Alert;
   return { kind, from: first.from, to: first.from + match[0].trimEnd().length };
 }

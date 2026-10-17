@@ -454,6 +454,18 @@ describe("the page", () => {
     assert.match(visible(select(state, 4)), /^> \[!WARNING\]\nCritical/);
   });
 
+  it("leaves a quote with nothing after its alert's marker a quote, as GitHub does", () => {
+    // #316: `> [!WARNING]` alone drew a warning with no body.
+    for (const doc of ["> [!WARNING]", "> [!NOTE]\n>", "> [!NOTE]\n>\n>"]) {
+      assert.equal(visible(open(doc)).split("\n")[0], doc.split("\n")[0].slice(2), doc);
+      assert.equal(lineClasses(open(doc), styles)[0], "pg-quote", doc);
+    }
+    // A block after the marker is a body, as a paragraph is.
+    for (const doc of ["> [!NOTE]\n> - item", "> [!NOTE]\n>\n> After a blank line."]) {
+      assert.equal(lineClasses(open(doc), styles)[0], "pg-quote pg-alert pg-alert-note", doc);
+    }
+  });
+
   it("hides quote marks and keeps list markers as written", () => {
     const state = open("> one\n> two\n\n- a\n1. b");
     assert.equal(visible(state), "one\ntwo\n\n- a\n1. b");

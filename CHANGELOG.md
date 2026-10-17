@@ -188,3 +188,4 @@
 - Desktop: the find box counts a regular expression's match once where it runs through a line over a million characters long. A slice read only part of the line, so the rest of the match counted again, and a match only the cut part held counted at all. (#306)
 - Desktop: a footnote's number goes to its footnote when a heading has the same name, such as `# fn 1`. The heading took the name first, so the number went to the heading. (#313)
 - Desktop: a link's `#fragment` finds its place by the name as written, and then percent-decoded, as a browser does. A footnote whose label holds a percent escape, such as `[^a%41]`, could not be reached from its number. (#314)
+- Desktop: a quote that holds only an alert's marker, such as `> [!WARNING]`, stays a quote, as GitHub draws it. It drew an alert with no body. (#316)
