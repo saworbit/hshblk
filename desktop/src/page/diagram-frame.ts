@@ -1,11 +1,13 @@
 import mermaid from "mermaid";
 
 /**
- * #221: the script of the frame mermaid draws in, which Vite bundles with mermaid into one classic
- * script. The frame is a realm of its own. Tauri freezes `Object.prototype` in the page's realm
- * only, and dayjs and d3, which mermaid takes, assign to the properties that freeze makes read
- * only, so mermaid cannot load in the page. The frame's origin is opaque, so it can reach neither
- * the page nor Rust. The page posts it a diagram's source, and it posts back the SVG, or why not.
+ * #221: the script of the frame mermaid draws in, which `src/build/frame-script.ts` bundles with
+ * mermaid into one classic script, and which the page writes into the frame (#351). The frame is a
+ * realm of its own. Tauri freezes `Object.prototype` in the page, and dayjs and d3, which mermaid
+ * takes, assign to the properties that freeze makes read only, so mermaid cannot load there. On
+ * Windows, WebView2 runs Tauri's script in the frame too, so the build rewrites those assignments.
+ * The frame's origin is opaque, so it can reach neither the page nor Rust. The page posts it a
+ * diagram's source, and it posts back the SVG, or why not.
  *
  * Its policy, the page's and its own, refuses the `<style>` and the style attributes mermaid writes
  * while it lays a diagram out, but not the styles it sets one by one. So the frame is set in
