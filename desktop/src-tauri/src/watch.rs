@@ -3,11 +3,13 @@
 //! Twice a second Rust looks at each watched document's file: its size and when it was last
 //! modified, which a save changes, and no read. When they change, it reads the file again behind
 //! the same handle and tells the window, down the channel the page gave `watch_document`. The page
-//! asks for the text again. A file that goes, or that no longer opens, is said once.
+//! asks for the text again. A file that goes, or that no longer opens, is said once. A time kept
+//! only to the second can hide a save of the same length, so while it is that new the file is
+//! read again each look, and the window told only when its text differs (#310).
 
 use std::collections::HashMap;
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
@@ -71,10 +73,33 @@ fn seen(last: Stamp, gone: bool, now: Option<Stamp>) -> Seen {
     }
 }
 
+/// How long a time kept only to the second can hide another save: FAT's two seconds, which it
+/// may round up, and a look's time to come round.
+const UNSURE: Duration = Duration::from_secs(3);
+
+/// Whether a stamp the same as the last may still hide a save of the same length (#310). FAT
+/// keeps a file's time to two seconds and HFS+ to one, so a time on a whole second, as theirs
+/// always are, is unsure until it is that far behind the clock. NTFS, APFS, and ext4 keep
+/// fractions of a second, so a save there changes the time.
+fn unsure(stamp: Stamp, now: SystemTime) -> bool {
+    let Some(modified) = stamp.modified else {
+        return false;
+    };
+    let whole = modified
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .is_ok_and(|since| since.subsec_nanos() == 0);
+    whole
+        && now
+            .duration_since(modified)
+            .map_or(true, |age| age < UNSURE)
+}
+
 /// Looks at each watched file once, reads again those that changed, and tells their windows.
+/// One whose stamp is unsure is read again too, and its window told only if its text differs.
 pub fn look(app: &AppHandle) {
     let documents = app.state::<Documents>();
     let watchers = app.state::<Watchers>();
+    let now = SystemTime::now();
     // The files are read after the lock goes, so a new window's watch never waits on a read.
     let mut changed = Vec::new();
     {
@@ -85,6 +110,10 @@ pub fn look(app: &AppHandle) {
                 continue;
             };
             match seen(watched.stamp, watched.gone, Stamp::of(&document.path)) {
+                Seen::Same if !watched.gone && unsure(watched.stamp, now) => {
+                    let name = document.name.clone();
+                    changed.push((label.clone(), watched.channel.clone(), name, Some(document)));
+                }
                 Seen::Same => {}
                 Seen::Gone => {
                     watched.gone = true;
@@ -100,19 +129,26 @@ pub fn look(app: &AppHandle) {
                         label.clone(),
                         watched.channel.clone(),
                         document.name.clone(),
+                        None,
                     ));
                 }
             }
         }
     }
-    for (label, channel, name) in changed {
+    for (label, channel, name, unsure) in changed {
         let Some(handle) = windows::handle_of(&label) else {
             continue;
         };
-        match documents.reload(handle) {
-            Some(Ok(_)) => say(&channel, CHANGED.to_owned()),
-            Some(Err(error)) => say(&channel, error.message(&name)),
-            None => {}
+        match (documents.reload(handle), unsure) {
+            (Some(Ok(now)), Some(before))
+                if now.text == before.text && now.facts == before.facts => {}
+            (Some(Ok(_)), _) => say(&channel, CHANGED.to_owned()),
+            // A file that only had to be made sure of is looked at again; nothing is said yet.
+            (Some(Err(error)), Some(_)) => {
+                eprintln!("A file could not be read again: {}", error.message(&name));
+            }
+            (Some(Err(error)), None) => say(&channel, error.message(&name)),
+            (None, _) => {}
         }
     }
 }
@@ -134,6 +170,7 @@ pub fn start(app: AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use std::time::SystemTime;
 
     #[test]
@@ -148,5 +185,42 @@ mod tests {
         assert_eq!(seen(at(1), true, None), Seen::Same);
         // Back where it was, with the same stamp, it is read again: it may not be the same file.
         assert_eq!(seen(at(1), true, Some(at(1))), Seen::Changed(at(1)));
+    }
+
+    #[test]
+    fn is_unsure_of_a_time_kept_to_the_second_until_the_second_has_passed() {
+        // #310: FAT keeps a file's time to two seconds, and HFS+ to one, so a second save of
+        // the same length in that time leaves the stamp as it was.
+        let root = tempfile::tempdir().unwrap();
+        let file = root.path().join("a.md");
+        let second = SystemTime::UNIX_EPOCH + Duration::from_secs(1_800_000_000);
+        let save = |text: &str| {
+            fs::write(&file, text).unwrap();
+            let opened = fs::File::options().write(true).open(&file).unwrap();
+            opened.set_modified(second).unwrap();
+        };
+        save("cat");
+        let first = Stamp::of(&file).unwrap();
+        save("cot");
+        assert_eq!(seen(first, false, Stamp::of(&file)), Seen::Same);
+        let after = |millis| second + Duration::from_millis(millis);
+        assert!(unsure(first, after(0)));
+        assert!(unsure(first, after(2_900)));
+        assert!(!unsure(first, after(3_000)));
+        // FAT may round a time up, so one ahead of the clock is unsure too.
+        assert!(unsure(first, second - Duration::from_millis(1_500)));
+        // A time with a fraction of a second came from a file system that keeps one.
+        let fine = Stamp {
+            modified: Some(second + Duration::from_millis(250)),
+            ..first
+        };
+        assert!(!unsure(fine, after(1_000)));
+        assert!(!unsure(
+            Stamp {
+                modified: None,
+                ..first
+            },
+            after(0)
+        ));
     }
 }
