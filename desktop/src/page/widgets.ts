@@ -1,6 +1,7 @@
 import { type Extension, StateEffect, StateField } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { imageUrl, refusalOf, unloaded } from "./assets.ts";
+import { diagramFrame, drawDiagram } from "./diagrams.ts";
 import { element } from "./dom.ts";
 import type { ImageSize } from "./html.ts";
 import { drawMaths } from "./maths.ts";
@@ -248,6 +249,49 @@ export class MathWidget extends WidgetType {
 
   toDOM(): HTMLElement {
     return mathNode(this.tex, this.display);
+  }
+
+  ignoreEvent(): boolean {
+    return false;
+  }
+}
+
+/**
+ * #221: a mermaid block's diagram, an image once mermaid has drawn it in its frame, light or dark
+ * as the page is. Until then its source shows, as code, and when mermaid cannot draw it, why,
+ * under that. A page the shell gave no frame shows the source alone.
+ */
+export class DiagramWidget extends WidgetType {
+  readonly source: string;
+
+  constructor(source: string) {
+    super();
+    this.source = source;
+  }
+
+  eq(other: DiagramWidget): boolean {
+    return other.source === this.source;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const box = element("span", "pg-diagram");
+    const source = box.appendChild(element("span", "pg-diagram-source", this.source));
+    const frame = view.state.facet(diagramFrame);
+    if (!frame) return box;
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    void drawDiagram(frame, this.source, dark).then((diagram) => {
+      if ("error" in diagram) {
+        box.append(element("span", "pg-diagram-error", `Diagram not drawn: ${diagram.error}`));
+        return;
+      }
+      const image = document.createElement("img");
+      image.className = "pg-diagram-image";
+      image.alt = "Diagram";
+      image.width = diagram.width;
+      image.src = diagram.url;
+      source.replaceWith(image);
+    });
+    return box;
   }
 
   ignoreEvent(): boolean {

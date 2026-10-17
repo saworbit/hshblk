@@ -310,6 +310,21 @@ input:focus-visible {
   }
 }
 
+/* #221: the frame mermaid draws in, as wide as a page may draw a diagram. An engine holds back a
+   frame of another origin that is out of view or hidden, timers and all, so this one is in view,
+   behind the page, clear, and takes no pointer. */
+.pg-diagram-frame {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: -1;
+  width: 1200px;
+  height: 900px;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 @media print {
   /* Paper on paper, whatever the screen's theme, and white so a page costs no toner. */
   :root {

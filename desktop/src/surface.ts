@@ -10,6 +10,7 @@ import { type ChangeSpec, EditorState, type Extension } from "@codemirror/state"
 import { type Command, EditorView, type KeyBinding, keymap } from "@codemirror/view";
 import { assetUrl, type AssetUrl, imageRefusal, type ImageRefusal } from "./page/assets.ts";
 import { completeParse, finishParse } from "./page/complete.ts";
+import { diagramFrame } from "./page/diagrams.ts";
 import { markdown } from "./page/dialect.ts";
 import { findExtras } from "./page/find.ts";
 import { textDirection } from "./page/direction.ts";
@@ -47,6 +48,8 @@ export type SurfaceOptions = {
   openFile?: (file: string, fragment?: string) => void;
   /** Where the shell says why a link the reader followed does not open. */
   linkRefused?: (reason: string) => void;
+  /** Where the script of the frame mermaid draws in is (#221). Without one, no diagram draws. */
+  diagramFrame?: string;
   /** The CSP nonce CodeMirror puts on the styles it injects. */
   nonce?: string;
   /** Anything the shell adds: its own keys, its own handlers. */
@@ -149,6 +152,7 @@ export function createSurface(
       options.linkRefused ? linkRefused.of(options.linkRefused) : [],
       assetUrl.of(options.assets),
       options.imageRefusal ? imageRefusal.of(options.imageRefusal) : [],
+      options.diagramFrame ? diagramFrame.of(options.diagramFrame) : [],
       EditorState.readOnly.of(true),
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({ "aria-label": "Document", spellcheck: "false" }),
