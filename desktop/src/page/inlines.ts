@@ -2,7 +2,14 @@ import type { Text } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
 import { decodeHTML } from "entities";
 import { emojiOf } from "./emoji.ts";
-import { autolinkHref, destination, titleOf, type Definitions } from "./references.ts";
+import {
+  autolinkHref,
+  bareHref,
+  destination,
+  isBareAddress,
+  titleOf,
+  type Definitions,
+} from "./references.ts";
 
 /**
  * Inline content as plain data, for the places the page draws instead of decorating the
@@ -134,6 +141,10 @@ function inline(doc: Text, definitions: Definitions, notes: Notes, node: SyntaxN
       const address = url ? doc.sliceString(url.from, url.to) : source;
       return [{ kind: "link", href: autolinkHref(address), children: [text(address)] }];
     }
+    case "URL":
+      // #201: a bare address is a link. One in a link's words is text.
+      if (!isBareAddress(node)) return [text(source)];
+      return [{ kind: "link", href: bareHref(source), children: [text(source)] }];
     case "Escape":
       return [text(source.slice(1))];
     case "Emoji":

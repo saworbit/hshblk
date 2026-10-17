@@ -238,7 +238,7 @@ Threat model, bounded: a local file from a clone, download, or paste must not ex
 
 Lezer emits syntax. It does not emit HTML, and it does not resolve reference definitions. The application owns interpretation.
 
-Dialect: CommonMark, plus GFM tables, strikethrough between `~` or `~~` as GitHub takes both, task lists, GitHub's alerts, footnotes, and emoji shortcodes, and YAML or TOML frontmatter at the top of a file. Lezer takes only `~~`, so the page adds a rule for a single `~`, which pairs only with another. Anything else is source until added here, bare-address links included.
+Dialect: CommonMark, plus GFM tables, strikethrough between `~` or `~~` as GitHub takes both, task lists, bare web and mail addresses, GitHub's alerts, footnotes, and emoji shortcodes, and YAML or TOML frontmatter at the top of a file. Lezer takes only `~~`, so the page adds a rule for a single `~`, which pairs only with another. Anything else is source until added here.
 
 Each construct has one rule:
 
@@ -248,10 +248,12 @@ Each construct has one rule:
 | Entity | The decoded character. An unknown name stays as written. |
 | Hard break | A line break. |
 | Code span | Its text. One space comes off each end when both ends have one and it is not all spaces, as CommonMark strips it, so a backtick can sit at its edge. |
+| Fenced code block | Its lines. Its fences fold away until the keys or find reach one, which then shows muted, and meanwhile the block's first and last lines take the room they gave, and the info string's first word is a quiet label at its top right. A block with nothing between its fences keeps an empty line. |
 | Fenced code block that names its language | Its tokens in the page's colours, by day and by night: JavaScript and TypeScript, Python, Rust, JSON, shell, and diff, by the info string's first word in any case. Each language's parser is a Lezer grammar, or CodeMirror's shell or diff mode, a chunk of its own loaded the first time a block names it, and none interprets the markdown. A block in a quote stays one colour, since its lines carry the quote's marks. |
 | Indented code block | Its lines, without the four columns of indent that make it one, so it lines up with a fenced block. A list item's or a quote's own indent stays. |
 | Setext heading | A heading. The underline does not paint. |
 | Link | Its words. The title is not part of them: a hover shows it, or the address when there is none. A `#fragment` goes to the heading GitHub's anchor names, or else to an `id` or `name` in the document's HTML. A link to another file in the repository opens it in a window of its own (§6), at the heading or anchor its fragment names. One that cannot open says why, in its popover, and in the status line after a Ctrl or ⌘ click. Its syntax never unfolds inline: the address shows in a popover at the caret, where the editor will edit it. Unfolding put `[` before the clicked word and wrapped it to the next line (§9). |
+| Bare address | `https://…`, `http://…`, `www.…`, or a mail address, where GFM's autolinks find one: a link whose words are its address, as `<…>` makes one. `www.` takes `http://`, and a mail address `mailto:`. Punctuation at its end is not part of it. One in a link's words, or in code, is text. |
 | Link reference definition | Nothing. The links that use it carry its address. |
 | Frontmatter | Folded away, and named in the status line, whose panel lists its fields or shows its YAML as written. The panel reads it with the `yaml` package, loaded when the panel first opens, and shows raw what is not a mapping or takes more aliases than the package allows. The keys and find show its source in a quiet monospace block. It is `---` alone on the first line, through the next `---` or `...`. A `---` with a blank line after it is a rule, as Pandoc reads it. CommonMark would read it as a rule and a heading, so the page finds it, and draws, anchors, and defines nothing in it. TOML between `+++` lines, as Hugo and Zola write it, folds away the same way, and its panel shows it as written, since the bundle has no TOML parser. |
 | Reference with no definition | Its brackets, as written. |

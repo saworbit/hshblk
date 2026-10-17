@@ -1,5 +1,12 @@
 import { defineLanguageFacet, Language } from "@codemirror/language";
-import { type MarkdownConfig, parser, Strikethrough, Table, TaskList } from "@lezer/markdown";
+import {
+  Autolink,
+  type MarkdownConfig,
+  parser,
+  Strikethrough,
+  Table,
+  TaskList,
+} from "@lezer/markdown";
 
 /** Punctuation, as Lezer's own delimiters read it. */
 const PUNCTUATION = /[\p{P}\p{S}]/u;
@@ -95,14 +102,15 @@ const Footnotes: MarkdownConfig = {
 };
 
 /**
- * docs/hld.md §7: CommonMark, GFM tables, strikethrough by `~` or `~~`, task lists, GitHub's
- * footnotes, and its emoji shortcodes. Anything else is source.
+ * docs/hld.md §7: CommonMark, GFM tables, strikethrough by `~` or `~~`, task lists, bare web and
+ * mail addresses (#201), GitHub's footnotes, and its emoji shortcodes. Anything else is source.
  */
 export const dialect = parser.configure([
   Table,
   Strikethrough,
   SingleTilde,
   TaskList,
+  Autolink,
   Footnotes,
   Shortcode,
 ]);

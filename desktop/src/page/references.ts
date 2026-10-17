@@ -27,7 +27,7 @@ export function define(definitions: Definitions, doc: Text, node: SyntaxNode): v
  */
 export function destination(doc: Text, node: SyntaxNode, definitions: Definitions): string | null {
   if (inline(doc, node)) {
-    const url = node.getChild("URL");
+    const url = addressOf(doc, node);
     return url ? unwrap(doc.sliceString(url.from, url.to)) : "";
   }
   return definitionOf(doc, node, definitions)?.href ?? null;
@@ -37,6 +37,37 @@ export function destination(doc: Text, node: SyntaxNode, definitions: Definition
 export function titleOf(doc: Text, node: SyntaxNode, definitions: Definitions): string | null {
   if (inline(doc, node)) return titleIn(doc, node);
   return definitionOf(doc, node, definitions)?.title ?? null;
+}
+
+/**
+ * A Link's or Image's own address, in the parentheses after its words. Its words may hold an
+ * address of their own, a bare one (#201), so the first URL in it is not always its own.
+ */
+export function addressOf(doc: Text, node: SyntaxNode): SyntaxNode | null {
+  const marks = node.getChildren("LinkMark");
+  const open = marks.find((mark) => doc.sliceString(mark.from, mark.to) === "(");
+  for (let child = open?.nextSibling; child; child = child.nextSibling) {
+    if (child.name === "URL") return child;
+  }
+  return null;
+}
+
+/** What holds an address of its own. A URL in one is its address, or text in its words. */
+const HOLDERS = new Set(["Link", "Image", "Autolink", "LinkReference"]);
+
+/**
+ * #201: a bare web or mail address, `https://x.y`, `www.x.y`, or `me@x.y`, as GFM links it. A URL
+ * the dialect found in no link, image, autolink, or definition, which would hold it.
+ */
+export function isBareAddress(node: SyntaxNode): boolean {
+  if (node.name !== "URL") return false;
+  for (let up = node.parent; up; up = up.parent) if (HOLDERS.has(up.name)) return false;
+  return true;
+}
+
+/** Where a bare address points: `www.` takes `http://`, as GFM says, and a mail address `mailto:`. */
+export function bareHref(address: string): string {
+  return /^www\./i.test(address) ? `http://${address}` : autolinkHref(address);
 }
 
 /** Whether a Link or Image gives its address in parentheses after it, not by a definition. */

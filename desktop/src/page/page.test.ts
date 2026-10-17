@@ -274,6 +274,45 @@ describe("the page", () => {
     assert.equal(visible(open("Mail <me@x.y> or <https://x.y>.")), "Mail me@x.y or https://x.y.");
   });
 
+  it("links a bare web or mail address, as GFM does, but not one in a link's words or code", () => {
+    // #201: a bare address read as a link that did nothing.
+    const doc =
+      "See https://x.y/path, www.x.y. or me@x.y!\n\n" +
+      "[words https://in.words](https://out.side) and `https://co.de`\n\n" +
+      "![alt https://a.lt](i.png)\n\n| a |\n|---|\n| www.cell.y |";
+    const state = open(doc);
+    const hrefs: string[] = [];
+    let model: TableModel | undefined;
+    for (const set of [styles(state), shown(state)]) {
+      set.between(0, state.doc.length, (_from, _to, decoration) => {
+        const href = decoration.spec.attributes?.["data-href"];
+        if (href) hrefs.push(href);
+        if (decoration.spec.widget instanceof TableWidget) model = decoration.spec.widget.table;
+      });
+    }
+    // The punctuation after an address is not part of it.
+    assert.deepEqual(hrefs, [
+      "https://x.y/path",
+      "http://www.x.y",
+      "mailto:me@x.y",
+      "https://out.side",
+    ]);
+    const lines = visible(state).split("\n");
+    assert.equal(lines[0], doc.split("\n")[0]);
+    // A link's own address is the one after its words, whatever its words hold.
+    assert.equal(lines[2], "words https://in.words and https://co.de");
+    assert.equal(lines[4], "[image i.png · alt https://a.lt]");
+    assert.deepEqual(model?.rows[0][0], [
+      { kind: "link", href: "http://www.cell.y", children: [{ kind: "text", text: "www.cell.y" }] },
+    ]);
+    // Its address shows at the caret, as a link's does.
+    const tooltips = select(state, doc.indexOf("x.y/path")).facet(showTooltip).filter(Boolean);
+    assert.equal(tooltips.length, 1);
+    assert.equal(tooltips[0]?.pos, doc.indexOf("https://x.y"));
+    // Print shows no address after one, since its words are its address.
+    assert.equal(printedAddress("http://www.x.y", "www.x.y"), null);
+  });
+
   it("cuts an image's long address short when its syntax opens, and when all of it shows", () => {
     // #204: an embedded image's base64 opened as one line held the window for seconds.
     const data = `data:image/png;base64,${"A".repeat(5000)}`;
@@ -486,7 +525,8 @@ describe("the page", () => {
   });
 
   it("hides a quote's marks on every line of what it holds, code and raw HTML included", () => {
-    assert.equal(visible(open("> ```\n> code\n> ```")), "```\ncode\n```");
+    // A fence folds away whole, its quote's mark with it (#215).
+    assert.equal(visible(open("> ```\n> code\n> ```")), "\ncode\n");
     assert.equal(visible(open(">     indented\n>     code")), "indented\ncode");
     const html = "> <p>\n> quoted\n> </p>";
     assert.equal(visible(select(open(html), html.indexOf("quoted"))), "<p>\n> quoted\n</p>");
@@ -500,8 +540,8 @@ describe("the page", () => {
     const state = open(doc);
     assert.equal(
       visible(state),
-      "- item with code:\n\n```js\nconst x = 1;\n```\n\n- item with a quote:\n\nquoted in a list\ntwo\n\n" +
-        "1. numbered\n\n```\nz\n```",
+      "- item with code:\n\n\nconst x = 1;\n\n\n- item with a quote:\n\nquoted in a list\ntwo\n\n" +
+        "1. numbered\n\n\nz\n",
     );
     const classes = lineClasses(state, styles);
     assert.deepEqual(
@@ -511,7 +551,7 @@ describe("the page", () => {
       ["pg-in-2", "pg-in-2", "pg-in-2", "pg-in-2", "pg-in-2", "pg-in-3", "pg-in-3", "pg-in-3"],
     );
     // The keys show a line's indent, as they show a quote's marks.
-    assert.match(visible(select(state, doc.indexOf("const"))), /\n {2}const x = 1;\n```\n/);
+    assert.match(visible(select(state, doc.indexOf("const"))), /\n\n {2}const x = 1;\n\n/);
   });
 
   it("draws an image alone in a list item beside its marker, not below it", () => {
@@ -563,14 +603,57 @@ describe("the page", () => {
     ]);
   });
 
-  it("leaves code, inline HTML, and bare addresses as the source", () => {
+  it("leaves markdown in code, inline HTML, and a box in a sentence as written", () => {
     const doc = "```js\n**not bold**\n```\n\nA <b>tag</b>, https://x.y, and - [x] no box.";
     const state = open(doc);
-    assert.equal(visible(state), doc);
+    assert.equal(visible(state), doc.replace("```js", "").replace("```", ""));
     assert.deepEqual(lineClasses(state, styles).slice(0, 3), [
       "pg-code-block pg-fence",
       "pg-code-block",
       "pg-code-block pg-fence",
+    ]);
+  });
+
+  it("folds a fenced block's fences away until the keys reach one, and labels its language", () => {
+    // #215: the fences were the one piece of syntax a page with nothing selected still showed.
+    const doc = "Before.\n\n```js title\nconst x = 1;\nconst y = 2;\n```\n\n```\n```\n\nAfter.";
+    const state = open(doc);
+    assert.equal(visible(state), "Before.\n\n\nconst x = 1;\nconst y = 2;\n\n\n\n\n\nAfter.");
+    const classes = (at: EditorState) =>
+      lineClasses(at, shown).map((line) => line.split(" ").sort().join(" "));
+    // The first and last lines take the room the fences gave. A block with nothing in it keeps
+    // its first line, empty, as the block.
+    assert.deepEqual(classes(state).slice(2, 9), [
+      "pg-collapsed",
+      "pg-code-first",
+      "pg-code-last",
+      "pg-collapsed",
+      "",
+      "pg-code-first pg-code-last",
+      "pg-collapsed",
+    ]);
+    // The info string's first word is the label.
+    const languages: string[] = [];
+    shown(state).between(0, doc.length, (_from, _to, decoration) => {
+      const language = decoration.spec.attributes?.["data-language"];
+      if (language) languages.push(language);
+    });
+    assert.deepEqual(languages, ["js"]);
+    // The keys on a fence show that fence, muted, and take the label and the room away.
+    const opened = select(state, doc.indexOf("```js"));
+    assert.deepEqual(visible(opened).split("\n").slice(2, 6), [
+      "```js title",
+      "const x = 1;",
+      "const y = 2;",
+      "",
+    ]);
+    assert.deepEqual(classes(opened).slice(2, 6), ["", "", "pg-code-last", "pg-collapsed"]);
+    assert.equal(lineClasses(opened, styles)[2], "pg-code-block pg-fence");
+    const closed = select(state, doc.indexOf("```\n\n```"));
+    assert.deepEqual(visible(closed).split("\n").slice(3, 6), [
+      "const x = 1;",
+      "const y = 2;",
+      "```",
     ]);
   });
 
@@ -579,10 +662,10 @@ describe("the page", () => {
     const doc =
       "```\nfenced\n```\n\n    indented\n      deeper\n\n>     quoted\n>     two\n\n\tTabbed";
     const state = open(doc);
-    assert.equal(visible(state), "```\nfenced\n```\n\nindented\n  deeper\n\nquoted\ntwo\n\nTabbed");
+    assert.equal(visible(state), "\nfenced\n\n\nindented\n  deeper\n\nquoted\ntwo\n\nTabbed");
     assert.equal(
       visible(select(state, doc.indexOf("deeper"))),
-      "```\nfenced\n```\n\nindented\n      deeper\n\nquoted\ntwo\n\nTabbed",
+      "\nfenced\n\n\nindented\n      deeper\n\nquoted\ntwo\n\nTabbed",
     );
     const inQuote = visible(select(state, doc.indexOf("two")));
     assert.match(inQuote, /\nquoted\n>     two\n/);
