@@ -2,7 +2,8 @@
  * What only WebView2 can show, run on Windows: F5 and Ctrl+R (#161), the right-click menu (#244),
  * print's header and footer (#245), and a contrast theme (#233). The Linux suite can only fire
  * synthetic events at these and read the page's rules. Here each is the engine's own behaviour,
- * and each test fails with its fix taken out (#270).
+ * and each test fails with its fix taken out (#270). A link to a heading in another file is
+ * here too, since the Linux suite drives one window a launch and it takes two (#301).
  *
  *   node test/webview2.mjs <app>
  *
@@ -21,7 +22,7 @@ import { fileURLToPath } from "node:url";
 import { inflateSync } from "node:zlib";
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { launch, START } from "./devtools.mjs";
+import { attach, launch, poll, START } from "./devtools.mjs";
 
 const app = resolve(process.argv[2] ?? "");
 if (!process.argv[2]) throw new Error("usage: webview2.mjs <app binary>");
@@ -175,5 +176,111 @@ describe("WebView2", { timeout: 300_000 }, () => {
     } finally {
       await page.send("Emulation.setEmulatedMedia", { features: [] });
     }
+  });
+});
+
+describe("A link to a heading in another file", { timeout: 300_000 }, () => {
+  // #301: #285 sends a link's fragment to the window of the file it names, through
+  // `watch_fragments`. Its parts had tests of their own, but nothing drove the two windows.
+  const folder = mkdtempSync(join(tmpdir(), "hshblk-fragment-"));
+  const profile = join(folder, "profile");
+  const first = join(folder, "a.md");
+  writeFileSync(first, "[Install](b.md#install)\n\n[Nowhere](b.md#nothing-here)\n");
+  const filler = Array.from({ length: 300 }, (_, n) => `Line ${n + 1}.`).join("\n\n");
+  writeFileSync(join(folder, "b.md"), `# B\n\n${filler}\n\n## Install\n\nSteps.\n\n${filler}\n`);
+  let a;
+  let b;
+
+  before(async () => {
+    a = await open(first, profile);
+    await a.until(() => document.querySelectorAll(".pg-link").length === 2, START);
+  });
+  after(async () => {
+    if (!a) return;
+    b?.close();
+    await a.close();
+    rmSync(folder, { recursive: true, force: true, maxRetries: 10 });
+  });
+
+  /**
+   * Ctrl and a click on a.md's link with these words. Over DevTools, a window that is not in
+   * front can drop the first events it gets, so the pointer moves until the page sees it, and
+   * then presses.
+   */
+  async function follow(words) {
+    await a.send("Page.bringToFront");
+    const at = await a.run(`() => {
+      const links = [...document.querySelectorAll(".pg-link")];
+      const box = links.find((link) => link.textContent === ${JSON.stringify(words)})
+        .getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    }`);
+    await a.run(() => {
+      window.pointed = false;
+      addEventListener("mousemove", () => (window.pointed = true), { once: true, capture: true });
+    });
+    let nudge = 0;
+    await poll(
+      async () => {
+        nudge = 1 - nudge;
+        await a.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at, x: at.x + nudge });
+        return a.run(() => window.pointed);
+      },
+      "the pointer to reach a.md's page",
+    );
+    for (const type of ["mousePressed", "mouseReleased"]) {
+      const click = { type, ...at, button: "left", clickCount: 1, modifiers: 2 };
+      await a.send("Input.dispatchMouseEvent", click);
+    }
+  }
+
+  /** b.md's window: the page other than a.md's whose status line names it. */
+  const windowOfB = () =>
+    poll(
+      async () => {
+        for (const target of await a.pages()) {
+          if (target.id === a.id) continue;
+          const page = await attach(target);
+          const name = await page.run(() => document.querySelector(".status-name")?.textContent);
+          if (name === "b.md") return page;
+          page.close();
+        }
+        return null;
+      },
+      "b.md's window",
+      START,
+    );
+
+  /** Whether the caret is on Install's line, and that line is in the window's top third. */
+  const atInstall = () => {
+    const view = document.querySelector(".cm-content").cmTile.root.view;
+    const line = view.state.doc.lineAt(view.state.selection.main.head);
+    const box = view.scrollDOM.getBoundingClientRect();
+    const top = view.coordsAtPos(line.from)?.top;
+    return line.text === "## Install" && top !== undefined && top - box.top < box.height / 3;
+  };
+
+  test("opens the file at the heading, in a window of its own", async () => {
+    await follow("Install");
+    b = await windowOfB();
+    await b.until(atInstall);
+  });
+
+  test("brings the file's window forward and goes to the heading again", async () => {
+    await b.run(() => {
+      const view = document.querySelector(".cm-content").cmTile.root.view;
+      view.dispatch({ selection: { anchor: 0 }, scrollIntoView: true });
+      view.scrollDOM.scrollTop = 0;
+    });
+    assert.equal(await b.run(atInstall), false, "b.md went back to its top");
+    await follow("Install");
+    await b.until(atInstall);
+    assert.equal((await a.pages()).length, 2, "no second window on b.md");
+  });
+
+  test("says in the file's status line that it has no such place", async () => {
+    await follow("Nowhere");
+    const said = () => document.querySelector(".status-said")?.textContent;
+    assert.equal(await b.until(said), "Nothing in this file is named #nothing-here.");
   });
 });
