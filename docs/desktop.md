@@ -185,4 +185,17 @@ Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) opens pull re
 
 A debug build writes each request the resource channel answers, served or refused, as a line in the file `HSHBLK_ASSET_LOG` names. WebKitGTK's resource timing does not see the app's own schemes, so the acceptance test sets it and reads it for item 2. A release build has no log.
 
+### The Linux suites in Docker
+
+On Windows or a Mac, Docker runs the three Linux suites as the workflow's acceptance job does, on Ubuntu 24.04 with its packages, from [`desktop/test/docker/Dockerfile`](../desktop/test/docker/Dockerfile). From the repository's root, in PowerShell:
+
+```powershell
+docker build -t hshblk-linux desktop/test/docker
+docker run --rm -v "${PWD}:/src:ro" -v hshblk-cargo-registry:/usr/local/cargo/registry -v hshblk-target:/build-target hshblk-linux
+```
+
+In a Mac's shell, the checkout is `"$PWD:/src:ro"`. The image is x86-64, so on Apple silicon both commands take `--platform linux/amd64`, and it runs emulated, slowly.
+
+[`suites.sh`](../desktop/test/docker/suites.sh) clones what the checkout has committed into the container, since a build on a Windows bind mount is slow, so commit first. It builds the `.deb` into the `hshblk-target` volume, installs it, and runs `test/acceptance.mjs`, `test/gate/click-target.mjs`, and `test/double-click.sh` as `reader`, who has no password, each under Xvfb in a D-Bus session of its own. It stops at the first that fails. The two volumes keep the cargo registry and the build, so a later run builds only what changed.
+
 The last run of each is recorded in [milestone-one.md](milestone-one.md) and [gates/](gates/).
