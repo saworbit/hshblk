@@ -85,16 +85,24 @@ impl Memory {
     }
 
     /// The recent files that are still there, each with a token that names it to the page for
-    /// the next `open_recent`. The tokens before them stop naming anything.
+    /// `open_recent`. A file keeps its token while it stays in the list, so a second welcome
+    /// window's listing leaves the first one's working (#335). A file that left it is not named.
     pub fn recent(&self, mut token: impl FnMut() -> String) -> Vec<(String, PathBuf)> {
         let files = self.files();
         let mut tokens = self.tokens.lock().expect("tokens lock");
-        tokens.clear();
+        tokens.retain(|_, path| files.contains(path));
         files
             .into_iter()
             .map(|path| {
-                let named = token();
-                tokens.insert(named.clone(), path.clone());
+                let kept = tokens.iter().find(|(_, named)| **named == path);
+                let named = match kept {
+                    Some((named, _)) => named.clone(),
+                    None => {
+                        let named = token();
+                        tokens.insert(named.clone(), path.clone());
+                        named
+                    }
+                };
                 (named, path)
             })
             .collect()
@@ -175,6 +183,43 @@ mod tests {
         assert_eq!(memory.recent(|| "t1".to_owned()).len(), 1);
         assert_eq!(memory.files(), std::slice::from_ref(&file));
         assert_eq!(memory.take("t1"), Some(file));
+    }
+
+    #[test]
+    fn keeps_a_files_token_while_it_stays_in_the_list() {
+        // #335: a second welcome window's listing ended the first window's tokens.
+        let folder = tempfile::tempdir().unwrap();
+        let (a, b) = (folder.path().join("a.md"), folder.path().join("b.md"));
+        for file in [&a, &b] {
+            fs::write(file, "x").unwrap();
+        }
+        let memory = Memory::load(None);
+        memory.opened(&a);
+        memory.opened(&b);
+        let mut count = 0;
+        let mut token = || {
+            count += 1;
+            format!("t{count}")
+        };
+        let first = memory.recent(&mut token);
+        let second = memory.recent(&mut token);
+        assert_eq!(first, second);
+        for (named, path) in &first {
+            assert_eq!(memory.take(named).as_ref(), Some(path));
+        }
+        // A file that leaves the list stops being named, and the rest keep theirs.
+        fs::remove_file(&a).unwrap();
+        let third = memory.recent(&mut token);
+        let token_of = |file: &PathBuf| {
+            first
+                .iter()
+                .find(|(_, path)| path == file)
+                .unwrap()
+                .0
+                .clone()
+        };
+        assert_eq!(third, [(token_of(&b), b.clone())]);
+        assert_eq!(memory.take(&token_of(&a)), None);
     }
 
     #[test]
