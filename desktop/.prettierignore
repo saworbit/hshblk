@@ -1,0 +1,2 @@
+# npm writes package.json, and keeps its own layout.
+package.json
