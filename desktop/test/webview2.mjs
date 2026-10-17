@@ -241,7 +241,9 @@ describe("A link to a heading in another file", { timeout: 300_000 }, () => {
         for (const target of await a.pages()) {
           if (target.id === a.id) continue;
           const page = await attach(target);
-          const name = await page.run(() => document.querySelector(".status-name")?.textContent);
+          const name = await page
+            .run(() => document.querySelector(".status-name")?.textContent)
+            .catch(() => null);
           if (name === "b.md") return page;
           page.close();
         }
