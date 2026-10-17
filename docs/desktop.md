@@ -99,7 +99,7 @@ npx tauri build --no-bundle      # the app alone: src-tauri/target/release/hshbl
 
 ## Releasing
 
-1. Set the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json`, and merge that to `main`.
+1. Set the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json`. In [CHANGELOG.md](../CHANGELOG.md), put the version and the day, such as `## 0.2.0 (2026-11-02)`, under **Unreleased**, so the lines that were there become the release's. From then on a new line goes at the end of **Unreleased**, not of the file. Merge that to `main`.
 2. Tag the merge and push the tag: `git tag v0.2.0 && git push origin v0.2.0`.
 3. The Desktop workflow checks that the tag names the version in all three, runs every test, builds the packages on each system, and puts them in a draft release with notes from the merged pull requests, Dependabot's under a heading of their own. A second run on the same tag replaces the draft's packages.
 4. Read the draft under **Releases**, and publish it by hand.
