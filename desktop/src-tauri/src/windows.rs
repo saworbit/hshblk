@@ -13,8 +13,8 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::documents::Documents;
 use crate::memory::{Geometry, Memory};
-use crate::watch::Watchers;
-use crate::{Fragments, MenuChannels, RecentMenu};
+use crate::window_state::WindowStates;
+use crate::RecentMenu;
 
 /// What the open dialog offers. A dropped or double-clicked file of any kind is still tried, but
 /// one whose bytes are plainly not text is refused (#206).
@@ -112,7 +112,8 @@ pub fn show(app: &AppHandle, path: &Path, fragment: Option<String>) -> Result<()
             opened(app, &document.path);
         }
         if let Some(fragment) = fragment {
-            app.state::<Fragments>().send(window.label(), fragment);
+            app.state::<WindowStates>()
+                .send_fragment(window.label(), fragment);
         }
         return Ok(());
     }
@@ -135,7 +136,7 @@ pub fn show(app: &AppHandle, path: &Path, fragment: Option<String>) -> Result<()
     build(app, &label, &document.name, size, place);
     // The page takes it once it watches for one, whether that is before this or after.
     if let (Some(fragment), Some(_)) = (fragment, app.get_webview_window(&label)) {
-        app.state::<Fragments>().send(&label, fragment);
+        app.state::<WindowStates>().send_fragment(&label, fragment);
     }
     retitle(app);
     if let Some(window) = waiting {
@@ -489,9 +490,8 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
             window.state::<Documents>().close(handle);
             retitle(window.app_handle());
         }
-        window.state::<MenuChannels>().forget(window.label());
-        window.state::<Fragments>().forget(window.label());
-        window.state::<Watchers>().forget(window.label());
+        // Its menu line, a fragment for its page, and its file's watch, all at once (#299).
+        window.state::<WindowStates>().forget(window.label());
         if let Some(memory) = window.try_state::<Memory>() {
             memory.save();
         }

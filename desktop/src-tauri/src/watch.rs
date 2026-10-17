@@ -7,14 +7,13 @@
 //! only to the second can hide a save of the same length, so while it is that new the file is
 //! read again each look, and the window told only when its text differs (#310).
 
-use std::collections::HashMap;
-use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
 
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
 
 use crate::documents::{Documents, Stamp};
+use crate::window_state::WindowStates;
 use crate::windows;
 
 /// How often the open files are looked at.
@@ -25,33 +24,22 @@ pub const EVERY: Duration = Duration::from_millis(500);
 pub const CHANGED: &str = "changed";
 
 /// A watched window: its line to the page, the file's stamp last acted on, and whether the file
-/// was last seen gone, so each change and each going is said once.
-struct Watched {
+/// was last seen gone, so each change and each going is said once. Its window's state holds it,
+/// and it goes with the window (#299).
+pub struct Watched {
     channel: Channel<String>,
     stamp: Stamp,
     gone: bool,
 }
 
-/// Each document window that watches its file, by label.
-#[derive(Default)]
-pub struct Watchers(Mutex<HashMap<String, Watched>>);
-
-impl Watchers {
-    /// Starts watching for a window, from the stamp its document was read with.
-    pub fn watch(&self, label: &str, channel: Channel<String>, stamp: Stamp) {
-        let watched = Watched {
-            channel,
-            stamp,
-            gone: false,
-        };
-        let mut watchers = self.0.lock().expect("watchers lock");
-        watchers.insert(label.to_owned(), watched);
-    }
-
-    /// A closed window's watch goes with it.
-    pub fn forget(&self, label: &str) {
-        self.0.lock().expect("watchers lock").remove(label);
-    }
+/// Starts watching for a window, from the stamp its document was read with.
+pub fn watch(states: &WindowStates, label: &str, channel: Channel<String>, stamp: Stamp) {
+    let watched = Watched {
+        channel,
+        stamp,
+        gone: false,
+    };
+    states.with(label, |state| state.watched = Some(watched));
 }
 
 /// What a look at a file finds.
@@ -98,43 +86,47 @@ fn unsure(stamp: Stamp, now: SystemTime) -> bool {
 /// One whose stamp is unsure is read again too, and its window told only if its text differs.
 pub fn look(app: &AppHandle) {
     let documents = app.state::<Documents>();
-    let watchers = app.state::<Watchers>();
     let now = SystemTime::now();
     // The files are read after the lock goes, so a new window's watch never waits on a read.
     let mut changed = Vec::new();
-    {
-        let mut watchers = watchers.0.lock().expect("watchers lock");
-        for (label, watched) in watchers.iter_mut() {
-            let Some(document) = windows::handle_of(label).and_then(|handle| documents.get(handle))
-            else {
-                continue;
-            };
-            match seen(watched.stamp, watched.gone, Stamp::of(&document.path)) {
-                Seen::Same if !watched.gone && unsure(watched.stamp, now) => {
-                    let name = document.name.clone();
-                    changed.push((label.clone(), watched.channel.clone(), name, Some(document)));
-                }
-                Seen::Same => {}
-                Seen::Gone => {
-                    watched.gone = true;
-                    say(
-                        &watched.channel,
-                        format!("{} was moved or deleted.", document.name),
-                    );
-                }
-                Seen::Changed(stamp) => {
-                    watched.stamp = stamp;
-                    watched.gone = false;
-                    changed.push((
-                        label.clone(),
-                        watched.channel.clone(),
-                        document.name.clone(),
-                        None,
-                    ));
-                }
+    app.state::<WindowStates>().each(|label, state| {
+        let Some(watched) = state.watched.as_mut() else {
+            return;
+        };
+        let Some(document) = windows::handle_of(label).and_then(|handle| documents.get(handle))
+        else {
+            return;
+        };
+        match seen(watched.stamp, watched.gone, Stamp::of(&document.path)) {
+            Seen::Same if !watched.gone && unsure(watched.stamp, now) => {
+                let name = document.name.clone();
+                changed.push((
+                    label.to_owned(),
+                    watched.channel.clone(),
+                    name,
+                    Some(document),
+                ));
+            }
+            Seen::Same => {}
+            Seen::Gone => {
+                watched.gone = true;
+                say(
+                    &watched.channel,
+                    format!("{} was moved or deleted.", document.name),
+                );
+            }
+            Seen::Changed(stamp) => {
+                watched.stamp = stamp;
+                watched.gone = false;
+                changed.push((
+                    label.to_owned(),
+                    watched.channel.clone(),
+                    document.name.clone(),
+                    None,
+                ));
             }
         }
-    }
+    });
     for (label, channel, name, unsure) in changed {
         let Some(handle) = windows::handle_of(&label) else {
             continue;
