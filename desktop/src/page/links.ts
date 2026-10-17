@@ -11,7 +11,14 @@ import { type Command, EditorView, type Rect, showTooltip, type Tooltip } from "
 import type { SyntaxNode, Tree } from "@lezer/common";
 import { filePath, isLocal } from "./assets.ts";
 import { finishParse } from "./complete.ts";
-import { autolinkHref, destination, headingAt, type Definitions } from "./references.ts";
+import {
+  autolinkHref,
+  bareHref,
+  destination,
+  headingAt,
+  isBareAddress,
+  type Definitions,
+} from "./references.ts";
 import { htmlAt } from "./widgets.ts";
 
 /** A link's words in the source, the whole link as written, and where it points. */
@@ -22,9 +29,15 @@ export type LinkSpan = {
   href: string;
 };
 
-/** A Link or Autolink node's words and address. Null for a reference with no definition. */
+/**
+ * A Link, Autolink, or bare address's words and address. Null for a reference with no definition.
+ */
 export function linkSpan(doc: Text, definitions: Definitions, node: SyntaxNode): LinkSpan | null {
   const source = { from: node.from, to: node.to };
+  if (node.name === "URL") {
+    const href = bareHref(doc.sliceString(node.from, node.to));
+    return { from: node.from, to: node.to, source, href };
+  }
   if (node.name === "Autolink") {
     const url = node.getChild("URL");
     if (!url) return null;
@@ -56,7 +69,7 @@ export function linkAt(
   for (let node: SyntaxNode | null = tree.resolveInner(from, 1); node; node = node.parent) {
     if (node.name === "Table" || node.name === "Image") {
       found = undefined;
-    } else if (node.name === "Link" || node.name === "Autolink") {
+    } else if (node.name === "Link" || node.name === "Autolink" || isBareAddress(node)) {
       if (node.from <= from && to <= node.to) found = linkSpan(doc, definitions, node) ?? found;
     }
   }
@@ -123,7 +136,9 @@ export function destinationOf(state: EditorState, href: string): Destination {
 export function printedAddress(href: string, words: string): string | null {
   if (!opens(href)) return null;
   const address = href.replace(/^mailto:/i, "");
-  return words.trim() === address || words.trim() === href ? null : address;
+  const shown = words.trim();
+  // A bare `www.` address took `http://` (#201), and its words are still its address.
+  return shown === address || shown === href || `http://${shown}` === href ? null : address;
 }
 
 /** A find match: its text, and where it starts in the document. */

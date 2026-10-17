@@ -151,6 +151,18 @@ export const pageTheme = EditorView.theme({
   // After the code block's padding, so code in a nested quote clears its rules.
   ...quotes,
   ".pg-fence": { color: "var(--muted)" },
+  // #215: with its fences folded, a block's first and last lines take the room they gave, and
+  // its language is a quiet label at its top right, which the first line's words wrap around.
+  ".pg-code-first": { paddingTop: "0.5em" },
+  ".pg-code-last": { paddingBottom: "0.5em" },
+  ".pg-code-first[data-language]::before": {
+    content: "attr(data-language)",
+    float: "inline-end",
+    marginInlineStart: "1em",
+    fontSize: "0.8em",
+    color: "var(--muted)",
+    userSelect: "none",
+  },
   // #217: a code block that names its language, its tokens in the page's own colours.
   ".pg-tok-keyword": { color: "var(--important)" },
   ".pg-tok-string": { color: "var(--tip)" },

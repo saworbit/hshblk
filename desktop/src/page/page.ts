@@ -26,7 +26,14 @@ import { highlightCode, loadParser, parserFor } from "./code.ts";
 import { emojiOf } from "./emoji.ts";
 import { inlinesOf, plainText } from "./inlines.ts";
 import { addressTooltip, linkAt, linkSpan, printedAddress } from "./links.ts";
-import { destination, headings, titleOf, type Definitions } from "./references.ts";
+import {
+  addressOf,
+  destination,
+  headings,
+  isBareAddress,
+  titleOf,
+  type Definitions,
+} from "./references.ts";
 import {
   type Alert,
   AlertWidget,
@@ -548,6 +555,10 @@ class Painter {
       case "Autolink":
         this.#link(node);
         return false;
+      case "URL":
+        // #201: a bare address, as GFM links it. A link's own URL is drawn by the link.
+        if (isBareAddress(node)) this.#link(node);
+        return false;
       case "Escape":
         this.#hide(fold, node.from, node.from + 1);
         return false;
@@ -623,10 +634,7 @@ class Painter {
       case "FencedCode":
         this.#lines(node.from, node.to, "pg-code-block");
         this.#highlight(node);
-        this.#lines(node.from, node.from, "pg-fence");
-        if (node.lastChild?.name === "CodeMark" && node.lastChild.from > node.from) {
-          this.#lines(node.lastChild.from, node.lastChild.from, "pg-fence");
-        }
+        this.#fences(node);
         this.#quoteMarks(node);
         return false;
       case "CodeBlock":
@@ -715,6 +723,39 @@ class Painter {
     highlightCode(parser, this.#slice(text), from, to, (start, end, classes) =>
       this.#style(Decoration.mark({ class: classes }), text.from + start, text.from + end),
     );
+  }
+
+  /**
+   * #215: a fenced block's fences fold away, as other syntax does, until the keys or find reach
+   * one, when it shows muted. Meanwhile the block's first and last lines take the room the fences
+   * gave, and the info string's first word, its language, is a quiet label at its top right. A
+   * block with nothing between its fences keeps its first as an empty line.
+   */
+  #fences(block: SyntaxNode): void {
+    const open = this.doc.lineAt(block.from);
+    const mark = block.lastChild;
+    const close =
+      mark?.name === "CodeMark" && mark.from > open.to ? this.doc.lineAt(mark.from) : null;
+    const opening = { from: open.from, to: open.to };
+    const closing = close && { from: close.from, to: close.to };
+    for (const fence of [opening, closing]) {
+      if (fence) this.#lines(fence.from, fence.from, "pg-fence");
+    }
+    const text = block.getChild("CodeText");
+    const first = text ? this.doc.lineAt(text.from) : open;
+    const last = text ? this.doc.lineAt(text.to) : open;
+    const info = block.getChild("CodeInfo");
+    const language = info && this.#slice(info).split(/\s/)[0];
+    const attributes = language ? { "data-language": language } : undefined;
+    // Only the lines asked for are drawn, as a block can run past them.
+    const drawn = (pos: number) => this.from <= pos && pos <= this.to;
+    if (drawn(open.from)) this.#hide(opening, open.from, open.to);
+    if (text) this.#foldLine(opening, open.from, "pg-collapsed");
+    this.#foldLine(opening, first.from, "pg-code-first", attributes);
+    if (!closing) return;
+    if (drawn(close.from)) this.#hide(closing, close.from, close.to);
+    this.#foldLine(closing, close.from, "pg-collapsed");
+    this.#foldLine(closing, last.from, "pg-code-last");
   }
 
   /** A quote's mark, and the space after it, hidden while the selection is off its line. */
@@ -864,7 +905,7 @@ class Painter {
    * base64 held the window for seconds. Copy still takes it all.
    */
   #cutAddress(image: SyntaxNode): void {
-    const url = image.getChild("URL");
+    const url = addressOf(this.doc, image);
     if (!url || url.to - url.from <= ADDRESS_LIMIT) return;
     const line = this.doc.lineAt(url.from);
     const from = url.from + ADDRESS_KEPT;
@@ -924,8 +965,10 @@ class Painter {
     }
   }
 
-  #foldLine(fold: Fold, pos: number, className: string): void {
-    this.#folds.push(Decoration.line({ class: className, fold }).range(this.doc.lineAt(pos).from));
+  #foldLine(fold: Fold, pos: number, className: string, attributes?: Record<string, string>) {
+    if (pos < this.from || pos > this.to) return;
+    const line = Decoration.line({ class: className, attributes, fold });
+    this.#folds.push(line.range(this.doc.lineAt(pos).from));
   }
 
   #spaceAfter(pos: number, limit: number, most = Infinity): number {
