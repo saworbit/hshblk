@@ -72,19 +72,25 @@ export async function attach(target) {
   const socket = new WebSocket(target.webSocketDebuggerUrl);
   await once(socket, "open");
   const answers = new Map();
+  const listeners = new Set();
   socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(data);
+    if (message.id === undefined) {
+      for (const listen of listeners) listen(message);
+      return;
+    }
     answers.get(message.id)?.(message);
     answers.delete(message.id);
   });
   let id = 0;
-  const send = (method, params = {}) =>
+  /** Sends a method, to the page or to the session of a target attached through it. */
+  const send = (method, params = {}, sessionId = undefined) =>
     new Promise((answer, fail) => {
       id += 1;
       answers.set(id, (message) =>
         message.error ? fail(new Error(JSON.stringify(message.error))) : answer(message.result),
       );
-      socket.send(JSON.stringify({ id, method, params }));
+      socket.send(JSON.stringify({ id, method, params, sessionId }));
     });
   /** Runs a function in the page. It is sent as source, so it may not close over anything. */
   const run = async (fn) => {
@@ -98,6 +104,8 @@ export async function attach(target) {
     send,
     run,
     until: (fn, seconds) => poll(() => run(fn), String(fn), seconds),
+    /** Calls `listen` with each event the session sends, its targets' among them. */
+    on: (listen) => listeners.add(listen),
     close: () => socket.close(),
   };
 }

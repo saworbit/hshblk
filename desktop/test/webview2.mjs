@@ -199,6 +199,10 @@ describe("Diagrams", { timeout: 300_000 }, () => {
   // diagram frame too, so only here does mermaid need the worker build's rewrite (#221).
   let folder;
   let page;
+  /** What each frame in a process of its own logged, failed to load, or threw. */
+  const said = [];
+  /** A failure's message: what the frames said, which tells why one did not start. */
+  const why = () => `The frames said:\n${said.slice(-20).join("\n") || "nothing"}`;
 
   before(async () => {
     folder = mkdtempSync(join(tmpdir(), "hshblk-diagrams-"));
@@ -208,6 +212,29 @@ describe("Diagrams", { timeout: 300_000 }, () => {
       "# Diagrams\n\n```mermaid\nflowchart LR\n  A --> B\n```\n\n<div>\n<b>Raw</b>\n</div>\n",
     );
     page = await open(file, join(folder, "profile"));
+    // The frame mermaid draws in is a target of its own. A log that is on when it attaches gives
+    // what it logged before. Mermaid's styles, which the frame's policy refuses, are left out.
+    page.on(({ method, params, sessionId }) => {
+      if (method === "Target.attachedToTarget") {
+        for (const domain of ["Log.enable", "Network.enable", "Runtime.enable"]) {
+          page.send(domain, {}, params.sessionId).catch(() => {});
+        }
+      } else if (!sessionId) {
+        return;
+      } else if (method === "Log.entryAdded" && !params.entry.text.includes("inline style")) {
+        said.push(`${params.entry.level}: ${params.entry.text} ${params.entry.url ?? ""}`);
+      } else if (method === "Network.loadingFailed") {
+        said.push(`failed: ${params.errorText} ${params.blockedReason ?? ""}`);
+      } else if (method === "Runtime.exceptionThrown") {
+        const { exception, text } = params.exceptionDetails;
+        said.push(`threw: ${exception?.description ?? text}`);
+      }
+    });
+    await page.send("Target.setAutoAttach", {
+      autoAttach: true,
+      waitForDebuggerOnStart: false,
+      flatten: true,
+    });
     await page.until(() => !!document.querySelector(".pg-diagram"), START);
   });
   after(async () => {
@@ -240,7 +267,7 @@ describe("Diagrams", { timeout: 300_000 }, () => {
     // #351: WebView2 failed the frame's script request in most launches, so the block said the
     // frame did not start. Mermaid takes a while to load, so this waits longer than `until`.
     const seen = await page.until(drawn, 60);
-    assert.match(seen.src ?? seen.error, /^data:image\/svg\+xml/);
+    assert.match(seen.src ?? seen.error, /^data:image\/svg\+xml/, `${seen.error}\n${why()}`);
   });
 
   test("Rust answers no command from the diagram frame or a raw HTML block's frame", async () => {
@@ -269,7 +296,7 @@ describe("Diagrams", { timeout: 300_000 }, () => {
   test("draws the diagram again when the system switches between light and dark", async () => {
     // #347: each diagram kept the theme it was first drawn in.
     const first = await page.until(drawn, 60);
-    assert.match(first.src ?? first.error, /^data:image\/svg\+xml/);
+    assert.match(first.src ?? first.error, /^data:image\/svg\+xml/, `${first.error}\n${why()}`);
     // The image's address is long, so the page keeps it, and each wait says only what it saw.
     const dark = await page.run(() => {
       window.firstDiagram = document.querySelector(".pg-diagram-image").src;
