@@ -24,7 +24,8 @@ export type Inline =
   | { kind: "image"; reference: string; alt: string; title?: string; size?: ImageSize }
   | { kind: "note"; label: string; number: number; words: string }
   | { kind: "styled"; tag: "kbd" | "sub" | "sup" | "mark"; children: Inline[] }
-  | { kind: "break" };
+  | { kind: "break" }
+  | { kind: "math"; tex: string; display: boolean };
 
 /** Each footnote a reference uses, by its label in lower case: its number and its words. */
 export type Notes = ReadonlyMap<string, { number: number; text: string }>;
@@ -72,9 +73,11 @@ export function plainText(inlines: Inline[]): string {
           ? String(inline.number)
           : inline.kind === "break"
             ? " "
-            : "text" in inline
-              ? inline.text
-              : plainText(inline.children),
+            : inline.kind === "math"
+              ? inline.tex
+              : "text" in inline
+                ? inline.text
+                : plainText(inline.children),
     )
     .join("")
     .replace(/\s+/g, " ")
@@ -159,6 +162,9 @@ function inline(doc: Text, definitions: Definitions, notes: Notes, node: SyntaxN
       // #201: a bare address is a link. One in a link's words is text.
       if (!isBareAddress(node)) return [text(source)];
       return [{ kind: "link", href: bareHref(source), children: [text(source)] }];
+    case "InlineMath":
+    case "DisplayMath":
+      return [{ kind: "math", tex: mathTex(doc, node), display: node.name === "DisplayMath" }];
     case "Escape":
       return [text(source.slice(1))];
     case "Emoji":
@@ -173,6 +179,16 @@ function inline(doc: Text, definitions: Definitions, notes: Notes, node: SyntaxN
     default:
       return MARKS.has(node.name) ? [] : [text(source)];
   }
+}
+
+/** A formula's TeX, between its marks (#220). Its lines in a quote lose the quote's marks. */
+export function mathTex(doc: Text, node: SyntaxNode): string {
+  const [open, close] = node.getChildren("MathMark");
+  const tex = doc.sliceString(open.to, close.from);
+  for (let up = node.parent; up; up = up.parent) {
+    if (up.name === "Blockquote") return tex.replace(/\n[ \t]*(?:>[ \t]?)+/g, "\n");
+  }
+  return tex;
 }
 
 /** An element of inline HTML the page draws (#200), as the construct it stands for. */

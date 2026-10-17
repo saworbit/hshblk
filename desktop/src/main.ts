@@ -15,6 +15,7 @@ import readme from "../../README.md?raw";
 import { closeKeys, keyList, keyRows, keysPanel, toggleKeys } from "./keys.ts";
 import { element } from "./page/dom.ts";
 import { loadEmoji, SHORTCODE } from "./page/emoji.ts";
+import { loadMaths, MATHS } from "./page/maths.ts";
 
 type Opened = { name: string; modified: number | null; readOnlyReason: string | null };
 
@@ -63,8 +64,9 @@ if (handle) {
       new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes),
     ),
   ]);
-  // The emoji names load only for a text that may hold a shortcode, before the page draws it.
-  if (SHORTCODE.test(text)) await loadEmoji();
+  // The emoji names load only for a text that may hold a shortcode, and KaTeX only for one that
+  // may hold maths (#220), before the page draws it.
+  await loadFor(text);
   // docs/hld.md §8, item 3, from here to the engine's first-contentful-paint: the page's share.
   performance.mark("document-opened");
   document.title = opened.name;
@@ -135,7 +137,7 @@ if (handle) {
     void Promise.all([invoke<Opened>("open_document"), invoke<ArrayBuffer>("document_text")])
       .then(async ([again, bytes]) => {
         const next = new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes);
-        if (SHORTCODE.test(next)) await loadEmoji();
+        await loadFor(next);
         takeText(view, next);
         restate(status, again);
         status.querySelector(".status-said")?.remove();
@@ -176,6 +178,16 @@ if (handle) {
       run();
     }
   });
+}
+
+/**
+ * What a text needs before the page draws it: the emoji names, and KaTeX. Either failing leaves
+ * its constructs as written, so the page still draws.
+ */
+async function loadFor(text: string): Promise<void> {
+  const loads = [SHORTCODE.test(text) && loadEmoji(), MATHS.test(text) && loadMaths()];
+  const failed = (await Promise.allSettled(loads)).filter((load) => load.status === "rejected");
+  for (const { reason } of failed) console.warn(`The page drew without a part: ${reason}`);
 }
 
 function statusLine(opened: Opened): HTMLElement {

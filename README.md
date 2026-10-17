@@ -47,7 +47,8 @@ So what does it do, if it will not let you type? Plenty.
 - A click opens nothing, so the page never jumps under the pointer. There is [a whole document](docs/gates/click-target.md) proving it, 26 clicks long, which tells you something about me.
 - A task list shows its boxes where the bullets were. A click, or Enter in its text, ticks one on the page and never in the file. All the joy of ticking things off, none of the commitment.
 - A GitHub alert, such as `> [!WARNING]`, shows its name, icon, and colour, so a warning looks properly worried.
-- A code block that names its language, such as `ts` or `diff`, has its tokens coloured.
+- A code block that names its language, such as `ts` or `diff`, has its tokens coloured, and its fences fold away like the rest of the syntax.
+- Maths draws, `$x^2$` in a line or `$$...$$` as a block, while `$5 and $10` stay prices. My accountant was relieved.
 - Footnotes, emoji shortcodes, and markdown in a `<div align="center">` draw as GitHub draws them. Yes, people still centre things with a div. I am one of those people.
 
 **Links and images that stay home.**

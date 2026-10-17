@@ -43,6 +43,7 @@ import {
   BreakWidget,
   HtmlWidget,
   ImageWidget,
+  MathWidget,
   NoteMarkWidget,
   NoteReferenceWidget,
   SummaryWidget,
@@ -680,6 +681,44 @@ describe("the page", () => {
     const tooltips = inLink.facet(showTooltip).filter(Boolean);
     assert.equal(tooltips.length, 1);
     assert.equal(tooltips[0]?.pos, doc.indexOf("<img"));
+  });
+
+  it("draws maths in a line, as a block, and from a fenced block of math, as GitHub does", () => {
+    // #220: maths showed as its TeX, and a `\,` in it read as a markdown escape.
+    const doc =
+      "Inline $E = mc^2$ and $\\int_0^1 x\\,dx$, with *a_1* emphasis.\n\n" +
+      "It costs $5 and $10.\n\nA dollar: \\$x$ and `$code$`.\n\n" +
+      "$$\n\\sum_i a_i * b_i\n$$\n\n```math\n\\frac{1}{2}\n```\n\n| a |\n|---|\n| $x^2$ |\n\n" +
+      "> ```math\n> y\n> ```";
+    const state = open(doc);
+    const formulas: [string, boolean][] = [];
+    let model: TableModel | undefined;
+    for (const set of [styles(state), shown(state)]) {
+      set.between(0, doc.length, (_from, _to, decoration) => {
+        const { widget } = decoration.spec;
+        if (widget instanceof MathWidget) formulas.push([widget.tex, widget.display]);
+        if (widget instanceof TableWidget) model = widget.table;
+      });
+    }
+    // Markdown in a formula is TeX, so its `*` and `_` are no emphasis, and its `\,` no escape.
+    assert.deepEqual(formulas, [
+      ["E = mc^2", false],
+      ["\\int_0^1 x\\,dx", false],
+      ["\n\\sum_i a_i * b_i\n", true],
+      ["\\frac{1}{2}", true],
+    ]);
+    const lines = visible(state).split("\n");
+    assert.equal(lines[0], "Inline  and , with a_1 emphasis.");
+    // Prices, an escaped dollar, and code are not maths. A fenced block in a quote stays code.
+    assert.equal(lines[2], "It costs $5 and $10.");
+    assert.equal(lines[4], "A dollar: $x$ and $code$.");
+    assert.deepEqual(model?.rows[0][0], [{ kind: "math", tex: "x^2", display: false }]);
+    assert.match(visible(state), /\ny\n$/);
+    // The keys in a formula show its TeX, and in a block of maths its source.
+    const keyed = visible(select(state, doc.indexOf("mc^2"))).split("\n")[0];
+    assert.ok(keyed.startsWith("Inline $E = mc^2$ and "), keyed);
+    const block = select(state, doc.indexOf("frac"));
+    assert.match(visible(block), /```math\n\\frac\{1\}\{2\}\n```/);
   });
 
   it("folds a fenced block's fences away until the keys reach one, and labels its language", () => {
