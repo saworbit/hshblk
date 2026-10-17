@@ -107,6 +107,9 @@ const FIND: &str = "find";
 /// What a recent file's item in File > Open Recent is named by, before its place in the list.
 const RECENT_ITEM: &str = "recent-";
 
+/// Open Recent's Clear Menu, at its foot (#302).
+const CLEAR_RECENT: &str = "clear-recent";
+
 /// macOS's menu bar: Tauri's own, which holds Edit's Copy and Select All, with Open at the top of
 /// File, then Open Recent (#288), Print at its foot, and Find at the foot of Edit (#182). Their
 /// keys are the menu's there, so the page stands down for them. Linux and Windows get no menu
@@ -144,7 +147,7 @@ fn file_menu(app: &AppHandle) -> tauri::Result<(Menu<Wry>, Submenu<Wry>)> {
 }
 
 /// #288: File > Open Recent on macOS: the files the welcome window lists, and the paths its items
-/// stand for, which stay in Rust.
+/// stand for, which stay in Rust. Clear Menu at its foot forgets them (#302).
 pub struct RecentMenu {
     submenu: Submenu<Wry>,
     files: Mutex<Vec<PathBuf>>,
@@ -175,6 +178,17 @@ impl RecentMenu {
             let item = MenuItem::with_id(app, id, name, true, None::<&str>)?;
             self.submenu.append(&item)?;
         }
+        if !files.is_empty() {
+            self.submenu.append(&PredefinedMenuItem::separator(app)?)?;
+        }
+        let clear = MenuItem::with_id(
+            app,
+            CLEAR_RECENT,
+            "Clear Menu",
+            !files.is_empty(),
+            None::<&str>,
+        )?;
+        self.submenu.append(&clear)?;
         self.submenu.set_enabled(!files.is_empty())?;
         *self.files.lock().expect("recent menu lock") = files;
         Ok(())
@@ -226,6 +240,10 @@ fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
             if let Some(window) = front {
                 app.state::<MenuChannels>().send(window.label(), action);
             }
+        }
+        CLEAR_RECENT => {
+            windows::memory(app).clear_recent();
+            RecentMenu::refresh(app);
         }
         id => {
             let file = app.try_state::<RecentMenu>().and_then(|menu| menu.file(id));

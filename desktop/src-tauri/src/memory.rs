@@ -100,6 +100,14 @@ impl Memory {
             .collect()
     }
 
+    /// Forgets the recent files, and the tokens that named them, and keeps that (#302). The
+    /// window's size and place stay.
+    pub fn clear_recent(&self) {
+        self.kept.lock().expect("memory lock").recent.clear();
+        self.tokens.lock().expect("tokens lock").clear();
+        self.save();
+    }
+
     /// The recent file a token names, if it names one.
     pub fn take(&self, token: &str) -> Option<PathBuf> {
         self.tokens.lock().expect("tokens lock").get(token).cloned()
@@ -193,6 +201,33 @@ mod tests {
             let saved = Memory::load(Some(data.clone())).kept.into_inner().unwrap();
             assert_eq!(saved.recent, kept, "round {round}");
         }
+    }
+
+    #[test]
+    fn forgets_the_recent_files_and_keeps_them_forgotten() {
+        // #302: File > Open Recent's Clear Menu, which empties the welcome window's list too.
+        let folder = tempfile::tempdir().unwrap();
+        let file = folder.path().join("notes.md");
+        fs::write(&file, "x").unwrap();
+        let data = Some(folder.path().join("data"));
+        let memory = Memory::load(data.clone());
+        let geometry = Geometry {
+            width: 800.0,
+            height: 600.0,
+            x: 10.0,
+            y: 20.0,
+        };
+        memory.moved(geometry);
+        memory.opened(&file);
+        let listed = memory.recent(|| "t1".to_owned());
+        assert_eq!(listed.len(), 1);
+        memory.clear_recent();
+        assert!(memory.files().is_empty());
+        assert_eq!(memory.take("t1"), None);
+        let again = Memory::load(data);
+        assert!(again.files().is_empty());
+        // The window's place is not a recent file, and stays.
+        assert_eq!(again.window(), Some(geometry));
     }
 
     #[test]
