@@ -92,17 +92,18 @@ function textRuns(pdf) {
 
 // Each step has a limit, so a page that stops answering fails the run rather than holding it.
 describe("WebView2", { timeout: 300_000 }, () => {
-  const folder = mkdtempSync(join(tmpdir(), "hshblk-webview2-"));
-  const file = join(folder, "webview2.md");
-  const profile = join(folder, "profile");
-  writeFileSync(
-    file,
-    "# WebView2\n\nA paragraph.\n\n---\n\n> outer\n>\n> > inner\n\n```\ncode\n```\n",
-  );
+  let folder;
   let page;
 
   before(async () => {
-    page = await open(file, profile);
+    // Made here, not as the suite is read, so a run that leaves the suite out leaves no folder.
+    folder = mkdtempSync(join(tmpdir(), "hshblk-webview2-"));
+    const file = join(folder, "webview2.md");
+    writeFileSync(
+      file,
+      "# WebView2\n\nA paragraph.\n\n---\n\n> outer\n>\n> > inner\n\n```\ncode\n```\n",
+    );
+    page = await open(file, join(folder, "profile"));
     const drawn = () => document.querySelector(".pg-h1") && document.querySelector(".status");
     await page.until(drawn, START);
   });
@@ -190,17 +191,18 @@ describe("WebView2", { timeout: 300_000 }, () => {
 describe("A link to a heading in another file", { timeout: 300_000 }, () => {
   // #301: #285 sends a link's fragment to the window of the file it names, through
   // `watch_fragments`. Its parts had tests of their own, but nothing drove the two windows.
-  const folder = mkdtempSync(join(tmpdir(), "hshblk-fragment-"));
-  const profile = join(folder, "profile");
-  const first = join(folder, "a.md");
-  writeFileSync(first, "[Install](b.md#install)\n\n[Nowhere](b.md#nothing-here)\n");
-  const filler = Array.from({ length: 300 }, (_, n) => `Line ${n + 1}.`).join("\n\n");
-  writeFileSync(join(folder, "b.md"), `# B\n\n${filler}\n\n## Install\n\nSteps.\n\n${filler}\n`);
+  let folder;
   let a;
   let b;
 
   before(async () => {
-    a = await open(first, profile);
+    // As above: a run that leaves the suite out leaves no folder.
+    folder = mkdtempSync(join(tmpdir(), "hshblk-fragment-"));
+    const first = join(folder, "a.md");
+    writeFileSync(first, "[Install](b.md#install)\n\n[Nowhere](b.md#nothing-here)\n");
+    const filler = Array.from({ length: 300 }, (_, n) => `Line ${n + 1}.`).join("\n\n");
+    writeFileSync(join(folder, "b.md"), `# B\n\n${filler}\n\n## Install\n\nSteps.\n\n${filler}\n`);
+    a = await open(first, join(folder, "profile"));
     await a.until(() => document.querySelectorAll(".pg-link").length === 2, START);
   });
   after(async () => {
