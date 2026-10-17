@@ -12,11 +12,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git xz-utils python3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Node 24, as .nvmrc names it, from nodejs.org, checked against its published sums.
+# Node 24, as .nvmrc names it, from nodejs.org, checked against its published sums. Node and
+# rustup are the machine's own build, x86-64 or ARM64, so Apple silicon runs the image natively
+# (#330). Ubuntu builds the packages above for both.
 RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) node=x64 ;; \
+      arm64) node=arm64 ;; \
+      *) echo "Node and rustup are fetched for amd64 and arm64 only." >&2; exit 1 ;; \
+    esac; \
     cd /tmp; \
     curl -fsSLO https://nodejs.org/dist/latest-v24.x/SHASUMS256.txt; \
-    name="$(grep -o 'node-v24[^ ]*-linux-x64.tar.xz' SHASUMS256.txt)"; \
+    name="$(grep -o "node-v24[^ ]*-linux-$node.tar.xz" SHASUMS256.txt)"; \
     curl -fsSLO "https://nodejs.org/dist/latest-v24.x/$name"; \
     grep " $name\$" SHASUMS256.txt | sha256sum -c -; \
     tar -xJf "$name" -C /usr/local --strip-components=1; \
@@ -26,7 +33,11 @@ RUN set -eux; \
 # Rust stable, through rustup, for every user, and the driver the workflow installs.
 ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo PATH=/usr/local/cargo/bin:$PATH
 RUN set -eux; \
-    curl -fsSL -o /tmp/rustup-init https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) host=x86_64-unknown-linux-gnu ;; \
+      arm64) host=aarch64-unknown-linux-gnu ;; \
+    esac; \
+    curl -fsSL -o /tmp/rustup-init "https://static.rust-lang.org/rustup/dist/$host/rustup-init"; \
     chmod +x /tmp/rustup-init; \
     /tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain stable; \
     rm /tmp/rustup-init; \

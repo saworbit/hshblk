@@ -1,7 +1,9 @@
 # Presses a key in a Hash Block window as Windows delivers one, for test/webview2.mjs: posted to
-# the window WebView2 draws the page in, by process, so it reaches no other app and needs no
-# focus. The DevTools protocol's keys never reach WebView2's own shortcuts, F5 among them (#270).
-# Ctrl is held through the thread's keyboard state, which the posted keys are read with.
+# the window WebView2 draws the page in, by process, so it reaches no other app. WebView2 drops a
+# key posted while its page has no focus, so the test gives it focus first (#329). The DevTools
+# protocol's keys never reach WebView2's own shortcuts, F5 among them (#270). Ctrl is held
+# through the thread's keyboard state, which the posted keys are read with. It prints the window
+# and thread it posted to, whether that window was in front, and whether each step took.
 #
 #   powershell -File test/keys.ps1 -ProcessId <pid> -Key F5 [-Control]
 param(
@@ -47,35 +49,43 @@ public static class Keys {
     return found;
   }
 
-  public static void Press(IntPtr hwnd, uint key, bool control) {
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+  [DllImport("user32.dll")] static extern short GetKeyState(int key);
+
+  public static string Press(IntPtr hwnd, uint key, bool control) {
     uint none;
     uint thread = GetWindowThreadProcessId(hwnd, out none);
     uint me = GetCurrentThreadId();
     byte[] state = new byte[256];
+    var said = new List<string>();
+    said.Add(String.Format("window 0x{0:x} on thread {1}", hwnd.ToInt64(), thread));
+    said.Add("in front " + (GetForegroundWindow() == GetAncestor(hwnd, 2)));
     if (control) {
-      AttachThreadInput(me, thread, true);
+      said.Add("attached " + AttachThreadInput(me, thread, true));
       GetKeyboardState(state);
       state[0x11] |= 0x80;
       state[0xA2] |= 0x80;
-      SetKeyboardState(state);
-      Post(hwnd, 0x0100, 0x11, false);
+      said.Add("Ctrl set " + SetKeyboardState(state));
+      said.Add("Ctrl down " + (GetKeyState(0x11) < 0));
+      said.Add("posted " + Post(hwnd, 0x0100, 0x11, false));
     }
-    Post(hwnd, 0x0100, key, false);
-    Post(hwnd, 0x0101, key, true);
+    said.Add("posted " + Post(hwnd, 0x0100, key, false) + " " + Post(hwnd, 0x0101, key, true));
     if (control) {
-      Post(hwnd, 0x0101, 0x11, true);
+      said.Add("posted " + Post(hwnd, 0x0101, 0x11, true));
       System.Threading.Thread.Sleep(300);
       state[0x11] &= 0x7F;
       state[0xA2] &= 0x7F;
       SetKeyboardState(state);
       AttachThreadInput(me, thread, false);
     }
+    return String.Join(", ", said);
   }
 
-  static void Post(IntPtr hwnd, uint message, uint key, bool up) {
+  static bool Post(IntPtr hwnd, uint message, uint key, bool up) {
     long scan = MapVirtualKey(key, 0);
     long l = 1 | (scan << 16) | (up ? (3L << 30) : 0);
-    PostMessage(hwnd, message, (IntPtr)key, (IntPtr)l);
+    return PostMessage(hwnd, message, (IntPtr)key, (IntPtr)l);
   }
 }
 "@
