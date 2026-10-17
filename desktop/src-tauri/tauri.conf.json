@@ -17,7 +17,7 @@
         "default-src": "'none'",
         "script-src": "'self'",
         "style-src": "'self'",
-        "img-src": "doc-asset: http://doc-asset.localhost",
+        "img-src": "doc-asset: http://doc-asset.localhost data:",
         "font-src": "'self'",
         "connect-src": "ipc: http://ipc.localhost",
         "frame-src": "'none'",

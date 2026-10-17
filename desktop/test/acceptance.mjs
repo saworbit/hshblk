@@ -117,13 +117,13 @@ const fenced = true;
 |:-----|------:|
 | a    | b     |
 
-![near](near.png) ![spaced](near%20by.png) ![far](../images/far.png) ![root](/images/far.png) ![outside](../../outside.png) ![leaving](leave.png) ![remote](https://example.com/remote.png) <img src="x" alt="inline" onerror="window.ran = 'inline'">
+![near](near.png) ![spaced](near%20by.png) ![far](../images/far.png) ![root](/images/far.png) ![outside](../../outside.png) ![leaving](leave.png) ![remote](https://example.com/remote.png) ![embedded](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==) ![tiff](data:image/tiff;base64,AAAA) <img src="x" alt="inline" onerror="window.ran = 'inline'">
 
 <script>window.ran = "block";</script>
 
 <div onclick="window.ran = 'click'">Raw <b>HTML</b> block</div>
 
-<p style="background: url(near.png)"><img src="near.png" alt="framed"> <img src="doc-asset://localhost/near.png" alt="asset"> <img src="https://example.com/remote.png" alt="remote"> <img src="../../outside.png" alt="outside"> <img srcset="near.png 1x" alt="srcset"> <link rel="stylesheet" href="near.css"> <iframe src="https://example.com/"></iframe> <svg width="8" height="8"><image href="doc-asset://localhost/svg.png"/><image xlink:href="doc-asset://localhost/xlink.png"/></svg> <input type="image" src="doc-asset://localhost/input.png" alt="input"> <video poster="doc-asset://localhost/poster.png"></video></p>
+<p style="background: url(near.png)"><img src="near.png" alt="framed"> <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" alt="embedded"> <img src="doc-asset://localhost/near.png" alt="asset"> <img src="https://example.com/remote.png" alt="remote"> <img src="../../outside.png" alt="outside"> <img srcset="near.png 1x" alt="srcset"> <link rel="stylesheet" href="near.css"> <iframe src="https://example.com/"></iframe> <svg width="8" height="8"><image href="doc-asset://localhost/svg.png"/><image xlink:href="doc-asset://localhost/xlink.png"/></svg> <input type="image" src="doc-asset://localhost/input.png" alt="input"> <video poster="doc-asset://localhost/poster.png"></video></p>
 <table background="doc-asset://localhost/table.png"><tr><td>Table</td></tr></table>
 <meta http-equiv="refresh" content="0; url=https://example.com/">
 
@@ -484,7 +484,7 @@ describe("one open document", () => {
 
   before(async () => {
     page = await launch(app, [file]);
-    shown = await page.until(settled, 8);
+    shown = await page.until(settled, 10);
   });
   after(async () => {
     await page?.close();
@@ -527,12 +527,15 @@ describe("one open document", () => {
       { alt: "spaced", width: 1 },
       { alt: "far", width: 1 },
       { alt: "root", width: 1 },
+      // #205: an image embedded in the file, of a type the channel serves, fetches nothing.
+      { alt: "embedded", width: 1 },
     ]);
     // #231: each chip says why, the channel's reason asked of Rust.
     assert.deepEqual(shown.missing, [
       "Outside the repository · outside",
       "Outside the repository · leaving",
       "Remote images do not load · remote",
+      "Not an image this app shows · tiff",
       // #200: the page draws an inline <img> itself, from its src, so its onerror never runs.
       "Not found · inline",
     ]);
@@ -635,10 +638,10 @@ describe("one open document", () => {
       // The refresh and the frame in the HTML went nowhere.
       assert.equal(frame.url, "about:srcdoc");
       // Resource timing misses the app's own schemes, which the channel's log covers. The
-      // policy is checked as well: images from the channel, and nothing else.
+      // policy is checked as well: images from the channel, and embedded ones (#205).
       assert.match(
         frame.policy,
-        /^default-src 'none'; img-src doc-asset: http:\/\/doc-asset\.localhost;/,
+        /^default-src 'none'; img-src doc-asset: http:\/\/doc-asset\.localhost data:;/,
       );
       assert.equal(frame.loads, 0);
       assert.deepEqual(frame.backgrounds, []);
@@ -647,7 +650,10 @@ describe("one open document", () => {
     // doc-asset address, a srcset, and the CSS background do not. Those left with nothing to load
     // are the page's chips of their words, not the engine's broken image (#170), and so is the one
     // the channel refused (#267).
-    assert.deepEqual(fetching.images, [["framed", 1]]);
+    assert.deepEqual(fetching.images, [
+      ["framed", 1],
+      ["embedded", 1],
+    ]);
     assert.deepEqual(fetching.chips, ["asset", "remote", "outside", "srcset"]);
     assert.equal(await page.run(() => window.ran ?? null), null);
     assert.equal(await page.run(() => document.querySelectorAll(".cm-content script").length), 0);
