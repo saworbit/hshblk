@@ -278,26 +278,43 @@ export class DiagramWidget extends WidgetType {
     const source = box.appendChild(element("span", "pg-diagram-source", this.source));
     const frame = view.state.facet(diagramFrame);
     if (!frame) return box;
-    const dark = matchMedia("(prefers-color-scheme: dark)").matches;
-    void drawDiagram(frame, this.source, dark).then((diagram) => {
-      if ("error" in diagram) {
-        box.append(element("span", "pg-diagram-error", `Diagram not drawn: ${diagram.error}`));
-        return;
-      }
-      const image = document.createElement("img");
-      image.className = "pg-diagram-image";
-      image.alt = "Diagram";
-      image.width = diagram.width;
-      image.src = diagram.url;
-      source.replaceWith(image);
-    });
+    // Drawn again in the other theme when the system switches between light and dark (#347).
+    const scheme = matchMedia("(prefers-color-scheme: dark)");
+    const draw = () => {
+      const dark = scheme.matches;
+      void drawDiagram(frame, this.source, dark).then((diagram) => {
+        // It switched back before this one was drawn, so the other one shows.
+        if (scheme.matches !== dark) return;
+        if ("error" in diagram) {
+          const why = `Diagram not drawn: ${diagram.error}`;
+          box.replaceChildren(source, element("span", "pg-diagram-error", why));
+          return;
+        }
+        const image = document.createElement("img");
+        image.className = "pg-diagram-image";
+        image.alt = "Diagram";
+        image.width = diagram.width;
+        image.src = diagram.url;
+        box.replaceChildren(image);
+      });
+    };
+    draw();
+    scheme.addEventListener("change", draw);
+    following.set(box, () => scheme.removeEventListener("change", draw));
     return box;
+  }
+
+  destroy(dom: HTMLElement): void {
+    following.get(dom)?.();
   }
 
   ignoreEvent(): boolean {
     return false;
   }
 }
+
+/** How each diagram on the page stops following the system's light and dark, by its box. */
+const following = new WeakMap<HTMLElement, () => void>();
 
 /** A formula, or its TeX while KaTeX has not loaded. */
 function mathNode(tex: string, display: boolean): HTMLElement {
