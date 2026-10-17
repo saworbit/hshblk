@@ -243,7 +243,9 @@ const stale = StateField.define<{ query: SearchQuery; head: number; from: number
     const { main } = tr.state.selection;
     if (query) {
       const long = tr.state.doc.length > COUNT_TEXT_LIMIT;
-      return query.valid && long && !main.empty ? { query, head: main.head, from: main.from } : null;
+      return query.valid && long && !main.empty
+        ? { query, head: main.head, from: main.from }
+        : null;
     }
     return tr.selection || tr.docChanged ? null : value;
   },

@@ -58,6 +58,8 @@ describe("a code block that names its language", () => {
     // In a quote, its lines carry the quote's marks, so it stays one colour.
     await loadParser("python");
     assert.deepEqual(tokens(open("> ```python\n> def f(): pass\n> ```")), []);
-    assert.ok(tokens(open("```Python {.numbered}\ndef f(): pass\n```")).includes("def pg-tok-keyword"));
+    assert.ok(
+      tokens(open("```Python {.numbered}\ndef f(): pass\n```")).includes("def pg-tok-keyword"),
+    );
   });
 });
