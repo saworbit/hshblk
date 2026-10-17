@@ -1,7 +1,7 @@
-//! #299: what Rust keeps for each document window, by its label, in one map: its page's line
-//! from the menu bar (#182), a place a link in another window sends it to (#285), and the watch
-//! on its file (#199). A window that closes takes all of it with one `forget`, so a part added
-//! later cannot outlive its window.
+//! #299: what Rust keeps for each window, by its label, in one map: its page's line from the menu
+//! bar (#182), a place a link in another window sends it to (#285), the watch on its file (#199),
+//! and the welcome window's line for the recent files (#326). A window that closes takes all of
+//! it with one `forget`, so a part added later cannot outlive its window.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -19,6 +19,8 @@ pub struct WindowState {
     fragment: Option<Fragment>,
     /// The watch on the window's file, which `watch::look` reads.
     pub watched: Option<Watched>,
+    /// The welcome window's line for word that the recent files changed.
+    recent: Option<Channel<String>>,
 }
 
 /// A new window's page has no channel until it asks, so a fragment sent before then waits. Only
@@ -28,7 +30,7 @@ enum Fragment {
     Watched(Channel<String>),
 }
 
-/// Each document window's state, by label.
+/// Each window's state, by label.
 #[derive(Default)]
 pub struct WindowStates(Mutex<HashMap<String, WindowState>>);
 
@@ -37,6 +39,15 @@ impl WindowStates {
     pub fn with<R>(&self, label: &str, f: impl FnOnce(&mut WindowState) -> R) -> R {
         let mut states = self.0.lock().expect("window states lock");
         f(states.entry(label.to_owned()).or_default())
+    }
+
+    /// Runs `f` on the window's state, if it has one. A window that closed gets none back.
+    pub fn existing<R>(&self, label: &str, f: impl FnOnce(&mut WindowState) -> R) -> Option<R> {
+        self.0
+            .lock()
+            .expect("window states lock")
+            .get_mut(label)
+            .map(f)
     }
 
     /// Runs `f` on each window's state.
@@ -77,6 +88,22 @@ impl WindowStates {
                 return;
             }
             state.fragment = Some(Fragment::Waiting(fragment));
+        });
+    }
+
+    /// Keeps the welcome window's line for word that the recent files changed.
+    pub fn watch_recent(&self, label: &str, channel: Channel<String>) {
+        self.with(label, |state| state.recent = Some(channel));
+    }
+
+    /// Tells each window that lists the recent files to list them again, as after Clear Menu.
+    pub fn recent_changed(&self) {
+        self.each(|_, state| {
+            if let Some(channel) = &state.recent {
+                if let Err(error) = channel.send("changed".to_owned()) {
+                    eprintln!("A window could not be told the recent files changed: {error}");
+                }
+            }
         });
     }
 
@@ -137,6 +164,27 @@ mod tests {
         states.forget("doc-1");
         states.send_fragment("doc-1", "#later".into());
         assert_eq!(seen.lock().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn tells_each_window_that_lists_the_recent_files_when_they_change() {
+        // #326: Clear Menu emptied the recent files, and an open welcome window kept listing them.
+        let states = WindowStates::default();
+        let (first, told) = kept();
+        let (second, also) = kept();
+        states.watch_recent("empty-0", first);
+        states.watch_recent("empty-1", second);
+        let (menu, menu_told) = kept();
+        states.watch_menu("doc-1", menu);
+        states.recent_changed();
+        assert_eq!(*told.lock().unwrap(), [r#""changed""#]);
+        assert_eq!(*also.lock().unwrap(), [r#""changed""#]);
+        assert!(menu_told.lock().unwrap().is_empty());
+        // A welcome window that closed is told nothing more.
+        states.forget("empty-0");
+        states.recent_changed();
+        assert_eq!(told.lock().unwrap().len(), 1);
+        assert_eq!(also.lock().unwrap().len(), 2);
     }
 
     #[test]

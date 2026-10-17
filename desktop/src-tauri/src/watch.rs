@@ -82,64 +82,85 @@ fn unsure(stamp: Stamp, now: SystemTime) -> bool {
             .map_or(true, |age| age < UNSURE)
 }
 
+/// A watch as a look found it: its window, and a copy of what the window's state held, so the
+/// file is looked at after the lock goes (#327).
+struct Look {
+    label: String,
+    channel: Channel<String>,
+    stamp: Stamp,
+    gone: bool,
+}
+
+/// Each window's watch, copied under the lock and no longer.
+fn watches(states: &WindowStates) -> Vec<Look> {
+    let mut looks = Vec::new();
+    states.each(|label, state| {
+        if let Some(watched) = &state.watched {
+            looks.push(Look {
+                label: label.to_owned(),
+                channel: watched.channel.clone(),
+                stamp: watched.stamp,
+                gone: watched.gone,
+            });
+        }
+    });
+    looks
+}
+
+/// Keeps what a look found, if its window still watches down the channel the look copied, and
+/// says whether it did. A page that watched again meanwhile started from the text it read then,
+/// and a window that closed meanwhile is not made again.
+fn keep(states: &WindowStates, look: &Look, stamp: Stamp, gone: bool) -> bool {
+    states
+        .existing(&look.label, |state| match state.watched.as_mut() {
+            Some(watched) if watched.channel.id() == look.channel.id() => {
+                watched.stamp = stamp;
+                watched.gone = gone;
+                true
+            }
+            _ => false,
+        })
+        .unwrap_or(false)
+}
+
 /// Looks at each watched file once, reads again those that changed, and tells their windows.
 /// One whose stamp is unsure is read again too, and its window told only if its text differs.
 pub fn look(app: &AppHandle) {
     let documents = app.state::<Documents>();
+    let states = app.state::<WindowStates>();
     let now = SystemTime::now();
-    // The files are read after the lock goes, so a new window's watch never waits on a read.
-    let mut changed = Vec::new();
-    app.state::<WindowStates>().each(|label, state| {
-        let Some(watched) = state.watched.as_mut() else {
-            return;
-        };
-        let Some(document) = windows::handle_of(label).and_then(|handle| documents.get(handle))
-        else {
-            return;
-        };
-        match seen(watched.stamp, watched.gone, Stamp::of(&document.path)) {
-            Seen::Same if !watched.gone && unsure(watched.stamp, now) => {
-                let name = document.name.clone();
-                changed.push((
-                    label.to_owned(),
-                    watched.channel.clone(),
-                    name,
-                    Some(document),
-                ));
-            }
-            Seen::Same => {}
-            Seen::Gone => {
-                watched.gone = true;
-                say(
-                    &watched.channel,
-                    format!("{} was moved or deleted.", document.name),
-                );
-            }
-            Seen::Changed(stamp) => {
-                watched.stamp = stamp;
-                watched.gone = false;
-                changed.push((
-                    label.to_owned(),
-                    watched.channel.clone(),
-                    document.name.clone(),
-                    None,
-                ));
-            }
-        }
-    });
-    for (label, channel, name, unsure) in changed {
-        let Some(handle) = windows::handle_of(&label) else {
+    // The lock is held only to copy each watch and to keep what a look found. A file on a share
+    // that stops answering holds up this thread alone, not Find, Print, or a link (#327).
+    for look in watches(&states) {
+        let Some(handle) = windows::handle_of(&look.label) else {
             continue;
         };
-        match (documents.reload(handle), unsure) {
+        let Some(document) = documents.get(handle) else {
+            continue;
+        };
+        let name = &document.name;
+        // The text before, for a file that only has to be made sure of.
+        let before = match seen(look.stamp, look.gone, Stamp::of(&document.path)) {
+            Seen::Same if !look.gone && unsure(look.stamp, now) => Some(document.clone()),
+            Seen::Same => continue,
+            Seen::Gone => {
+                if keep(&states, &look, look.stamp, true) {
+                    say(&look.channel, format!("{name} was moved or deleted."));
+                }
+                continue;
+            }
+            Seen::Changed(stamp) if keep(&states, &look, stamp, false) => None,
+            Seen::Changed(_) => continue,
+        };
+        match (documents.reload(handle), before) {
             (Some(Ok(now)), Some(before))
                 if now.text == before.text && now.facts == before.facts => {}
-            (Some(Ok(_)), _) => say(&channel, CHANGED.to_owned()),
+            (Some(Ok(_)), _) => say(&look.channel, CHANGED.to_owned()),
             // A file that only had to be made sure of is looked at again; nothing is said yet.
             (Some(Err(error)), Some(_)) => {
-                eprintln!("A file could not be read again: {}", error.message(&name));
+                eprintln!("A file could not be read again: {}", error.message(name));
             }
-            (Some(Err(error)), None) => say(&channel, error.message(&name)),
+            (Some(Err(error)), None) => say(&look.channel, error.message(name)),
             (None, _) => {}
         }
     }
@@ -177,6 +198,38 @@ mod tests {
         assert_eq!(seen(at(1), true, None), Seen::Same);
         // Back where it was, with the same stamp, it is read again: it may not be the same file.
         assert_eq!(seen(at(1), true, Some(at(1))), Seen::Changed(at(1)));
+    }
+
+    #[test]
+    fn keeps_a_look_only_for_the_watch_it_copied() {
+        // #327: a look reads each file after the lock goes, and its window may watch again, or
+        // close, before the look keeps what it found.
+        let states = WindowStates::default();
+        let stamp = |len| Stamp {
+            len,
+            modified: None,
+        };
+        let channel = || Channel::<String>::new(|_| Ok(()));
+        for label in ["doc-1", "doc-2", "doc-3"] {
+            watch(&states, label, channel(), stamp(1));
+        }
+        let looks = watches(&states);
+        assert_eq!(looks.len(), 3);
+        // doc-2's page watches again, from the text it has just read, and doc-3 closes.
+        watch(&states, "doc-2", channel(), stamp(5));
+        states.forget("doc-3");
+        let mut kept: Vec<_> = looks
+            .iter()
+            .map(|look| (look.label.as_str(), keep(&states, look, stamp(9), false)))
+            .collect();
+        kept.sort();
+        assert_eq!(kept, [("doc-1", true), ("doc-2", false), ("doc-3", false)]);
+        let stamp_of =
+            |label| states.existing(label, |state| state.watched.as_ref().unwrap().stamp);
+        assert_eq!(stamp_of("doc-1"), Some(stamp(9)));
+        assert_eq!(stamp_of("doc-2"), Some(stamp(5)));
+        // A window that closed gets no state back.
+        assert_eq!(states.existing("doc-3", |_| ()), None);
     }
 
     #[test]

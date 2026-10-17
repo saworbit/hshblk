@@ -216,6 +216,15 @@ input:focus-visible {
 .welcome-file:hover {
   text-decoration: underline;
 }
+/* Why a recent file did not open (#326). Empty, it takes no room. */
+.welcome-said {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.8rem;
+}
+.welcome-said:not(:empty) {
+  margin-top: 1rem;
+}
 /* The keys, from the README's table (#239): on the welcome window, and in a panel below a page. */
 .welcome-keys {
   margin: 1.5rem auto 0;
