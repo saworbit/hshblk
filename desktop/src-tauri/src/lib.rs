@@ -4,6 +4,7 @@ mod assets;
 mod documents;
 mod memory;
 mod watch;
+mod window_state;
 mod windows;
 
 use std::path::{Path, PathBuf};
@@ -14,13 +15,13 @@ use tauri::menu::{Menu, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Manager, RunEvent, State, WebviewWindow, Wry};
 use tauri_plugin_dialog::DialogExt;
 
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use tauri::ipc::Channel;
 
 use documents::{Document, Documents};
 use memory::Memory;
+use window_state::WindowStates;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -238,7 +239,7 @@ fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         OPEN => pick(app, front.as_ref()),
         action @ (FIND | PRINT) => {
             if let Some(window) = front {
-                app.state::<MenuChannels>().send(window.label(), action);
+                app.state::<WindowStates>().menu(window.label(), action);
             }
         }
         CLEAR_RECENT => {
@@ -254,84 +255,20 @@ fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     }
 }
 
-/// Each document window's line from the menu bar. The page takes no events, so it hands Rust a
-/// channel for the items that are its to do.
-#[derive(Default)]
-pub struct MenuChannels(Mutex<HashMap<String, Channel<String>>>);
-
-impl MenuChannels {
-    fn send(&self, label: &str, action: &str) {
-        let channels = self.0.lock().expect("menu channels lock");
-        if let Some(channel) = channels.get(label) {
-            if let Err(error) = channel.send(action.to_owned()) {
-                eprintln!("The menu could not reach its window: {error}");
-            }
-        }
-    }
-
-    /// A closed window's channel goes with it.
-    pub fn forget(&self, label: &str) {
-        self.0.lock().expect("menu channels lock").remove(label);
-    }
-}
-
-/// #285: where a link in another window sends each window: the heading or the anchor its
-/// fragment names. A new window's page has no channel until it asks, so the fragment waits.
-#[derive(Default)]
-pub struct Fragments(Mutex<HashMap<String, Fragment>>);
-
-enum Fragment {
-    Waiting(String),
-    Watched(Channel<String>),
-}
-
-impl Fragments {
-    /// Sends the window's page to `fragment`, now if it watches for one, or else once it does.
-    pub fn send(&self, label: &str, fragment: String) {
-        let mut windows = self.0.lock().expect("fragments lock");
-        if let Some(Fragment::Watched(channel)) = windows.get(label) {
-            if let Err(error) = channel.send(fragment) {
-                eprintln!("A link could not reach its window: {error}");
-            }
-            return;
-        }
-        windows.insert(label.to_owned(), Fragment::Waiting(fragment));
-    }
-
-    fn watch(&self, label: &str, channel: Channel<String>) {
-        let mut windows = self.0.lock().expect("fragments lock");
-        if let Some(Fragment::Waiting(fragment)) = windows.remove(label) {
-            if let Err(error) = channel.send(fragment) {
-                eprintln!("A link could not reach its window: {error}");
-            }
-        }
-        windows.insert(label.to_owned(), Fragment::Watched(channel));
-    }
-
-    /// A closed window's line goes with it.
-    pub fn forget(&self, label: &str) {
-        self.0.lock().expect("fragments lock").remove(label);
-    }
-}
-
 /// The page's line from Rust for a link in another window that names a place in its file (#285).
 #[tauri::command]
 fn watch_fragments(
     window: WebviewWindow,
     channel: Channel<String>,
-    fragments: State<'_, Fragments>,
+    states: State<'_, WindowStates>,
 ) {
-    fragments.watch(window.label(), channel);
+    states.watch_fragments(window.label(), channel);
 }
 
 /// The page's line from the menu bar, for Find and Print on macOS.
 #[tauri::command]
-fn watch_menu(window: WebviewWindow, channel: Channel<String>, menus: State<'_, MenuChannels>) {
-    menus
-        .0
-        .lock()
-        .expect("menu channels lock")
-        .insert(window.label().to_owned(), channel);
+fn watch_menu(window: WebviewWindow, channel: Channel<String>, states: State<'_, WindowStates>) {
+    states.watch_menu(window.label(), channel);
 }
 
 /// The page's line from Rust for its file's new text (#199). Rust looks at the file twice a second
@@ -340,11 +277,11 @@ fn watch_menu(window: WebviewWindow, channel: Channel<String>, menus: State<'_, 
 fn watch_document(
     window: WebviewWindow,
     documents: State<'_, Documents>,
-    watchers: State<'_, watch::Watchers>,
+    states: State<'_, WindowStates>,
     channel: Channel<String>,
 ) -> Result<(), String> {
     let document = own_document(&window, &documents)?;
-    watchers.watch(window.label(), channel, document.stamp);
+    watch::watch(&states, window.label(), channel, document.stamp);
     Ok(())
 }
 
@@ -505,9 +442,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(Documents::default())
-        .manage(MenuChannels::default())
-        .manage(Fragments::default())
-        .manage(watch::Watchers::default())
+        .manage(WindowStates::default())
         .register_uri_scheme_protocol(assets::SCHEME, |ctx, request| {
             let window = ctx.webview_label();
             let documents = ctx.app_handle().state::<Documents>();
@@ -605,30 +540,6 @@ mod tests {
         assert_eq!(recent_file(&paths, "recent-1"), Some(paths[1].clone()));
         assert_eq!(recent_file(&paths, "recent-3"), None);
         assert_eq!(recent_file(&paths, "open"), None);
-    }
-
-    #[test]
-    fn sends_a_window_where_a_link_named_now_or_once_its_page_watches() {
-        // #285: a link to a heading in another file opened that file at its top.
-        let seen = Arc::new(Mutex::new(Vec::new()));
-        let into = seen.clone();
-        let channel = Channel::<String>::new(move |body| {
-            if let tauri::ipc::InvokeResponseBody::Json(json) = body {
-                into.lock().unwrap().push(json);
-            }
-            Ok(())
-        });
-        let fragments = Fragments::default();
-        // A new window's page has not asked yet, so the fragment waits for it.
-        fragments.send("doc-1", "#install".into());
-        fragments.watch("doc-1", channel);
-        // An open window's page takes it at once.
-        fragments.send("doc-1", "#usage".into());
-        assert_eq!(*seen.lock().unwrap(), [r##""#install""##, r##""#usage""##]);
-        // A closed window's line goes with it.
-        fragments.forget("doc-1");
-        fragments.send("doc-1", "#later".into());
-        assert_eq!(seen.lock().unwrap().len(), 2);
     }
 
     #[test]
