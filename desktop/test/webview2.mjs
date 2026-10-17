@@ -3,7 +3,8 @@
  * print's header and footer (#245), and a contrast theme (#233). The Linux suite can only fire
  * synthetic events at these and read the page's rules. Here each is the engine's own behaviour,
  * and each test fails with its fix taken out (#270). A link to a heading in another file is
- * here too, since the Linux suite drives one window a launch and it takes two (#301).
+ * here too, since the Linux suite drives one window a launch and it takes two (#301). So is a
+ * mermaid diagram, whose frame only WebView2 gives Tauri's scripts (#348).
  *
  *   node test/webview2.mjs <app>
  *
@@ -187,6 +188,114 @@ describe("WebView2", { timeout: 300_000 }, () => {
         };
       });
       assert.deepEqual(drawn, { rule: true, quote: true, code: "3px" });
+    } finally {
+      await page.send("Emulation.setEmulatedMedia", { features: [] });
+    }
+  });
+});
+
+describe("Diagrams", { timeout: 300_000 }, () => {
+  // #348: only here does WebView2 put Tauri's scripts, the prototype freeze among them, in the
+  // diagram frame too, so only here does mermaid need the worker build's rewrite (#221).
+  let folder;
+  let page;
+
+  before(async () => {
+    folder = mkdtempSync(join(tmpdir(), "hshblk-diagrams-"));
+    const file = join(folder, "diagrams.md");
+    writeFileSync(
+      file,
+      "# Diagrams\n\n```mermaid\nflowchart LR\n  A --> B\n```\n\n<div>\n<b>Raw</b>\n</div>\n",
+    );
+    page = await open(file, join(folder, "profile"));
+    await page.until(() => !!document.querySelector(".pg-diagram"), START);
+  });
+  after(async () => {
+    if (!page) return;
+    await page.close();
+    rmSync(folder, { recursive: true, force: true, maxRetries: 10 });
+  });
+
+  /** The diagram's image address once it is drawn, or why it was not. */
+  const drawn = () => {
+    const error = document.querySelector(".pg-diagram-error")?.textContent;
+    if (error) return { error };
+    const image = document.querySelector(".pg-diagram-image");
+    return image?.complete && image.naturalWidth ? { src: image.src } : null;
+  };
+
+  /** What a command sent from `from` gets in three seconds: an answer, a refusal, or nothing. */
+  const ask = async (from) => {
+    const internals = from.__TAURI_INTERNALS__;
+    if (!internals) return "no IPC";
+    const late = new Promise((resolve) => setTimeout(() => resolve("no answer"), 3000));
+    const sent = internals.invoke("recent_files").then(
+      () => "answered",
+      () => "refused",
+    );
+    return Promise.race([sent, late]);
+  };
+
+  test("draws a mermaid block's diagram", async () => {
+    // #351: WebView2 failed the frame's script request in most launches, so the block said the
+    // frame did not start. Mermaid takes a while to load, so this waits longer than `until`.
+    const seen = await page.until(drawn, 60);
+    assert.match(seen.src ?? seen.error, /^data:image\/svg\+xml/);
+  });
+
+  test("Rust answers no command from the diagram frame or a raw HTML block's frame", async () => {
+    // WebView2 puts `__TAURI_INTERNALS__` in every frame. The page's command is answered, which
+    // shows the question works.
+    assert.equal(await page.run(`() => (${ask})(window)`), "answered");
+    const [target] = await poll(async () => {
+      const frames = await page.frames();
+      return frames.length ? frames : null;
+    }, "the diagram frame's target");
+    const frame = await attach(target);
+    try {
+      assert.notEqual(await frame.run(`() => (${ask})(window)`), "answered");
+    } finally {
+      frame.close();
+    }
+    // A raw HTML block's frame shares the page's origin, so the page can reach its window.
+    await page.until(() => {
+      const html = document.querySelector("iframe.pg-html");
+      return html?.contentDocument?.readyState === "complete";
+    });
+    const raw = `() => (${ask})(document.querySelector("iframe.pg-html").contentWindow)`;
+    assert.notEqual(await page.run(raw), "answered");
+  });
+
+  test("draws the diagram again when the system switches between light and dark", async () => {
+    // #347: each diagram kept the theme it was first drawn in.
+    const first = await page.until(drawn, 60);
+    assert.match(first.src ?? first.error, /^data:image\/svg\+xml/);
+    // The image's address is long, so the page keeps it, and each wait says only what it saw.
+    const dark = await page.run(() => {
+      window.firstDiagram = document.querySelector(".pg-diagram-image").src;
+      return matchMedia("(prefers-color-scheme: dark)").matches;
+    });
+    const scheme = (value) =>
+      page.send("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-color-scheme", value }],
+      });
+    const compared = `() => {
+      const seen = (${drawn})();
+      return seen && { error: seen.error ?? null, svg: !!seen.src?.startsWith("data:image/svg+xml"),
+        first: seen.src === window.firstDiagram };
+    }`;
+    try {
+      await scheme(dark ? "light" : "dark");
+      const other = await page.until(
+        `() => { const seen = (${compared})(); return seen?.first ? null : seen; }`,
+        60,
+      );
+      assert.deepEqual(other, { error: null, svg: true, first: false });
+      await scheme(dark ? "dark" : "light");
+      const back = await page.until(
+        `() => { const seen = (${compared})(); return seen?.first ? seen : null; }`,
+      );
+      assert.deepEqual(back, { error: null, svg: true, first: true });
     } finally {
       await page.send("Emulation.setEmulatedMedia", { features: [] });
     }

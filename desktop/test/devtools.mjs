@@ -163,6 +163,8 @@ export async function launch(app, file, profile) {
     pid: child.pid,
     /** Each window's page target, this one's among them. */
     pages: async () => (await list(port)).filter((each) => each.type === "page"),
+    /** Each frame in a process of its own, such as the one mermaid draws in. */
+    frames: async () => (await list(port)).filter((each) => each.type === "iframe"),
     async close() {
       page.close();
       child.kill();
