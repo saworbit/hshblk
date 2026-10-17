@@ -57,7 +57,8 @@ So what does it do, if it will not let you type? Plenty.
 - A link shows its words, and its address shows under it.
 - A link to another file in the repository opens it in a window of its own. A link that does not open says why, instead of leaving you to guess.
 - Print puts a web or mail link's address after its words, since paper still has no hover.
-- Images load from inside the file's repository and nowhere else, and one that does not show says why.
+- Images load from inside the file's repository and nowhere else, and one that does not show says why. An image embedded in the file as `data:` shows too, since it never left home.
+- A bare address, like `https://example.com` or `www.example.com`, is a link, because nobody wraps them in angle brackets. Least of all me.
 
 **HTML on a short leash.**
 

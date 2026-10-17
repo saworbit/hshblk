@@ -109,6 +109,7 @@ Known risk, not a rejection: CodeMirror, Lezer, and ProseMirror share one primar
 │                                                                     │
 │  render policy: CSP in section 6, navigation denied                 │
 │                 HTML blocks in a sandboxed frame, inline tags styled│
+│                 diagrams by mermaid, in a frame of no origin        │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -223,7 +224,7 @@ CSP:
 - `img-src`: `doc-asset:` and the `http://doc-asset.localhost` form Tauri serves custom schemes as on Windows, and `data:`, for an image embedded in the document. Its bytes are already there, so it fetches nothing, and to the decoder it is an image beside the document. The page takes one only of the types the channel serves, up to 20 MB. A raw HTML block's frame takes the same.
 - `font-src`: the bundle.
 - `connect-src`: Tauri IPC only, `ipc:` and `http://ipc.localhost`.
-- `frame-src 'none'`. A raw HTML block's frame is a `srcdoc` document, which loads no URL, so `'none'` still keeps every frame from loading or navigating to one.
+- `frame-src 'none'`. A raw HTML block's frame, and the one mermaid draws in, are `srcdoc` documents, which load no URL, so `'none'` still keeps every frame from loading or navigating to one.
 - Navigation: the webview's navigation handler denies every origin but the app's own, and `about:srcdoc`, the document of a raw HTML block's frame.
 
 Document-supplied script never runs. "Script blocked" was wrong, because CodeMirror is script.
