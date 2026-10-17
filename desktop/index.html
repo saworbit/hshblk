@@ -6,6 +6,8 @@
     <title>Hash Block</title>
     <!-- Tauri swaps this token for a fresh nonce and adds it to style-src. CodeMirror styles with it. -->
     <meta name="style-nonce" content="__TAURI_STYLE_NONCE__" />
+    <!-- And this one to script-src. Only the diagram frame's script, which the page writes, has it. -->
+    <meta name="script-nonce" content="__TAURI_SCRIPT_NONCE__" />
   </head>
   <body>
     <main id="page"></main>
