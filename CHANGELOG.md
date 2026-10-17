@@ -222,3 +222,4 @@
 - Desktop: a mermaid block draws under `npm run tauri dev`. The dev server builds the diagram frame's script as a build does, one classic script with the same rewrite. (#349)
 - CI: the WebView2 suite draws a diagram, the one place the frame needs the bundle's rewrite, draws it again in the other theme, and checks that Rust answers no command from the diagram frame or a raw HTML block's frame. (#348)
 - Docs: desktop.md no longer says a DevTools client holds the diagram frame. It was the frame failing to start. hld.md's `script-src` line names the nonce the frame's script runs under.
+- Desktop: on macOS the Open dialog offers every file, a README with no extension among them. It offered markdown alone, since the dialog there folds its filters into one list. On Linux, GTK's dialog still reads All files as `*.*`, which waits on rfd. (#268)
