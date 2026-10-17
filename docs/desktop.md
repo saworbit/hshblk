@@ -146,7 +146,7 @@ Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) opens pull re
 3. CodeMirror holds the text, read-only. [`src/page/`](../desktop/src/page) draws section 7's dialect as decorations over the source, inline syntax only near the viewport. The rest of the document is parsed in the background after the first paint, so a definition at the end can name a link at the top.
 4. An image asks the `doc-asset` scheme for the handle and the file its destination names, so `screen%20shot.png` asks for `screen shot.png`. Rust checks that the handle is the window's own, resolves the file inside the scope, symlinks first, and serves it only if its bytes are an image ([`assets.rs`](../desktop/src-tauri/src/assets.rs)).
 5. A link leaves through `open_url`, which takes `http`, `https`, and `mailto` and nothing else. A link to a file asks `open_link` for the file its destination names, decoded as an image's is. Rust finds it from the window's own document, inside the scope, and opens it in a window of its own. A fragment goes beside it, and that window goes to the heading or anchor it names, through the channel its page gave `watch_fragments`.
-6. Rust looks at the file twice a second ([`watch.rs`](../desktop/src-tauri/src/watch.rs)). When its size or time changes, it reads it again behind the same handle and tells the window down the channel the page gave `watch_document`. The page asks for the text again and changes only the lines that differ.
+6. Rust looks at the file twice a second ([`watch.rs`](../desktop/src-tauri/src/watch.rs)). When its size or time changes, it reads it again behind the same handle and tells the window down the channel the page gave `watch_document`. A time kept only to the second, as FAT and HFS+ keep it, can hide a save of the same length, so while such a time is under three seconds old it reads the file each look and tells the window only when the text differs. The page asks for the text again and changes only the lines that differ.
 
 ## File layout
 
@@ -165,6 +165,7 @@ Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) opens pull re
 | `desktop/src/surface.ts` | The CodeMirror surface, with editing turned off. |
 | `desktop/src/keys.ts` | The keys, read from the README's key table, for the panel `F1` opens and the welcome window. |
 | `desktop/src/page/` | The page: the dialect, its decorations, links, images, tables, footnotes, emoji, code highlighting, the frontmatter panel, the outline, find's count, the text size, each line's direction, the whole-document parse, and the theme. |
+| `desktop/test/` | The tests that drive the built app: acceptance, the gates, the double-click, WebView2's cases and timing over DevTools through `devtools.mjs`, and in `docker/` the image that runs the Linux suites from any machine. |
 | `desktop/scripts/` | What CI runs: the unit tests' runner, which fails when no test file matches, the licence check, and the check that a release tag names the version. |
 
 ## Tests
@@ -173,7 +174,7 @@ Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) opens pull re
 |---|---|
 | `npm test` | The page's decorations and keys, in Node. |
 | `npm run typecheck`, `npm run lint` | The page's TypeScript, strict, and ESLint on the scripts and tests, which no type checker reads. |
-| `cargo test`, in `src-tauri/` | Files, scopes, handles, and the resource channel. |
+| `cargo test`, in `src-tauri/` | Files, scopes, handles, the resource channel, what the app keeps between runs, the watch on each file, and each window's state. |
 | `node test/acceptance.mjs <app>` | [hld.md](hld.md) §8, items 1, 2, 4, 5, and 6, through the built app. |
 | `node test/gate/click-target.mjs <app>` | The click-target gate, §9. |
 | `test/double-click.sh` | §8, item 7, on Linux, with the package installed. |
