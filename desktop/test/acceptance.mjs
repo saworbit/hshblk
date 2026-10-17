@@ -1955,7 +1955,7 @@ describe("what GitHub draws besides markdown", () => {
   const file = join(folder, "github.md");
   writeFileSync(
     file,
-    '<div align="center">\n\n# Centred :rocket:\n\n</div>\n\nA note.[^1]\n\n[^1]: Its words.\n',
+    '<div align="center">\n\n# Centred :rocket:\n\n</div>\n\nA note.[^1] Maths: $x^2$.\n\n[^1]: Its words.\n',
   );
   let page;
 
@@ -1968,16 +1968,23 @@ describe("what GitHub draws besides markdown", () => {
     await gone();
   });
 
-  test("centres a div's markdown, draws a shortcode's emoji, and numbers a footnote", async () => {
-    // #222: the emoji names are a chunk of their own, which must load under the page's policy.
+  test("centres a div's markdown, draws a shortcode's emoji and maths, and numbers a footnote", async () => {
+    // #222 and #220: the emoji names, and KaTeX with its stylesheet and fonts, are chunks of
+    // their own, which must load under the page's policy.
     const seen = await page.until(() => {
       const heading = document.querySelector(".pg-h1");
-      if (!heading?.textContent.includes("🚀")) return null;
+      const maths = document.querySelector(".pg-math .katex");
+      const font = [...document.fonts].some(
+        (face) => face.family.includes("KaTeX") && face.status === "loaded",
+      );
+      if (!heading?.textContent.includes("🚀") || !maths || !font) return null;
       return {
         heading: heading.textContent,
         align: getComputedStyle(heading).textAlign,
         reference: document.querySelector(".pg-note-reference")?.textContent,
         note: document.querySelector(".pg-note")?.textContent,
+        tex: maths.querySelector("annotation")?.textContent,
+        styled: getComputedStyle(maths).fontFamily.includes("KaTeX"),
       };
     });
     assert.deepEqual(seen, {
@@ -1985,6 +1992,8 @@ describe("what GitHub draws besides markdown", () => {
       align: "center",
       reference: "1",
       note: "1.Its words.↩",
+      tex: "x^2",
+      styled: true,
     });
   });
 });

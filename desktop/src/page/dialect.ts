@@ -60,6 +60,46 @@ const Shortcode: MarkdownConfig = {
   ],
 };
 
+/**
+ * #220: maths, as GitHub and Pandoc read it. `$...$` in a line, whose opening `$` has no space
+ * after it, and whose closing one has none before it and no digit after, so `$5 and $10` stay
+ * prices. `$$...$$` may run over the lines of its paragraph. A backslash escapes the character
+ * after it, so `\$` is a dollar sign in the formula, and markdown inside it is TeX, not syntax.
+ */
+const Maths: MarkdownConfig = {
+  defineNodes: [{ name: "InlineMath" }, { name: "DisplayMath" }, { name: "MathMark" }],
+  parseInline: [
+    {
+      name: "Maths",
+      parse(cx, next, pos) {
+        if (next !== 36) return -1;
+        const display = cx.char(pos + 1) === 36;
+        const start = pos + (display ? 2 : 1);
+        if (!display && (start >= cx.end || /\s/.test(cx.slice(start, start + 1)))) return -1;
+        for (let at = start; at < cx.end; at++) {
+          const char = cx.char(at);
+          if (char === 92) {
+            at++;
+          } else if (char === 10 && !display) {
+            return -1;
+          } else if (char === 36 && display && cx.char(at + 1) === 36) {
+            if (at === start) return -1;
+            const marks = [cx.elt("MathMark", pos, start), cx.elt("MathMark", at, at + 2)];
+            return cx.addElement(cx.elt("DisplayMath", pos, at + 2, marks));
+          } else if (char === 36 && !display) {
+            // The first `$` after the opening one closes it, or there is no formula.
+            if (/\s/.test(cx.slice(at - 1, at)) || /\d/.test(cx.slice(at + 1, at + 2))) return -1;
+            const marks = [cx.elt("MathMark", pos, start), cx.elt("MathMark", at, at + 1)];
+            return cx.addElement(cx.elt("InlineMath", pos, at + 1, marks));
+          }
+        }
+        return -1;
+      },
+      before: "Escape",
+    },
+  ],
+};
+
 /** A footnote's opening, `[^label]:`, the spaces after it, and its label. */
 export const FOOTNOTE = /^\[\^([^\]\s]+)\]:[ \t]*/;
 
@@ -103,7 +143,8 @@ const Footnotes: MarkdownConfig = {
 
 /**
  * docs/hld.md §7: CommonMark, GFM tables, strikethrough by `~` or `~~`, task lists, bare web and
- * mail addresses (#201), GitHub's footnotes, and its emoji shortcodes. Anything else is source.
+ * mail addresses (#201), maths (#220), GitHub's footnotes, and its emoji shortcodes. Anything
+ * else is source.
  */
 export const dialect = parser.configure([
   Table,
@@ -111,6 +152,7 @@ export const dialect = parser.configure([
   SingleTilde,
   TaskList,
   Autolink,
+  Maths,
   Footnotes,
   Shortcode,
 ]);

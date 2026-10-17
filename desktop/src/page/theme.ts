@@ -122,6 +122,20 @@ export const pageTheme = EditorView.theme({
     color: "inherit",
     backgroundColor: "color-mix(in oklab, var(--warning) 30%, transparent)",
   },
+  // #220: a formula in a line, and one as a block, centred, which scrolls when it is too wide.
+  // As a block of the line's width, not a block, so the line holds no empty line around it. Its
+  // TeX is code while KaTeX has not loaded. KaTeX colours an error through a style attribute,
+  // which the page's policy refuses, so the page colours it.
+  ".pg-math-display": {
+    display: "inline-block",
+    width: "100%",
+    textAlign: "center",
+    overflowX: "auto",
+    verticalAlign: "top",
+  },
+  ".pg-math-source": { fontFamily: "var(--mono)", fontSize: "0.86em" },
+  ".pg-math .katex-error": { color: "var(--caution)", cursor: "help" },
+  ".pg-code-block.pg-math-block": { backgroundColor: "transparent" },
   // `<br>` in a line: a block of no height ends the line where it stands.
   ".pg-break": { display: "block" },
   ".pg-link": {
@@ -432,6 +446,7 @@ export const pageTheme = EditorView.theme({
     ".pg-code-block": { borderInlineStart: "3px solid CanvasText" },
     ".pg-source-block": { boxShadow: "none", borderInlineStart: "2px solid CanvasText" },
     ".pg-mark": { backgroundColor: "Mark", color: "MarkText", forcedColorAdjust: "none" },
+    ".pg-code-block.pg-math-block": { borderInlineStart: "none" },
   },
 
   // Print is the whole page, not a window's worth of it: no scroller, and no height to fill.

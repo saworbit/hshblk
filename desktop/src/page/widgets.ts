@@ -3,6 +3,7 @@ import { EditorView, WidgetType } from "@codemirror/view";
 import { imageUrl, refusalOf, unloaded } from "./assets.ts";
 import { element } from "./dom.ts";
 import type { ImageSize } from "./html.ts";
+import { drawMaths } from "./maths.ts";
 import { type Inline, plainText } from "./inlines.ts";
 import { printedAddress } from "./links.ts";
 
@@ -225,6 +226,43 @@ function imageNode(
   });
   image.src = url;
   return frame;
+}
+
+/**
+ * #220: a formula, drawn by KaTeX once it has loaded, in its line or as a block of its own, or its
+ * TeX until then.
+ */
+export class MathWidget extends WidgetType {
+  readonly tex: string;
+  readonly display: boolean;
+
+  constructor(tex: string, display: boolean) {
+    super();
+    this.tex = tex;
+    this.display = display;
+  }
+
+  eq(other: MathWidget): boolean {
+    return other.tex === this.tex && other.display === this.display;
+  }
+
+  toDOM(): HTMLElement {
+    return mathNode(this.tex, this.display);
+  }
+
+  ignoreEvent(): boolean {
+    return false;
+  }
+}
+
+/** A formula, or its TeX while KaTeX has not loaded. */
+function mathNode(tex: string, display: boolean): HTMLElement {
+  const node = element("span", display ? "pg-math pg-math-display" : "pg-math");
+  if (!drawMaths(tex, display, node)) {
+    node.classList.add("pg-math-source");
+    node.textContent = tex;
+  }
+  return node;
 }
 
 /**
@@ -906,6 +944,8 @@ function paint(view: EditorView, inline: Inline): Node {
       return element(inline.tag, `pg-${inline.tag}`, all(inline.children));
     case "break":
       return document.createElement("br");
+    case "math":
+      return mathNode(inline.tex, inline.display);
     case "link": {
       const link = element("span", "pg-link", all(inline.children));
       link.title = inline.title ?? inline.href;

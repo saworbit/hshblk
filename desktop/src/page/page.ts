@@ -25,7 +25,7 @@ import { pageTree, wholeBlocks } from "./complete.ts";
 import { highlightCode, loadParser, parserFor } from "./code.ts";
 import { emojiOf } from "./emoji.ts";
 import { elementsIn, type HtmlElement, type HtmlKind, sizeOf } from "./html.ts";
-import { inlinesOf, plainText } from "./inlines.ts";
+import { inlinesOf, mathTex, plainText } from "./inlines.ts";
 import { addressTooltip, linkAt, linkSpan, printedAddress } from "./links.ts";
 import {
   addressOf,
@@ -40,6 +40,7 @@ import {
   AlertWidget,
   BreakWidget,
   ImageWidget,
+  MathWidget,
   NoteMarkWidget,
   NoteReferenceWidget,
   SummaryWidget,
@@ -586,6 +587,13 @@ class Painter {
       case "HTMLTag":
         this.#html(node);
         return false;
+      case "InlineMath":
+      case "DisplayMath": {
+        // #220: a formula, drawn in its line or as a block. The keys and find show its TeX.
+        const formula = new MathWidget(mathTex(this.doc, node), node.name === "DisplayMath");
+        this.#hide(fold, node.from, node.to, formula);
+        return false;
+      }
       case "Comment": {
         // #224: a comment in a line is written not to be seen. A space before it goes with it,
         // when a space or the line's end follows, so the words around it keep one between them.
@@ -650,6 +658,7 @@ class Painter {
           this.#style(Decoration.mark({ class: "pg-list-mark" }), node.from, node.to);
         return false;
       case "FencedCode":
+        if (this.#mathBlock(node)) return false;
         this.#lines(node.from, node.to, "pg-code-block");
         this.#highlight(node);
         this.#fences(node);
@@ -828,6 +837,23 @@ class Painter {
     if (drawn(close.from)) this.#hide(closing, close.from, close.to);
     this.#foldLine(closing, close.from, "pg-collapsed");
     this.#foldLine(closing, last.from, "pg-code-last");
+  }
+
+  /**
+   * #220: a fenced block of `math`, as GitHub draws one, is its formula, a block of its own, until
+   * the keys or find reach it and show its source as a code block's. In a quote or a list item,
+   * whose marks and indent its lines carry, it stays code.
+   */
+  #mathBlock(block: SyntaxNode): boolean {
+    const info = block.getChild("CodeInfo");
+    const text = block.getChild("CodeText");
+    if (!info || !text || this.#slice(info).split(/\s/)[0].toLowerCase() !== "math") return false;
+    if (block.parent?.name !== "Document") return false;
+    const fold = { from: block.from, to: block.to };
+    this.#lines(block.from, block.to, "pg-code-block");
+    this.#foldLine(fold, block.from, "pg-math-block");
+    this.#hide(fold, block.from, block.to, new MathWidget(this.#slice(text), true));
+    return true;
   }
 
   /** A quote's mark, and the space after it, hidden while the selection is off its line. */
