@@ -2,6 +2,7 @@ import { type Extension, StateEffect, StateField } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { imageUrl, refusalOf, unloaded } from "./assets.ts";
 import { element } from "./dom.ts";
+import type { ImageSize } from "./html.ts";
 import { type Inline, plainText } from "./inlines.ts";
 import { printedAddress } from "./links.ts";
 
@@ -154,13 +155,22 @@ export class ImageWidget extends WidgetType {
   readonly inline: boolean;
   /** What a hover shows, as on GitHub (#229). */
   readonly title: string | null;
+  /** The width and height an `<img>` gives (#200). */
+  readonly size: ImageSize | undefined;
 
-  constructor(reference: string, alt: string, inline: boolean, title: string | null = null) {
+  constructor(
+    reference: string,
+    alt: string,
+    inline: boolean,
+    title: string | null = null,
+    size?: ImageSize,
+  ) {
     super();
     this.reference = reference;
     this.alt = alt;
     this.inline = inline;
     this.title = title;
+    this.size = size;
   }
 
   eq(other: ImageWidget): boolean {
@@ -168,12 +178,14 @@ export class ImageWidget extends WidgetType {
       other.reference === this.reference &&
       other.alt === this.alt &&
       other.inline === this.inline &&
-      other.title === this.title
+      other.title === this.title &&
+      other.size?.width === this.size?.width &&
+      other.size?.height === this.size?.height
     );
   }
 
   toDOM(view: EditorView): HTMLElement {
-    return imageNode(view, this.reference, this.alt, this.inline, this.title);
+    return imageNode(view, this.reference, this.alt, this.inline, this.title, this.size);
   }
 
   ignoreEvent(): boolean {
@@ -192,6 +204,7 @@ function imageNode(
   alt: string,
   inline: boolean,
   title: string | null = null,
+  size?: ImageSize,
 ): HTMLElement {
   const url = imageUrl(view.state, reference);
   if (!url) return placeholder(unloaded(reference), alt, inline);
@@ -201,6 +214,8 @@ function imageNode(
   image.className = "pg-image";
   image.alt = alt;
   if (title) image.title = title;
+  if (size?.width) image.style.width = size.width;
+  if (size?.height) image.style.height = size.height;
   // The chip says why, once the shell has asked (#231). Until then the broken image is hidden.
   image.addEventListener("error", () => {
     image.hidden = true;
@@ -210,6 +225,20 @@ function imageNode(
   });
   image.src = url;
   return frame;
+}
+
+/**
+ * #200: `<br>` in a line breaks it there. A block of no height, since CodeMirror reads a `<br>` of
+ * its own as an empty line's.
+ */
+export class BreakWidget extends WidgetType {
+  eq(): boolean {
+    return true;
+  }
+
+  toDOM(): HTMLElement {
+    return element("span", "pg-break");
+  }
 }
 
 /** A GFM table, drawn until the keys or find enter it and open its source. */
@@ -866,9 +895,14 @@ function paint(view: EditorView, inline: Inline): Node {
     case "strikethrough":
       return element("s", "pg-strike", all(inline.children));
     case "image":
-      return imageNode(view, inline.reference, inline.alt, true, inline.title);
+      return imageNode(view, inline.reference, inline.alt, true, inline.title, inline.size);
     case "note":
       return noteReference(inline.label, inline.number, inline.words);
+    case "styled":
+      // #200: `<kbd>`, `<sub>`, `<sup>`, and `<mark>`, made here from the page's model.
+      return element(inline.tag, `pg-${inline.tag}`, all(inline.children));
+    case "break":
+      return document.createElement("br");
     case "link": {
       const link = element("span", "pg-link", all(inline.children));
       link.title = inline.title ?? inline.href;

@@ -60,7 +60,7 @@ So what does it do, if it will not let you type? Plenty.
 **HTML on a short leash.**
 
 - A raw HTML block is drawn in a frame that runs no script, and shows only images from inside the repository. Your markdown may wear HTML. It may not run anything in it.
-- Inline HTML shows as source, except a comment, which folds away as if it was never said.
+- Inline HTML that GitHub would draw, such as `<kbd>`, `<sup>`, `<br>`, or a linked logo, draws here too. Anything fancier shows as source, except a comment, which folds away as if it was never said.
 
 **Getting around.**
 

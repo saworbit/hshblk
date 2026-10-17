@@ -2,6 +2,7 @@ import type { Text } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
 import { decodeHTML } from "entities";
 import { emojiOf } from "./emoji.ts";
+import { elementsIn, type HtmlElement, type ImageSize, sizeOf } from "./html.ts";
 import {
   autolinkHref,
   bareHref,
@@ -20,8 +21,10 @@ export type Inline =
   | { kind: "emphasis" | "strong" | "strikethrough"; children: Inline[] }
   | { kind: "code"; text: string }
   | { kind: "link"; href: string; title?: string; children: Inline[] }
-  | { kind: "image"; reference: string; alt: string; title?: string }
-  | { kind: "note"; label: string; number: number; words: string };
+  | { kind: "image"; reference: string; alt: string; title?: string; size?: ImageSize }
+  | { kind: "note"; label: string; number: number; words: string }
+  | { kind: "styled"; tag: "kbd" | "sub" | "sup" | "mark"; children: Inline[] }
+  | { kind: "break" };
 
 /** Each footnote a reference uses, by its label in lower case: its number and its words. */
 export type Notes = ReadonlyMap<string, { number: number; text: string }>;
@@ -67,9 +70,11 @@ export function plainText(inlines: Inline[]): string {
         ? inline.alt
         : inline.kind === "note"
           ? String(inline.number)
-          : "text" in inline
-            ? inline.text
-            : plainText(inline.children),
+          : inline.kind === "break"
+            ? " "
+            : "text" in inline
+              ? inline.text
+              : plainText(inline.children),
     )
     .join("")
     .replace(/\s+/g, " ")
@@ -85,9 +90,18 @@ function run(
   to = node.to,
 ) {
   const out: Inline[] = [];
+  // #200: the inline HTML the page draws, by where each element opens.
+  const elements = new Map(elementsIn(doc, node).map((element) => [element.open.from, element]));
   let pos = from;
   for (let child = node.firstChild; child; child = child.nextSibling) {
-    if (child.from < from || child.to > to) continue;
+    if (child.from < from || child.to > to || child.from < pos) continue;
+    const element = elements.get(child.from);
+    if (element && (element.close?.to ?? element.open.to) <= to) {
+      const drawn = html(doc, definitions, notes, node, element);
+      append(out, text(doc.sliceString(pos, child.from)), ...drawn);
+      pos = element.close?.to ?? element.open.to;
+      continue;
+    }
     append(out, text(doc.sliceString(pos, child.from)), ...inline(doc, definitions, notes, child));
     pos = child.to;
   }
@@ -158,6 +172,44 @@ function inline(doc: Text, definitions: Definitions, notes: Notes, node: SyntaxN
       return [];
     default:
       return MARKS.has(node.name) ? [] : [text(source)];
+  }
+}
+
+/** An element of inline HTML the page draws (#200), as the construct it stands for. */
+function html(
+  doc: Text,
+  definitions: Definitions,
+  notes: Notes,
+  parent: SyntaxNode,
+  { kind, attributes, open, close }: HtmlElement,
+): Inline[] {
+  const children = () => (close ? run(doc, definitions, notes, parent, open.to, close.from) : []);
+  const title = attributes.get("title");
+  const titled = title ? { title } : {};
+  switch (kind) {
+    case "br":
+      return [{ kind: "break" }];
+    case "img": {
+      const reference = attributes.get("src")?.trim();
+      if (!reference) return [text(doc.sliceString(open.from, open.to))];
+      const size = sizeOf(attributes);
+      const alt = attributes.get("alt") ?? "";
+      return [{ kind: "image", reference, alt, ...titled, ...(size ? { size } : {}) }];
+    }
+    case "a": {
+      // An anchor with no address, `<a id="top">`, marks a place, and shows only its words.
+      const href = attributes.get("href")?.trim();
+      if (href === undefined) return children();
+      return [{ kind: "link", href, ...titled, children: children() }];
+    }
+    case "code":
+      return [{ kind: "code", text: plainText(children()) }];
+    case "strong":
+      return [{ kind: "strong", children: children() }];
+    case "em":
+      return [{ kind: "emphasis", children: children() }];
+    default:
+      return [{ kind: "styled", tag: kind, children: children() }];
   }
 }
 

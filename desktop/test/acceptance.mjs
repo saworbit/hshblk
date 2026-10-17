@@ -117,7 +117,7 @@ const fenced = true;
 |:-----|------:|
 | a    | b     |
 
-![near](near.png) ![spaced](near%20by.png) ![far](../images/far.png) ![root](/images/far.png) ![outside](../../outside.png) ![leaving](leave.png) ![remote](https://example.com/remote.png)
+![near](near.png) ![spaced](near%20by.png) ![far](../images/far.png) ![root](/images/far.png) ![outside](../../outside.png) ![leaving](leave.png) ![remote](https://example.com/remote.png) <img src="x" alt="inline" onerror="window.ran = 'inline'">
 
 <script>window.ran = "block";</script>
 
@@ -127,7 +127,7 @@ const fenced = true;
 <table background="doc-asset://localhost/table.png"><tr><td>Table</td></tr></table>
 <meta http-equiv="refresh" content="0; url=https://example.com/">
 
-Inline <img src="x" onerror="window.ran = 'inline'"> HTML.
+Inline <span onmouseover="window.ran = 'inline'">HTML</span>.
 
 ${FILLER}
 
@@ -484,7 +484,7 @@ describe("one open document", () => {
 
   before(async () => {
     page = await launch(app, [file]);
-    shown = await page.until(settled, 7);
+    shown = await page.until(settled, 8);
   });
   after(async () => {
     await page?.close();
@@ -533,6 +533,8 @@ describe("one open document", () => {
       "Outside the repository · outside",
       "Outside the repository · leaving",
       "Remote images do not load · remote",
+      // #200: the page draws an inline <img> itself, from its src, so its onerror never runs.
+      "Not found · inline",
     ]);
     const requests = await page.run(() =>
       performance.getEntriesByType("resource").map((entry) => entry.name),
@@ -568,7 +570,7 @@ describe("one open document", () => {
       if (!line) [...document.querySelectorAll(".pg-html")].at(-1)?.scrollIntoView();
       return line?.textContent;
     });
-    assert.match(inline, /^Inline <img src="x" onerror=/);
+    assert.match(inline, /^Inline <span onmouseover=/);
     const frames = () =>
       page.until(() => {
         const frames = [...document.querySelectorAll("iframe.pg-html")];
