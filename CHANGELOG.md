@@ -186,3 +186,5 @@
 - Desktop: on Linux, each file opened goes into GTK's recent files, so a file manager's Recent and the Open dialog list it. A debug build leaves the list alone. (#288)
 - Docs: desktop.md's file layout counts thirteen commands, since `watch_fragments`, and says where each file opened is listed.
 - Desktop: the find box counts a regular expression's match once where it runs through a line over a million characters long. A slice read only part of the line, so the rest of the match counted again, and a match only the cut part held counted at all. (#306)
+- Desktop: a footnote's number goes to its footnote when a heading has the same name, such as `# fn 1`. The heading took the name first, so the number went to the heading. (#313)
+- Desktop: a link's `#fragment` finds its place by the name as written, and then percent-decoded, as a browser does. A footnote whose label holds a percent escape, such as `[^a%41]`, could not be reached from its number. (#314)

@@ -1118,6 +1118,20 @@ describe("a footnote", () => {
     assert.equal(visible(one), "See[ref 1].\n\n[note 1]word[back]");
   });
 
+  it("goes to a footnote, not a heading named as it is", () => {
+    // #313: a heading `# fn 1` took the name `fn-1` first, so its reference went to the heading.
+    const named = "# fn 1\n\n## fnref 1\n\nText[^1]\n\n[^1]: Note.";
+    const state = open(named);
+    assert.equal(headingAt(state, "#fn-1"), named.indexOf("[^1]:"));
+    assert.equal(headingAt(state, "#fnref-1"), named.indexOf("[^1]"));
+    // #314: a label with a percent escape in it is its name as written.
+    const escaped = "See[^a%41].\n\n[^a%41]: Note.";
+    const percent = open(escaped);
+    assert.equal(headingAt(percent, "#fn-a%41"), escaped.indexOf("[^a%41]:"));
+    assert.equal(headingAt(percent, "#fnref-a%41"), escaped.indexOf("[^a%41]"));
+    assert.equal(headingAt(open("# Café"), "#caf%C3%A9"), 0);
+  });
+
   it("counts no reference in code, which shows as code", () => {
     // #282: `[^b]` in a code span or a fenced block took number 1, ahead of the first cited.
     const doc = [
