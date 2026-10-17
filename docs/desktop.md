@@ -137,7 +137,11 @@ Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) opens pull re
 - `@types/node` stays on the major of the Node the app runs on, 24, from `.nvmrc`.
 - The identity's build tools in `brand/source/` get security updates only. `verify.py` compares every asset with the pack byte for byte, so a new fonttools, HarfBuzz, or resvg is taken by hand, with the pack rebuilt.
 - Dependabot's pull requests write no line in [CHANGELOG.md](../CHANGELOG.md). A draft release's notes list them under **Dependencies**, apart from the rest ([`.github/release.yml`](../.github/release.yml)).
-- An alert waits when its fix needs what Tauri has not taken. glib 0.18's, [GHSA-wrw7-89jp-8q8g](https://github.com/advisories/GHSA-wrw7-89jp-8q8g), is one: the fix is in glib 0.20, but GTK 3's bindings, which Tauri 2 draws with on Linux, stop at 0.18.
+- An alert waits when its fix needs what Tauri has not taken. glib 0.18's, [GHSA-wrw7-89jp-8q8g](https://github.com/advisories/GHSA-wrw7-89jp-8q8g), is one: the fix is in glib 0.20. GTK 3's bindings, which Tauri 2 draws with on Linux, took glib 0.22 in gtk 0.19, but Tauri, wry, tao, muda, and webkit2gtk still ask for gtk 0.18 ([wry#1841](https://github.com/tauri-apps/wry/pull/1841), [tao#1331](https://github.com/tauri-apps/tao/pull/1331)). The alert is dismissed as code not used. The unsound iterator is reached only through glib's `Variant::array_iter_str`, and nothing that ships calls it, the app's own code included. While `Cargo.lock` holds glib 0.18, a Tauri update gets the same look, after `cargo fetch` in `desktop/src-tauri`. From the repository's root, this prints nothing while it holds:
+
+  ```bash
+  grep -rl --include=*.rs -e array_iter_str -e VariantStrIter desktop/src-tauri/src ~/.cargo/registry/src/*/ | grep -v /glib-0
+  ```
 
 ## How a file becomes a page
 
