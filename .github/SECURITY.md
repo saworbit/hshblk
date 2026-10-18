@@ -2,9 +2,7 @@
 
 ## Report a vulnerability
 
-If you find a security problem in Hash Block, report it privately by email, to the address on the maintainer's GitHub profile, [@saworbit](https://github.com/saworbit). Please don't open an issue for it until it is fixed.
-
-GitHub's private vulnerability reporting needs a public repository. When this one goes public, reports move to its **Security** tab.
+If you find a security problem in Hash Block, report it privately on GitHub: on this repository's **Security** tab, choose **Report a vulnerability**. Only the maintainer sees it, and the fix is worked out there with you. Please don't open an issue for it until it is fixed.
 
 ## What is a vulnerability?
 
