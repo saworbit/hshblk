@@ -4,6 +4,7 @@
 
 - Repo: a contributing guide and a code of conduct, in `.github/`, say how to build, check, and send a change, and what is not welcome. The new-issue page sends a security problem to the security policy, not to an issue.
 - Docs: the README shows the app, light or dark as the reader's GitHub is, on a sample with a task list, a diagram, a table, maths, a warning, and code. `test/screenshot.mjs` takes both on Windows, over WebView2's DevTools port.
+- Repo: a security problem goes to the repository's **Security** tab, as a private report, and conduct to **Report content** on GitHub. Neither names an email address any more.
 
 ## 0.1.0 (2026-10-18)
 
