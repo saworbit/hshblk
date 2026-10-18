@@ -1,6 +1,7 @@
 # The notes a draft release is given, by `gh release create --generate-notes` in the Desktop
-# workflow: the pull requests merged since the last release, with Dependabot's under a heading of
-# their own. A pull request goes under the first heading whose labels it has.
+# workflow, and shown in a dry run's summary: the pull requests merged since the last release, with
+# Dependabot's under a heading of their own. A pull request goes under the first heading whose
+# labels it has.
 changelog:
   categories:
     - title: Dependencies
