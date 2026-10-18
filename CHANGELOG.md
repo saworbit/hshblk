@@ -5,6 +5,7 @@
 - Repo: a contributing guide and a code of conduct, in `.github/`, say how to build, check, and send a change, and what is not welcome. The new-issue page sends a security problem to the security policy, not to an issue.
 - Docs: the README shows the app, light or dark as the reader's GitHub is, on a sample with a task list, a diagram, a table, maths, a warning, and code. `test/screenshot.mjs` takes both on Windows, over WebView2's DevTools port.
 - Repo: a security problem goes to the repository's **Security** tab, as a private report, and conduct to GitHub's staff through **Report content**, since GitHub lets maintainers take those reports only on an organization's repository. Neither names an email address any more.
+- Docs: desktop.md, hld.md §12, and the brand guide say the repository is public, 0.1.0 is out, and the social preview is set. winget and Homebrew are #365. desktop.md says a second run of the release job on a tag keeps the release's other assets, and would change a published one (#367).
 
 ## 0.1.0 (2026-10-18)
 
