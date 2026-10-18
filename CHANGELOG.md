@@ -9,6 +9,7 @@
 - Repo: `.github/FUNDING.yml` names the author's Buy Me a Coffee page, as didi's does, so the repository shows a **Sponsor** button.
 - CI: a second run of the release job on a tag makes its draft again, with only that run's zips and notes. The old draft kept files the new run did not make, such as installers a change had dropped, and its old notes. On the tag of a published release, the job stops, says why, and changes nothing, where it replaced the zips readers download. (#367)
 - CI: run by hand from a branch, the Desktop workflow's release job is a dry run. It writes nothing, and its summary shows the notes the next draft would start with, GitHub's list of merged pull requests included, and what a run on the tag would do to its drafts. The notes come from a script with tests, which stops the job on a zip that names no system or another version, or a system with no zip, where the table printed a stray zip's bare name. (#372)
+- Docs: Releasing runs the dry run on the version's branch, before it merges. On `main` right after the merge, a run by hand would cancel the merge's own run, since the workflow runs one at a time on each branch.
 
 ## 0.1.0 (2026-10-18)
 
