@@ -289,10 +289,17 @@ jobs:
           path: packages
           merge-multiple: true
           skip-decompress: true
-      # A draft, so nothing is public until it is published by hand. A second run on the same
-      # tag replaces the zips in the draft it made. The notes start with which zip is for which
-      # system, above the merged pull requests GitHub lists.
-      - name: Make the draft release, or refresh its zips
+      # A second run on the tag makes the draft again, so it holds only that run's zips and notes:
+      # the drafts an earlier run made are deleted first. A published release stops the run, and
+      # nothing is changed (#367).
+      - name: Delete the tag's drafts, or stop if it is published
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: node scripts/release-drafts.mjs "$GITHUB_REF_NAME"
+      # A draft, so nothing is public until it is published by hand. The notes start with which
+      # zip is for which system, above the merged pull requests GitHub lists.
+      - name: Make the draft release
         working-directory: .
         env:
           GH_TOKEN: ${{ github.token }}
@@ -300,28 +307,24 @@ jobs:
         run: |
           mapfile -t files < <(find packages -type f -name '*.zip' | sort)
           if (( ${#files[@]} == 0 )); then echo "No zips were built." >&2; exit 1; fi
-          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
-          else
-            url="https://github.com/$GH_REPO/releases/download/$GITHUB_REF_NAME"
-            {
-              echo "Download the zip for your system. Each has the app and a README that says how to install it."
-              echo
-              echo "| System | Download |"
-              echo "|---|---|"
-              for file in "${files[@]}"; do
-                zip=$(basename "$file")
-                case "$zip" in
-                  *-windows-x64.zip) system="Windows 10 or 11, x64" ;;
-                  *-macos-arm64.zip) system="macOS 11 or later, Apple silicon" ;;
-                  *-linux-x64.zip) system="Linux, x64" ;;
-                  *) system="${zip%.zip}" ;;
-                esac
-                echo "| $system | [$zip]($url/$zip) |"
-              done
-              echo
-              echo "The two **Source code** files GitHub adds at the end are a copy of the repository. The app is not in them."
-            } > notes.md
-            gh release create "$GITHUB_REF_NAME" "${files[@]}" --draft --verify-tag \
-              --title "Hash Block ${GITHUB_REF_NAME#v}" --notes "$(cat notes.md)" --generate-notes
-          fi
+          url="https://github.com/$GH_REPO/releases/download/$GITHUB_REF_NAME"
+          {
+            echo "Download the zip for your system. Each has the app and a README that says how to install it."
+            echo
+            echo "| System | Download |"
+            echo "|---|---|"
+            for file in "${files[@]}"; do
+              zip=$(basename "$file")
+              case "$zip" in
+                *-windows-x64.zip) system="Windows 10 or 11, x64" ;;
+                *-macos-arm64.zip) system="macOS 11 or later, Apple silicon" ;;
+                *-linux-x64.zip) system="Linux, x64" ;;
+                *) system="${zip%.zip}" ;;
+              esac
+              echo "| $system | [$zip]($url/$zip) |"
+            done
+            echo
+            echo "The two **Source code** files GitHub adds at the end are a copy of the repository. The app is not in them."
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" --draft --verify-tag \
+            --title "Hash Block ${GITHUB_REF_NAME#v}" --notes "$(cat notes.md)" --generate-notes
