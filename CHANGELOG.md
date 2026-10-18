@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Repo: a contributing guide and a code of conduct, in `.github/`, say how to build, check, and send a change, and what is not welcome. The new-issue page sends a security problem to the security policy, not to an issue.
+
 ## 0.1.0 (2026-10-18)
 
 - Desktop: a full stop or comma after a link, an autolink, or a code span stays on that construct's line. The hidden syntax between them no longer leaves a place for the line to break. (#48)

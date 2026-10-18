@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: A security problem
+    url: https://github.com/saworbit/hshblk/security/policy
+    about: Not an issue, please. The security policy says where to send it.
