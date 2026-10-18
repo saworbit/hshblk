@@ -13,7 +13,7 @@ Most markdown tools bundle a viewer with an editor, on the polite assumption tha
 
 ## The desktop app
 
-Packages for Linux, macOS, and Windows come from the Desktop workflow on `main`. [docs/desktop.md](docs/desktop.md) says how to install one and make it what a double-click opens.
+Under [**Releases**](https://github.com/saworbit/hshblk/releases/latest), pick the zip for your system: Linux, macOS, or Windows. Each has the app and a README that says how to install it. [docs/desktop.md](docs/desktop.md) says more, and how to make it what a double-click opens.
 
 | Key | Does |
 |---|---|

@@ -4,13 +4,13 @@ Hash Block as a program of its own. Double-click a markdown file and it opens in
 
 ## Installing
 
-The Desktop workflow builds the packages on every push to `main`. Open the latest run on `main` under **Actions**, **Desktop**, and download the artifact for your system, `hash-block-Linux`, `hash-block-macOS`, or `hash-block-Windows`. Each is kept for 14 days. A release, once one is published, is under **Releases**.
+Each system gets one zip, named for it, such as `hash-block-0.1.0-windows-x64.zip`. It holds the app and a README that says how to install it, from [`desktop/packaging/`](../desktop/packaging/). A release, once one is published, has the three under **Releases**. Between releases the Desktop workflow makes the same zips on every push to `main`: open the latest run on `main` under **Actions**, **Desktop**, and download the one for your system. Each is kept for 14 days.
 
-| System | In the artifact |
+| System | In the zip |
 |---|---|
-| Linux | `.deb` and `.rpm` |
-| macOS | `.dmg` |
-| Windows | `.exe` installer and `.msi` |
+| Linux, x64 | `hash-block.deb`, `hash-block.rpm`, and `hshblk`, the app alone |
+| macOS 11 or later, Apple silicon | `Hash Block.app` |
+| Windows 10 or 11, x64 | `Hash Block setup.exe`, and `Hash Block.exe`, the app with nothing to install |
 
 There is no AppImage: Tauri's bundles WebKitGTK, which [hld.md](hld.md) §10 rules out. None is signed yet ([hld.md](hld.md) §12, question 1), and macOS ships unsigned until there is an Apple Developer ID. The first time, macOS will not open it: in **System Settings**, **Privacy & Security**, choose **Open Anyway**. Windows SmartScreen warns too: **More info**, then **Run anyway**.
 
@@ -101,7 +101,7 @@ npx tauri build --no-bundle      # the app alone: src-tauri/target/release/hshbl
 
 1. Set the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json`. In [CHANGELOG.md](../CHANGELOG.md), put the version and the day, such as `## 0.2.0 (2026-11-02)`, under **Unreleased**, so the lines that were there become the release's. From then on a new line goes at the end of **Unreleased**, not of the file. Merge that to `main`.
 2. Tag the merge and push the tag: `git tag v0.2.0 && git push origin v0.2.0`.
-3. The Desktop workflow checks that the tag names the version in all three, runs every test, builds the packages on each system, and puts them in a draft release with notes from the merged pull requests, Dependabot's under a heading of their own. A second run on the same tag replaces the draft's packages.
+3. The Desktop workflow checks that the tag names the version in all three, runs every test, builds and zips the app on each system, and puts the three zips in a draft release. Its notes start with a table of which zip is for which system, above the merged pull requests, Dependabot's under a heading of their own. A second run on the same tag replaces the draft's zips. GitHub adds the two **Source code** files to every release, and the notes say the app is not in them.
 4. Read the draft under **Releases**, and publish it by hand.
 
 The macOS app is signed and notarized when the repository has these secrets. Without them it is signed ad hoc, as on `main`, which seals the bundle but names no developer, so a reader still allows it once with **Open Anyway**:
@@ -177,6 +177,7 @@ Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) opens pull re
 | `desktop/src/build/` | What the build and the dev server do to the diagram frame's bundle, so its dependencies load where `Object.prototype` is frozen. |
 | `desktop/test/` | The tests that drive the built app: acceptance, the gates, the double-click, WebView2's cases and timing over DevTools through `devtools.mjs`, and in `docker/` the image that runs the Linux suites from any machine. |
 | `desktop/scripts/` | What CI runs: the unit tests' runner, which fails when no test file matches, the licence check, and the check that a release tag names the version. |
+| `desktop/packaging/` | The README each system's zip carries, with `@VERSION@` for the version. |
 
 ## Tests
 
