@@ -7,6 +7,7 @@
 - Repo: a security problem goes to the repository's **Security** tab, as a private report, and conduct to GitHub's staff through **Report content**, since GitHub lets maintainers take those reports only on an organization's repository. Neither names an email address any more.
 - Docs: desktop.md, hld.md §12, and the brand guide say the repository is public, 0.1.0 is out, and the social preview is set. winget and Homebrew are #365. desktop.md says a second run of the release job on a tag keeps the release's other assets, and would change a published one (#367).
 - Repo: `.github/FUNDING.yml` names the author's Buy Me a Coffee page, as didi's does, so the repository shows a **Sponsor** button.
+- CI: a second run of the release job on a tag makes its draft again, with only that run's zips and notes. The old draft kept files the new run did not make, such as installers a change had dropped, and its old notes. On the tag of a published release, the job stops, says why, and changes nothing, where it replaced the zips readers download. (#367)
 
 ## 0.1.0 (2026-10-18)
 
