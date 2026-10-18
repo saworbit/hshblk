@@ -8,4 +8,4 @@ Not here:
 - Unwelcome sexual attention or imagery.
 - Posting someone's private details without their consent.
 
-The maintainer, [@saworbit](https://github.com/saworbit), may edit or remove comments, lock threads, and block anyone who will not stop. To report something privately, choose **Report content** in the **...** menu of the comment, issue, or pull request, then **Report to repository admins**. Reports are kept confidential.
+The maintainer, [@saworbit](https://github.com/saworbit), may edit or remove comments, lock threads, and block anyone who will not stop. To report something privately, choose **Report content** in the **...** menu of the comment, issue, or pull request. That goes to GitHub's staff, not to the thread.
