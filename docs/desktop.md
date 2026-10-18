@@ -4,7 +4,7 @@ Hash Block as a program of its own. Double-click a markdown file and it opens in
 
 ## Installing
 
-Each system gets one zip, named for it, such as `hash-block-0.1.0-windows-x64.zip`. It holds the app and a README that says how to install it, from [`desktop/packaging/`](../desktop/packaging/). A release, once one is published, has the three under **Releases**. Between releases the Desktop workflow makes the same zips on every push to `main`: open the latest run on `main` under **Actions**, **Desktop**, and download the one for your system. Each is kept for 14 days.
+Each system gets one zip, named for it, such as `hash-block-0.1.0-windows-x64.zip`. It holds the app and a README that says how to install it, from [`desktop/packaging/`](../desktop/packaging/). Each release has the three under **Releases**, 0.1.0 the first. Between releases the Desktop workflow makes the same zips on every push to `main`: open the latest run on `main` under **Actions**, **Desktop**, and download the one for your system. Each is kept for 14 days.
 
 | System | In the zip |
 |---|---|
@@ -101,7 +101,7 @@ npx tauri build --no-bundle      # the app alone: src-tauri/target/release/hshbl
 
 1. Set the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json`. In [CHANGELOG.md](../CHANGELOG.md), put the version and the day, such as `## 0.2.0 (2026-11-02)`, under **Unreleased**, so the lines that were there become the release's. From then on a new line goes at the end of **Unreleased**, not of the file. Merge that to `main`.
 2. Tag the merge and push the tag: `git tag v0.2.0 && git push origin v0.2.0`.
-3. The Desktop workflow checks that the tag names the version in all three, runs every test, builds and zips the app on each system, and puts the three zips in a draft release. Its notes start with a table of which zip is for which system, above the merged pull requests, Dependabot's under a heading of their own. A second run on the same tag replaces the draft's zips. GitHub adds the two **Source code** files to every release, and the notes say the app is not in them.
+3. The Desktop workflow checks that the tag names the version in all three, runs every test, builds and zips the app on each system, and puts the three zips in a draft release. Its notes start with a table of which zip is for which system, above the merged pull requests, Dependabot's under a heading of their own. A second run on the same tag uploads its zips into the release again, replacing those of the same name. It keeps any others, and it does the same to a release already published (#367). GitHub adds the two **Source code** files to every release, and the notes say the app is not in them.
 4. Read the draft under **Releases**, and publish it by hand.
 
 The macOS app is signed and notarized when the repository has these secrets. Without them it is signed ad hoc, as on `main`, which seals the bundle but names no developer, so a reader still allows it once with **Open Anyway**:
@@ -117,7 +117,7 @@ The macOS app is signed and notarized when the repository has these secrets. Wit
 Not done yet ([hld.md](hld.md) §12, question 1):
 
 - Windows signing. A code-signing certificate issued since June 2023 keeps its key in hardware or in a signing service, so it cannot be a secret here. Each service signs through its own command, set as `bundle.windows.signCommand`. That waits on choosing one.
-- Once the repository is public: a winget manifest, and a Homebrew cask in a tap of the project's own, since homebrew/cask takes only apps that pass Gatekeeper. Each updates the app for those who install it that way.
+- A winget manifest, and a Homebrew cask in a tap of the project's own, since homebrew/cask takes only apps that pass Gatekeeper. Each would update the app for those who install it that way (#365).
 
 The app has no updater, by choice ([hld.md](hld.md) §12, question 1). It makes no network request, and keeps no key. The webview's security fixes come from the OS on macOS and Windows, and from the distribution on Linux. A new release reaches readers through the release page. On GitHub, **Watch**, then **Custom**, then **Releases** says when there is one.
 
