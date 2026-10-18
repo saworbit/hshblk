@@ -7,6 +7,11 @@
 
 A page for a markdown file. Double-click one and it opens in a window of its own, typeset, not in a browser. The characters stay in the file. Nothing here writes them back.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/screenshot-dark.png">
+  <img src="docs/images/screenshot-light.png" alt="Hash Block showing a markdown file as a page: headings, a task list with two boxes ticked, a diagram, a table, maths, a warning, and a code block. The status line names the file and says it is read only.">
+</picture>
+
 ## Why there is no editor
 
 Most markdown tools bundle a viewer with an editor, on the polite assumption that you typed the file. Odds are an AI typed it these days, and you are just the one holding it. You need to read it, not edit it, so this has no editor and keeps its hands off the file. Yes, the [design doc](docs/hld.md) sketches one for later anyway. Old habits.
