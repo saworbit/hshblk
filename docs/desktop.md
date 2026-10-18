@@ -100,9 +100,10 @@ npx tauri build --no-bundle      # the app alone: src-tauri/target/release/hshbl
 ## Releasing
 
 1. Set the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json`. In [CHANGELOG.md](../CHANGELOG.md), put the version and the day, such as `## 0.2.0 (2026-11-02)`, under **Unreleased**, so the lines that were there become the release's. From then on a new line goes at the end of **Unreleased**, not of the file. Merge that to `main`.
-2. Tag the merge and push the tag: `git tag v0.2.0 && git push origin v0.2.0`.
-3. The Desktop workflow checks that the tag names the version in all three, runs every test, builds and zips the app on each system, and puts the three zips in a draft release. Its notes start with a table of which zip is for which system, above the merged pull requests, Dependabot's under a heading of their own. A second run on the same tag deletes the draft and makes it again, so it holds only that run's zips and notes. An edit to the draft by hand goes with it. On the tag of a release already published, the run stops, says so, and changes nothing (#367). GitHub adds the two **Source code** files to every release, and the notes say the app is not in them.
-4. Read the draft under **Releases**, and publish it by hand.
+2. Run the Desktop workflow on `main` by hand: **Actions**, **Desktop**, **Run workflow**, or `gh workflow run Desktop --ref main`. Every job runs, and from a branch **Draft release** is a dry run for the tag the version takes. It writes nothing. Its summary says what a run on the tag would do to the tag's drafts, and shows the notes the draft would start with, GitHub's list of merged pull requests included (#372).
+3. Tag the merge and push the tag: `git tag v0.2.0 && git push origin v0.2.0`.
+4. The Desktop workflow checks that the tag names the version in all three, runs every test, builds and zips the app on each system, and puts the three zips in a draft release. Its notes start with a table of which zip is for which system, above the merged pull requests, Dependabot's under a heading of their own. A zip that names no system or another version, or a system with no zip, stops the run before any draft is touched. A second run on the same tag deletes the draft and makes it again, so it holds only that run's zips and notes. An edit to the draft by hand goes with it. On the tag of a release already published, the run stops, says so, and changes nothing (#367). GitHub adds the two **Source code** files to every release, and the notes say the app is not in them.
+5. Read the draft under **Releases**, and publish it by hand.
 
 The macOS app is signed and notarized when the repository has these secrets. Without them it is signed ad hoc, as on `main`, which seals the bundle but names no developer, so a reader still allows it once with **Open Anyway**:
 
@@ -176,14 +177,14 @@ Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) opens pull re
 | `desktop/src/page/` | The page: the dialect, its decorations, links, images, tables, footnotes, emoji, code highlighting, the frontmatter panel, the outline, find's count, the text size, each line's direction, the whole-document parse, the theme, maths, and the frame mermaid draws diagrams in. |
 | `desktop/src/build/` | What the build and the dev server do to the diagram frame's bundle, so its dependencies load where `Object.prototype` is frozen. |
 | `desktop/test/` | The tests that drive the built app: acceptance, the gates, the double-click, WebView2's cases, timing, and the README's screenshot over DevTools through `devtools.mjs`, and in `docker/` the image that runs the Linux suites from any machine. |
-| `desktop/scripts/` | What CI runs: the unit tests' runner, which fails when no test file matches, the licence check, the check that a release tag names the version, and the step that deletes a tag's drafts before the release job makes it again, or stops it on a published release. |
+| `desktop/scripts/` | What CI runs: the unit tests' runner, which fails when no test file matches, the licence check, and the release job's three: the check that a tag names the version, the notes, and the step that deletes a tag's drafts before the job makes it again, or stops it on a published release, with a dry run that says what it would do. |
 | `desktop/packaging/` | The README each system's zip carries, with `@VERSION@` for the version. |
 
 ## Tests
 
 | Command, in `desktop/` | Checks |
 |---|---|
-| `npm test` | The page's decorations and keys, the rewrite the diagram frame's bundle takes, and what the release job does with a tag's drafts, in Node. |
+| `npm test` | The page's decorations and keys, the rewrite the diagram frame's bundle takes, and the release job's notes and what it does with a tag's drafts, in Node. |
 | `npm run typecheck`, `npm run lint` | The page's TypeScript, strict, and ESLint on the scripts and tests, which no type checker reads. `npm run lint` also checks the formatting with prettier, pinned in `package.json`, and `npm run format` applies it. |
 | `cargo test`, in `src-tauri/` | Files, scopes, handles, the resource channel, what the app keeps between runs, the watch on each file, and each window's state. |
 | `node test/acceptance.mjs <app>` | [hld.md](hld.md) §8, items 1, 2, 4, 5, and 6, through the built app. |

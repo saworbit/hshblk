@@ -37,7 +37,7 @@ describe("clearing a tag's drafts", () => {
       release(4, "v0.3.0"),
       release(5, "v0.1.0", { draft: false }),
     ]);
-    const deleted = clear("v0.2.0", gh, quiet);
+    const deleted = clear("v0.2.0", { gh, say: quiet });
     assert.deepEqual(
       deleted.map((draft) => draft.id),
       [1, 2],
@@ -54,7 +54,7 @@ describe("clearing a tag's drafts", () => {
       release(6, "v0.1.0"),
     ]);
     assert.throws(
-      () => clear("v0.1.0", gh, quiet),
+      () => clear("v0.1.0", { gh, say: quiet }),
       /v0\.1\.0 is published, at https:\/\/github\.com\/saworbit\/hshblk\/releases\/tag\/v0\.1\.0/,
     );
     assert.deepEqual(deletes(), []);
@@ -63,13 +63,13 @@ describe("clearing a tag's drafts", () => {
 
   it("takes a prerelease as published", () => {
     const { gh, deletes } = fakeGh([release(7, "v0.2.0-rc.1", { draft: false, prerelease: true })]);
-    assert.throws(() => clear("v0.2.0-rc.1", gh, quiet), /is published/);
+    assert.throws(() => clear("v0.2.0-rc.1", { gh, say: quiet }), /is published/);
     assert.deepEqual(deletes(), []);
   });
 
   it("deletes nothing when the tag has no release yet", () => {
     const { gh, deletes } = fakeGh([release(5, "v0.1.0", { draft: false })]);
-    assert.deepEqual(clear("v0.2.0", gh, quiet), []);
+    assert.deepEqual(clear("v0.2.0", { gh, say: quiet }), []);
     assert.deepEqual(deletes(), []);
   });
 
@@ -79,15 +79,54 @@ describe("clearing a tag's drafts", () => {
       calls.push(args);
       return `${JSON.stringify(release(1, "v0.2.0"))}\n<html>rate limited</html>\n`;
     };
-    assert.throws(() => clear("v0.2.0", gh, quiet), /could not read/);
+    assert.throws(() => clear("v0.2.0", { gh, say: quiet }), /could not read/);
     assert.equal(calls.length, 1, "nothing was deleted");
   });
 
   it("says what it deleted", () => {
     const { gh } = fakeGh([release(1, "v0.2.0", { assets: ["a.zip", "b.zip"] })]);
     const said = [];
-    clear("v0.2.0", gh, (line) => said.push(line));
+    clear("v0.2.0", { gh, say: (line) => said.push(line) });
     assert.deepEqual(said, ["Deleted a draft of v0.2.0, which held a.zip, b.zip."]);
+  });
+});
+
+describe("a dry run", () => {
+  it("says which drafts it would delete, and deletes none", () => {
+    const { gh, calls, deletes } = fakeGh([
+      release(1, "v0.2.0", { assets: ["a.zip"] }),
+      release(2, "v0.2.0"),
+      release(4, "v0.3.0"),
+    ]);
+    const said = [];
+    const would = clear("v0.2.0", { gh, say: (line) => said.push(line), dryRun: true });
+    assert.deepEqual(
+      would.map((draft) => draft.id),
+      [1, 2],
+    );
+    assert.deepEqual(deletes(), []);
+    assert.equal(calls.length, 1, "only the listing ran");
+    assert.deepEqual(said, [
+      "Would delete a draft of v0.2.0, which held a.zip.",
+      "Would delete a draft of v0.2.0, which held no files.",
+    ]);
+  });
+
+  it("says a run on a published release's tag would stop, and does not fail", () => {
+    // Between releases, package.json names the last release, so a dry run finds it published.
+    const { gh, deletes } = fakeGh([release(4, "v0.1.0", { draft: false }), release(6, "v0.1.0")]);
+    const said = [];
+    assert.deepEqual(clear("v0.1.0", { gh, say: (line) => said.push(line), dryRun: true }), []);
+    assert.deepEqual(deletes(), []);
+    assert.deepEqual(said, [
+      "v0.1.0 is published, at https://github.com/saworbit/hshblk/releases/tag/v0.1.0. " +
+        "A run on its tag would stop here, and change nothing.",
+    ]);
+  });
+
+  it("still stops on a listing it cannot read", () => {
+    const gh = () => "<html>rate limited</html>\n";
+    assert.throws(() => clear("v0.2.0", { gh, say: quiet, dryRun: true }), /could not read/);
   });
 });
 
@@ -103,14 +142,28 @@ describe("the plan", () => {
 });
 
 describe("the command", () => {
+  const script = fileURLToPath(new URL("./release-drafts.mjs", import.meta.url));
+  // An empty PATH, so a gh it ran by mistake could not be found and answer.
+  const run = (args) =>
+    spawnSync(process.execPath, [script, ...args], { encoding: "utf8", env: { PATH: "" } });
+
   it("names what it needs, and calls gh for nothing, without a tag", () => {
-    const script = fileURLToPath(new URL("./release-drafts.mjs", import.meta.url));
-    // An empty PATH, so a gh it ran by mistake could not be found and answer.
-    const run = spawnSync(process.execPath, [script], {
-      encoding: "utf8",
-      env: { PATH: "" },
-    });
-    assert.equal(run.status, 1);
-    assert.match(run.stderr, /^Give the release's tag, such as v0\.2\.0\./);
+    for (const args of [[], ["--dry-run"]]) {
+      const done = run(args);
+      assert.equal(done.status, 1);
+      assert.match(done.stderr, /^Give the release's tag, such as v0\.2\.0\./);
+    }
+  });
+
+  it("takes no option but --dry-run, so a misspelt one never deletes", () => {
+    for (const args of [
+      ["v0.2.0", "--dry-rn"],
+      ["v0.2.0", "v0.3.0"],
+      ["--dryrun", "v0.2.0"],
+    ]) {
+      const done = run(args);
+      assert.equal(done.status, 1, args.join(" "));
+      assert.match(done.stderr, /^Give the release's tag/);
+    }
   });
 });

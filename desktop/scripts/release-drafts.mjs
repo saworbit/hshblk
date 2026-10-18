@@ -5,6 +5,10 @@
  * Otherwise it deletes each draft of the tag. Deleting a release leaves its tag alone.
  *
  *   node scripts/release-drafts.mjs v0.2.0
+ *   node scripts/release-drafts.mjs v0.2.0 --dry-run
+ *
+ * A dry run says what a run would do, deletes nothing, and fails only when it cannot read the
+ * releases. The release job makes one when it is run by hand from a branch (#372).
  *
  * gh finds the repository from GH_REPO, as on CI, or from the checkout's remote. GitHub's lookup
  * by tag skips drafts, and drafts can share a tag, so this reads every release.
@@ -18,6 +22,8 @@ const LIST = [
   "--jq",
   ".[] | {id, tag_name, draft, html_url, assets: [.assets[].name]}",
 ];
+
+const WOULD_STOP = "A run on its tag would stop here, and change nothing.";
 
 /** The tag's published release, which stops the run, or else its drafts, to delete. */
 export function plan(releases, tag) {
@@ -33,9 +39,10 @@ function run(args) {
 
 /**
  * Deletes the tag's drafts, and returns them. Throws, having deleted nothing, when the tag's
- * release is published or the listing cannot be read.
+ * release is published or the listing cannot be read. A dry run deletes nothing, and returns the
+ * drafts a run would delete.
  */
-export function clear(tag, gh = run, say = console.log) {
+export function clear(tag, { gh = run, say = console.log, dryRun = false } = {}) {
   const releases = gh(LIST)
     .split("\n")
     .filter((line) => line.trim() !== "")
@@ -47,6 +54,10 @@ export function clear(tag, gh = run, say = console.log) {
       }
     });
   const { published, drafts } = plan(releases, tag);
+  if (published && dryRun) {
+    say(`${tag} is published, at ${published.html_url}. ${WOULD_STOP}`);
+    return [];
+  }
   if (published) {
     throw new Error(
       `${tag} is published, at ${published.html_url}. This run changes nothing: ` +
@@ -54,24 +65,28 @@ export function clear(tag, gh = run, say = console.log) {
     );
   }
   for (const draft of drafts) {
-    gh(["api", "--method", "DELETE", `repos/{owner}/{repo}/releases/${draft.id}`]);
+    if (!dryRun) gh(["api", "--method", "DELETE", `repos/{owner}/{repo}/releases/${draft.id}`]);
     const held = draft.assets.length > 0 ? draft.assets.join(", ") : "no files";
-    say(`Deleted a draft of ${tag}, which held ${held}.`);
+    say(`${dryRun ? "Would delete" : "Deleted"} a draft of ${tag}, which held ${held}.`);
   }
   if (drafts.length === 0) say(`${tag} has no draft to delete.`);
   return drafts;
 }
 
 if (import.meta.main) {
-  const tag = process.argv[2];
-  if (!tag) {
+  // The tag and --dry-run only, so a misspelt option stops here, not in a run for real.
+  const options = process.argv.slice(2);
+  const dryRun = options.includes("--dry-run");
+  const [tag, ...rest] = options.filter((option) => option !== "--dry-run");
+  if (!tag || tag.startsWith("-") || rest.length > 0) {
     console.error(
-      "Give the release's tag, such as v0.2.0.\n\n  node scripts/release-drafts.mjs v0.2.0",
+      "Give the release's tag, such as v0.2.0. With --dry-run, it says what it would do, and " +
+        "does nothing.\n\n  node scripts/release-drafts.mjs v0.2.0 [--dry-run]",
     );
     process.exit(1);
   }
   try {
-    clear(tag);
+    clear(tag, { dryRun });
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;
